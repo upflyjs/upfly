@@ -1,3 +1,9 @@
+> **This is Upfly 2,** the Express and Multer upload middleware. It gets security fixes only.
+>
+> **Upfly 3 is a different tool:** a command-line tool that optimizes the images in a codebase and rewrites the
+> references to them, [on GitHub](https://github.com/ramin-010/upfly). `npm i upfly` now installs Upfly 3;
+> `npm i upfly@2` keeps Upfly 2, and nothing below changes for it.
+
 <div align="center">
 
 # Upfly

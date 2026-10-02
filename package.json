@@ -1,6 +1,6 @@
 {
   "name": "upfly",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Upfly:  Upload. Convert. Optimize. All in one middleware for Express (Multer (peer) + Sharp)",
   "main": "src/index.js",
   "types": "index.d.ts",
