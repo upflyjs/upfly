@@ -1,7 +1,7 @@
 > **This is Upfly 2,** the Express and Multer upload middleware. It gets security fixes only.
 >
 > **Upfly 3 is a different tool:** a command-line tool that optimizes the images in a codebase and rewrites the
-> references to them, [on GitHub](https://github.com/ramin-010/upfly). `npm i upfly` now installs Upfly 3;
+> references to them, [on GitHub](https://github.com/upflyjs/upfly). `npm i upfly` now installs Upfly 3;
 > `npm i upfly@2` keeps Upfly 2, and nothing below changes for it.
 
 <div align="center">
@@ -14,11 +14,11 @@ Stream, optimize, and distribute files to Cloudinary, AWS S3, or GCS on-the-fly 
 
 [![npm version](https://img.shields.io/npm/v/upfly.svg?style=flat-square&color=4F46E5)](https://www.npmjs.com/package/upfly)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![CI](https://github.com/ramin-010/upfly/actions/workflows/ci.yml/badge.svg)](https://github.com/ramin-010/upfly/actions/workflows/ci.yml)
+[![CI](https://github.com/upflyjs/upfly/actions/workflows/ci.yml/badge.svg?branch=v2)](https://github.com/upflyjs/upfly/actions/workflows/ci.yml?query=branch%3Av2)
 [![downloads](https://img.shields.io/npm/dm/upfly.svg?style=flat-square&color=34D399)](https://www.npmjs.com/package/upfly)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178C6?style=flat-square&logo=typescript&logoColor=white)](index.d.ts)
 
-[Website](https://upfly-frontend.vercel.app/) · [Quick Start](https://upfly-frontend.vercel.app/quick-start) · [Cloud Setup](https://upfly-frontend.vercel.app/cloud-setup) · [Error Handling](https://upfly-frontend.vercel.app/error-handling) · [API Reference](https://upfly-frontend.vercel.app/api-reference) · [GitHub](https://github.com/ramin-010/upfly)
+[Website](https://upfly-frontend.vercel.app/) · [Quick Start](https://upfly-frontend.vercel.app/quick-start) · [Cloud Setup](https://upfly-frontend.vercel.app/cloud-setup) · [Error Handling](https://upfly-frontend.vercel.app/error-handling) · [API Reference](https://upfly-frontend.vercel.app/api-reference) · [GitHub](https://github.com/upflyjs/upfly)
 
 </div>
 
@@ -430,7 +430,7 @@ If you work with images outside of Express — converting, compressing, or uploa
 
 ## Contributing
 
-Contributions are welcome. Please [open an issue](https://github.com/ramin-010/upfly/issues) before starting work on major changes.
+Contributions are welcome. Please [open an issue](https://github.com/upflyjs/upfly/issues) before starting work on major changes.
 
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feature/your-feature`
@@ -448,6 +448,6 @@ MIT © [Ramin](https://github.com/ramin-010)
 
 <div align="center">
 
-[Website](https://upfly-frontend.vercel.app/) · [Quick Start](https://upfly-frontend.vercel.app/quick-start) · [Cloud Setup](https://upfly-frontend.vercel.app/cloud-setup) · [Error Handling](https://upfly-frontend.vercel.app/error-handling) · [API Reference](https://upfly-frontend.vercel.app/api-reference) · [GitHub](https://github.com/ramin-010/upfly) · [Issues](https://github.com/ramin-010/upfly/issues)
+[Website](https://upfly-frontend.vercel.app/) · [Quick Start](https://upfly-frontend.vercel.app/quick-start) · [Cloud Setup](https://upfly-frontend.vercel.app/cloud-setup) · [Error Handling](https://upfly-frontend.vercel.app/error-handling) · [API Reference](https://upfly-frontend.vercel.app/api-reference) · [GitHub](https://github.com/upflyjs/upfly) · [Issues](https://github.com/upflyjs/upfly/issues)
 
 </div>

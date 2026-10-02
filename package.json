@@ -30,12 +30,12 @@
   "author": "Rinkal Kumar <raminchoudhary737@gmail.com> (https://github.com/ramin-010)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ramin-010/upfly.git"
+    "url": "git+https://github.com/upflyjs/upfly.git"
   },
   "bugs": {
-    "url": "https://github.com/ramin-010/upfly/issues"
+    "url": "https://github.com/upflyjs/upfly/issues"
   },
-  "homepage": "https://ramin-010.github.io/upfly/",
+  "homepage": "https://upflyjs.github.io/upfly/",
   "type": "commonjs",
   "engines": {
     "node": ">=18"
