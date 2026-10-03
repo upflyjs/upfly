@@ -456,7 +456,7 @@ correctly.
 - The link measurement is a heuristic; its flags were hand-checked, and what it cannot read is not counted.
 - Vendor figures (Lovable, Vercel, Netlify, Google, Faros, JetBrains, AudioEye) are self-reported.
 
-## Appendix: reproducing section 5
+## 11. Appendix: reproducing section 5
 
 The scripts are in this folder; each starts with a comment saying what it measures. Paths inside them point at the
 scratch folder this research ran in; change the `SP` constant. `sample.txt` lists the 44 projects with their stratum,
@@ -467,3 +467,126 @@ scratch folder this research ran in; change the `SP` constant. `sample.txt` list
 3. `aggregate.py` runs `upfly audit --json` at each last commit; `summary.py` prints the figures quoted in 5.2 and 5.3.
 4. `base_rate.py` measures section 5.1 over blob-less clones.
 5. `measure_run.py` measures a controlled run against the untouched copy (section 5.4).
+
+## 12. What goes wrong in agent-built projects, read from their own histories
+
+Added 2026-10-04. The question: is there a frequent problem in agent-built web projects that a tool could solve and
+nobody solves today, looking past images and moves?
+
+### 12.1 Method
+
+- Source: the same 44 histories as section 5.2. Every commit by Lovable's or v0's agent, minus the platform's
+  template commits: 1,055 agent edits in 32 projects (two more than in 5.2, from a looser template rule). Each agent
+  edit is one request by a person, and its message says what was asked or done.
+- A repair edit is an agent edit whose message says it fixes, resolves, corrects or reverts earlier work. I sorted
+  them into kinds by keywords drawn from the messages themselves (`classify.py`; the messages are in
+  `results/_agent_subjects.tsv`). Then I read the message bodies of all 77 code-error repairs, the edit undone by
+  each of the 58 reverts, and the diffs of a sample of the other kinds.
+- What a keyword sort gets wrong, from the sample: of 8 edits sorted as "layout", 3 were really wrong data or behavior
+  ("Fix vendor order display" changed a filter) and 2 were changes of taste worded as fixes ("Fix button color").
+  So the line between those two kinds is soft, and some "repairs" are a person changing their mind.
+- I did not add projects (step 3): the org's other 2024 projects are mostly one or two edits long (section 5.2), so
+  more of them would add little.
+
+### 12.2 Counts
+
+363 of the 1,055 agent edits (34.4%) are repairs or reverts of earlier work.
+
+| kind (from the commit messages) | repair edits | per 100 agent edits | projects with any (of 32) |
+|---|---|---|---|
+| code errors: the app does not build or crashes | 77 | 7.3 | 8 |
+| looks wrong: alignment, overlap, size, mobile, color | 76 | 7.2 | 8 |
+| does the wrong thing: logic, state, flows, counts, filters | 67 | 6.4 | 10 |
+| reverted by the person | 58 | 5.5 | 9 |
+| backend and data: database, access rules, sign-in, payments, fetching | 41 | 3.9 | 8 |
+| no detail ("Fix: Resolve issues", "Fix functionality issues") | 29 | 2.7 | 8 |
+| security warnings | 10 | 0.9 | 2 |
+| page speed | 5 | 0.5 | 1 |
+
+Across kinds, 46 repair edits (4.4 per 100) retry a repair made in the previous five edits: the same problem attempted
+again. Example: "Fix dispatch access error" three times in a row in alphadom
+([1b2c6b2](https://github.com/David-Temitope/alphadom/commit/1b2c6b2),
+[e14e5f0](https://github.com/David-Temitope/alphadom/commit/e14e5f0),
+[0d135ec](https://github.com/David-Temitope/alphadom/commit/0d135ec)).
+
+Per project (projects with 20 or more agent edits; the rest together):
+
+| project | agent edits | repairs | code errors | looks wrong | wrong thing | reverted | backend | no detail | security | speed |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GabrielScript/Neumann | 291 | 122 (42%) | 15 | 29 | 30 | 13 | 9 | 14 | 7 | 5 |
+| David-Temitope/alphadom | 198 | 68 (34%) | 15 | 13 | 9 | 4 | 20 | 4 | 3 | 0 |
+| Donne120/alusc | 157 | 57 (36%) | 26 | 3 | 7 | 14 | 2 | 5 | 0 | 0 |
+| abelv22/project-foundation | 86 | 6 (7%) | 0 | 0 | 1 | 3 | 0 | 2 | 0 | 0 |
+| GPT-Engineer-App/audio-haven | 73 | 34 (47%) | 7 | 8 | 7 | 10 | 1 | 1 | 0 | 0 |
+| bearBoy80/react-directory | 68 | 27 (40%) | 1 | 13 | 8 | 5 | 0 | 0 | 0 | 0 |
+| GPT-Engineer-App/image-mimic-magic | 39 | 19 (49%) | 11 | 2 | 0 | 0 | 5 | 1 | 0 | 0 |
+| withkynam/duma | 30 | 9 (30%) | 0 | 6 | 1 | 1 | 0 | 1 | 0 | 0 |
+| GPT-Engineer-App/auto-vision-assist | 24 | 11 (46%) | 1 | 0 | 2 | 7 | 1 | 0 | 0 | 0 |
+| 23 smaller projects | 89 | 10 (11%) | 1 | 2 | 2 | 1 | 3 | 1 | 0 | 0 |
+
+The rates are dominated by the long histories: Neumann alone is 28% of the edits. In most long projects, a third to a
+half of the agent's edits repair earlier ones.
+
+### 12.3 What broke, how it was noticed, and what could have caught it
+
+Code errors (7.3 per 100). From the 77 message bodies:
+- 35 (3.3 per 100) are errors the project's own files show without running it: broken JSX and syntax, duplicate
+  imports ("TS2300", [f3dfb6b](https://github.com/David-Temitope/alphadom/commit/f3dfb6b); "resolve build failure",
+  [50ff475](https://github.com/GPT-Engineer-App/audio-haven/commit/50ff475)), imports of modules that do not exist
+  ("Cannot find module", [0489a7e](https://github.com/David-Temitope/alphadom/commit/0489a7e)), names used but never
+  defined ("useRef is not defined", [3352f3b](https://github.com/Donne120/alusc/commit/3352f3b)), and TypeScript type
+  errors. The compiler and the build already catch every one of these; that is how they were noticed (the messages
+  quote the compiler). What is missing is not a tool but the agent running it before it commits: the broken edit is
+  committed first and repaired in a second request.
+- 18 (1.7 per 100) only appear when the app runs: "Cannot read properties of null", fixed five times in a row in
+  alusc ([2e29b1d](https://github.com/Donne120/alusc/commit/2e29b1d),
+  [3776545](https://github.com/Donne120/alusc/commit/3776545)), "dispatcher is null" (React hooks, three tries), a
+  router inside a router, an external API's 404. Strict type checking would have caught some of the null accesses;
+  the rest need the app running.
+- 24 give no detail.
+
+Looks wrong and does the wrong thing (7.2 and 6.4 per 100, 13.6 together). Noticed by the person looking at the
+preview. What was wrong depends on what the person wanted: a progress circle out of line, a toggle that does nothing
+([3498cda](https://github.com/bearBoy80/react-directory/commit/3498cda)), a category listed twice, orders filtered to
+the wrong vendor, a trophy card that does not update. Nothing in the files says what the person intended, so no
+offline tool can catch these. A browser driven by a model, or a test written from the request, could catch some; the
+person catches them today.
+
+Reverts (5.5 per 100). Of the edits the person undid: about a third were layout or design changes they did not like
+(a volume bar moved, a sidebar resized, a black background), about a third broke something (an upgrade to React Router
+7 in react-directory, reverted next, [b97d7cb](https://github.com/bearBoy80/react-directory/commit/b97d7cb); the
+performance edit of section 5.2, [1e3ac68](https://github.com/GabrielScript/Neumann/commit/1e3ac68); Firebase and
+blank-screen fixes in auto-vision-assist), and about a third were reverts of reverts, the person going back and forth.
+Only the second third is a defect a check could see, and then only as a build or runtime failure.
+
+Backend and data (3.9 per 100). Repairs to database migrations, access rules, sign-in and payments. 138 agent edits
+touched `supabase/` files; 49 repair edits did, but in only 2 of the 32 projects. One kind here is readable from the
+files: an access policy on a table that queries the same table, which recurses forever at runtime
+([81f5e3c](https://github.com/David-Temitope/alphadom/commit/81f5e3c), "Drop the problematic policy that causes infinite
+recursion"). Most are mismatches between the database and the code that only show when data flows.
+
+Security warnings (0.9) and page speed (0.5) come from the platform's own scanner and from Lighthouse; both are
+already served.
+
+### 12.4 Ranked, and what it means
+
+Ranked by frequency first, then by how well any tool could fit:
+
+1. The app does or shows the wrong thing (13.6 per 100, 10 projects). Needs the person's intent: no offline tool; a
+   model driving a browser at best.
+2. Code errors (7.3 per 100, 8 projects). Half are already caught by the compiler and build, after the commit; a hook
+   that runs the existing type check and build before each commit would prevent them. No new tool is needed, only
+   running the existing ones first. The other half need the app running.
+3. The person reverts the edit (5.5 per 100, 9 projects). Mostly taste or back-and-forth; the defect third surfaces as
+   build or runtime errors.
+4. Repeated attempts at the same repair (4.4 per 100). A symptom of the above, not a separate cause.
+5. Backend and data (3.9 per 100, concentrated in 2 projects). Mostly runtime; a static check of access-policy
+   recursion in migrations is the one offline-checkable piece, and it is rare.
+6. References that name nothing (sections 5.2 and 5.3: 2.9 per 100, mostly links to pages that do not exist). Offline
+   checkable and not served, but it is now the sixth most frequent problem, not the first.
+
+Opinion. The frequent problems in these histories are not ones a tool reading the project's files can catch. The most
+frequent is the app doing or showing something other than what the person meant, which needs the person's intent and
+a running app. The next, code that does not build, is already caught by the compiler; what fails is the agent's habit
+of committing before running it. The reference check of section 6.1 remains the largest offline-checkable problem
+these histories contain, and it is roughly a fifth as frequent as the repairs a person has to request by looking.

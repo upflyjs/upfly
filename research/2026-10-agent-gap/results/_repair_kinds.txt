@@ -1,0 +1,19 @@
+agent edits 1055 repair edits 363 34.4%
+  code_error       77   7.3 per 100 edits; projects with any: 8
+  layout_visual    76   7.2 per 100 edits; projects with any: 8
+  behavior         67   6.4 per 100 edits; projects with any: 10
+  revert           58   5.5 per 100 edits; projects with any: 9
+  backend_data     41   3.9 per 100 edits; projects with any: 8
+  other            29   2.7 per 100 edits; projects with any: 8
+  security         10   0.9 per 100 edits; projects with any: 2
+  performance       5   0.5 per 100 edits; projects with any: 1
+  GabrielScript__Neumann             291 {'revert': 13, 'security': 7, 'layout_visual': 29, 'performance': 5, 'other': 14, 'behavior': 30, 'backend_data': 9, 'code_error': 15}
+  David-Temitope__alphadom           198 {'layout_visual': 13, 'other': 4, 'backend_data': 20, 'code_error': 15, 'security': 3, 'revert': 4, 'behavior': 9}
+  Donne120__alusc                    157 {'code_error': 26, 'backend_data': 2, 'other': 5, 'behavior': 7, 'revert': 14, 'layout_visual': 3}
+  GPT-Engineer-App__audio-haven      73 {'code_error': 7, 'revert': 10, 'layout_visual': 8, 'other': 1, 'behavior': 7, 'backend_data': 1}
+  bearBoy80__react-directory         68 {'layout_visual': 13, 'behavior': 8, 'revert': 5, 'code_error': 1}
+  GPT-Engineer-App__image-mimic-magi 39 {'code_error': 11, 'layout_visual': 2, 'backend_data': 5, 'other': 1}
+  GPT-Engineer-App__auto-vision-assi 24 {'behavior': 2, 'revert': 7, 'code_error': 1, 'backend_data': 1}
+  withkynam__duma                    30 {'revert': 1, 'layout_visual': 6, 'other': 1, 'behavior': 1}
+  abelv22__project-foundation        86 {'other': 2, 'behavior': 1, 'revert': 3}
+  GPT-Engineer-App__webapp-builder   14 {'layout_visual': 2, 'code_error': 1, 'behavior': 1}
