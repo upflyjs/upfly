@@ -1,0 +1,1078 @@
+[
+  {
+    "repo": "abelv22__project-foundation",
+    "commits": 8334,
+    "bot_commits": 86,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": [],
+    "mode": "bot commits vs parent only"
+  },
+  {
+    "repo": "Beggas2__Alento",
+    "commits": 12,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "David-Temitope__alphadom",
+    "commits": 311,
+    "bot_commits": 199,
+    "bot_commits_introducing": 14,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "9655fb67cf",
+        "bot": true,
+        "subject": "Implement SEO, security, and payment options",
+        "kind": "L",
+        "file": "src/components/admin/AdminProtectedRoute.tsx",
+        "target": "/admin/login",
+        "survives": false
+      },
+      {
+        "sha": "d95e091458",
+        "bot": true,
+        "subject": "Run SQL migrations",
+        "kind": "L",
+        "file": "src/components/UserMenu.tsx",
+        "target": "/shop-status",
+        "survives": false
+      },
+      {
+        "sha": "d95e091458",
+        "bot": true,
+        "subject": "Run SQL migrations",
+        "kind": "L",
+        "file": "src/components/UserMenu.tsx",
+        "target": "/vendor-dashboard",
+        "survives": false
+      },
+      {
+        "sha": "09fd305ff4",
+        "bot": true,
+        "subject": "Refactor user profile and dispatch features",
+        "kind": "L",
+        "file": "src/components/UserMenu.tsx",
+        "target": "/user-type-selection",
+        "survives": false
+      },
+      {
+        "sha": "7001b4c646",
+        "bot": true,
+        "subject": "Implement Admin System Enhancements",
+        "kind": "L",
+        "file": "src/pages/admin/AdminConfirmInvitation.tsx",
+        "target": "/admin/login",
+        "survives": false
+      },
+      {
+        "sha": "94a471c6f4",
+        "bot": true,
+        "subject": "Refactor admin routes and fix permissions",
+        "kind": "L",
+        "file": "src/pages/admin/AdminConfirmInvitation.tsx",
+        "target": "/admin/login",
+        "survives": false
+      },
+      {
+        "sha": "9d3db7f147",
+        "bot": true,
+        "subject": "Reverted to commit 2e3ce47a0b1a99c497807079e9e75a842cd95bb8",
+        "kind": "L",
+        "file": "src/components/admin/AdminProtectedRoute.tsx",
+        "target": "/admin/login",
+        "survives": false
+      },
+      {
+        "sha": "146655ca5b",
+        "bot": true,
+        "subject": "Refine vendor flow features",
+        "kind": "L",
+        "file": "src/components/PlatformAd.tsx",
+        "target": "/product/${ad.target_product_id}",
+        "survives": true
+      },
+      {
+        "sha": "d23c86e2bc",
+        "bot": true,
+        "subject": "Improve ads hover and mobile UX",
+        "kind": "L",
+        "file": "src/components/GideonChat.tsx",
+        "target": "/product/${id}",
+        "survives": false
+      },
+      {
+        "sha": "80a274ec1b",
+        "bot": true,
+        "subject": "Add policy links footer",
+        "kind": "L",
+        "file": "src/components/GideonChat.tsx",
+        "target": "/pilots/${id}",
+        "survives": false
+      },
+      {
+        "sha": "18f04c6b03",
+        "bot": true,
+        "subject": "Refactor UI features and fixes",
+        "kind": "L",
+        "file": "src/components/Navbar.tsx",
+        "target": "/shop-application-status",
+        "survives": false
+      },
+      {
+        "sha": "9e549107a7",
+        "bot": true,
+        "subject": "Use uploaded favicon and fix nav",
+        "kind": "L",
+        "file": "src/components/UserMenu.tsx",
+        "target": "/shop-status",
+        "survives": false
+      },
+      {
+        "sha": "bfcffd177c",
+        "bot": true,
+        "subject": "Update product badges and orders",
+        "kind": "L",
+        "file": "src/components/Navbar.tsx",
+        "target": "/user-settings",
+        "survives": false
+      },
+      {
+        "sha": "0e3cef5fae",
+        "bot": true,
+        "subject": "Redesign UI components",
+        "kind": "L",
+        "file": "src/components/FlashSales.tsx",
+        "target": "/product/${product.id}",
+        "survives": false
+      },
+      {
+        "sha": "9f0d0d6ce3",
+        "bot": true,
+        "subject": "Redesign homepageshopprofile",
+        "kind": "L",
+        "file": "src/pages/Products.tsx",
+        "target": "/product/${product.id}",
+        "survives": false
+      }
+    ],
+    "final_broken": [["L", "src/components/PlatformAd.tsx", "/product/${ad.target_product_id}"]]
+  },
+  {
+    "repo": "Donne120__alusc",
+    "commits": 162,
+    "bot_commits": 158,
+    "bot_commits_introducing": 4,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "1541d3ea85",
+        "bot": true,
+        "subject": "Update user page and sidebar chat",
+        "kind": "L",
+        "file": "src/components/chat/ConversationSidebar.tsx",
+        "target": "/settings",
+        "survives": false
+      },
+      {
+        "sha": "c01597e801",
+        "bot": true,
+        "subject": "Reverted to edit 530b2f25-7278-4969-a758-822bd46a02dc: \"Improve chatbot response",
+        "kind": "L",
+        "file": "src/components/chat/ConversationSidebar.tsx",
+        "target": "/settings",
+        "survives": false
+      },
+      {
+        "sha": "9e3a25b1d8",
+        "bot": true,
+        "subject": "Reverted to edit 530b2f25-7278-4969-a758-822bd46a02dc: \"Improve chatbot response",
+        "kind": "L",
+        "file": "src/components/chat/ConversationSidebar.tsx",
+        "target": "/settings",
+        "survives": false
+      },
+      {
+        "sha": "de91d58944",
+        "bot": true,
+        "subject": "Reverted to edit 530b2f25-7278-4969-a758-822bd46a02dc: \"Improve chatbot response",
+        "kind": "L",
+        "file": "src/components/chat/ConversationSidebar.tsx",
+        "target": "/settings",
+        "survives": false
+      }
+    ],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__audio-haven",
+    "commits": 74,
+    "bot_commits": 74,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__auto-vision-assist",
+    "commits": 36,
+    "bot_commits": 25,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "579c0b1f12",
+        "bot": true,
+        "subject": "Add vehicle cards to garage page",
+        "kind": "L",
+        "file": "src/pages/Garage.jsx",
+        "target": "/upgrade",
+        "survives": true
+      }
+    ],
+    "final_broken": [["L", "src/pages/Garage.jsx", "/upgrade"]]
+  },
+  {
+    "repo": "GPT-Engineer-App__build-my-site",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__cloud-landing",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "bf98966bd9",
+        "bot": true,
+        "subject": "Initial draft for SaaS landing page with hero, features, testimonials, pricing s",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/about",
+        "survives": true
+      },
+      {
+        "sha": "bf98966bd9",
+        "bot": true,
+        "subject": "Initial draft for SaaS landing page with hero, features, testimonials, pricing s",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/contact",
+        "survives": true
+      },
+      {
+        "sha": "bf98966bd9",
+        "bot": true,
+        "subject": "Initial draft for SaaS landing page with hero, features, testimonials, pricing s",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/privacy",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/pages/Index.jsx", "/about"],
+      ["L", "src/pages/Index.jsx", "/contact"],
+      ["L", "src/pages/Index.jsx", "/privacy"]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__cobra-detailing-portal",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__cozy-corners",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__cute-kitten-website",
+    "commits": 7,
+    "bot_commits": 6,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__fashionista-social-marketplace",
+    "commits": 4,
+    "bot_commits": 4,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__g-appscheduler-fix",
+    "commits": 10,
+    "bot_commits": 10,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__high-agency-builder-website",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__image-mimic-magic",
+    "commits": 40,
+    "bot_commits": 40,
+    "bot_commits_introducing": 2,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "f2355cc49f",
+        "bot": true,
+        "subject": "Add user profile dropdown menu",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/profile",
+        "survives": false
+      },
+      {
+        "sha": "f2355cc49f",
+        "bot": true,
+        "subject": "Add user profile dropdown menu",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/settings",
+        "survives": true
+      },
+      {
+        "sha": "2cd96da1fc",
+        "bot": true,
+        "subject": "Refactor login to modal",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/login",
+        "survives": true
+      },
+      {
+        "sha": "2cd96da1fc",
+        "bot": true,
+        "subject": "Refactor login to modal",
+        "kind": "L",
+        "file": "src/pages/Profile.jsx",
+        "target": "/login",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/pages/Index.jsx", "/login"],
+      ["L", "src/pages/Index.jsx", "/settings"],
+      ["L", "src/pages/Profile.jsx", "/login"]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__landing-magic",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__landing-page-enhancer",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mapping-wizard",
+    "commits": 9,
+    "bot_commits": 9,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mobile-order-haven",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mobility-as-a-service",
+    "commits": 3,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mobility-service",
+    "commits": 13,
+    "bot_commits": 12,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__nav-login-website",
+    "commits": 13,
+    "bot_commits": 13,
+    "bot_commits_introducing": 2,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "da61667980",
+        "bot": true,
+        "subject": "Implement navbar, footer, and authentication links",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/MobileSheet.jsx",
+        "target": "/profile",
+        "survives": true
+      },
+      {
+        "sha": "da61667980",
+        "bot": true,
+        "subject": "Implement navbar, footer, and authentication links",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/UserMenu.jsx",
+        "target": "/profile",
+        "survives": true
+      },
+      {
+        "sha": "da61667980",
+        "bot": true,
+        "subject": "Implement navbar, footer, and authentication links",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/UserMenu.jsx",
+        "target": "/settings",
+        "survives": true
+      },
+      {
+        "sha": "da61667980",
+        "bot": true,
+        "subject": "Implement navbar, footer, and authentication links",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/UserMenu.jsx",
+        "target": "/support",
+        "survives": true
+      },
+      {
+        "sha": "ceb52663f9",
+        "bot": true,
+        "subject": "Enhance login functionality and navbar",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/MobileSheet.jsx",
+        "target": "/settings",
+        "survives": true
+      },
+      {
+        "sha": "ceb52663f9",
+        "bot": true,
+        "subject": "Enhance login functionality and navbar",
+        "kind": "L",
+        "file": "src/layouts/navbar/_components/MobileSheet.jsx",
+        "target": "/support",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/layouts/navbar/_components/MobileSheet.jsx", "/profile"],
+      ["L", "src/layouts/navbar/_components/MobileSheet.jsx", "/settings"],
+      ["L", "src/layouts/navbar/_components/MobileSheet.jsx", "/support"],
+      ["L", "src/layouts/navbar/_components/UserMenu.jsx", "/profile"],
+      ["L", "src/layouts/navbar/_components/UserMenu.jsx", "/settings"],
+      ["L", "src/layouts/navbar/_components/UserMenu.jsx", "/support"]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__pic-share-hub",
+    "commits": 1,
+    "bot_commits": 1,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__picture-rep-app",
+    "commits": 9,
+    "bot_commits": 9,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "74d1a66a7b",
+        "bot": true,
+        "subject": "Implement Login Screen with shadcn components",
+        "kind": "L",
+        "file": "src/pages/Login.jsx",
+        "target": "/forgot-password",
+        "survives": true
+      },
+      {
+        "sha": "74d1a66a7b",
+        "bot": true,
+        "subject": "Implement Login Screen with shadcn components",
+        "kind": "L",
+        "file": "src/pages/Login.jsx",
+        "target": "/signup",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/pages/Login.jsx", "/forgot-password"],
+      ["L", "src/pages/Login.jsx", "/signup"]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__research-signup-page",
+    "commits": 5,
+    "bot_commits": 5,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__sleek-site",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__tasty-recipes",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "fe6cb22cb4",
+        "bot": true,
+        "subject": "Initial layout for recipe sharing website with navigation bar, welcome message, ",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/contact",
+        "survives": true
+      },
+      {
+        "sha": "fe6cb22cb4",
+        "bot": true,
+        "subject": "Initial layout for recipe sharing website with navigation bar, welcome message, ",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/recipes",
+        "survives": true
+      },
+      {
+        "sha": "fe6cb22cb4",
+        "bot": true,
+        "subject": "Initial layout for recipe sharing website with navigation bar, welcome message, ",
+        "kind": "L",
+        "file": "src/pages/Index.jsx",
+        "target": "/submit",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/pages/Index.jsx", "/contact"],
+      ["L", "src/pages/Index.jsx", "/recipes"],
+      ["L", "src/pages/Index.jsx", "/submit"]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__travel-portal",
+    "commits": 0,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__unique-blog-nest",
+    "commits": 1,
+    "bot_commits": 1,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__vessel-dock-master",
+    "commits": 5,
+    "bot_commits": 5,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GPT-Engineer-App__webapp-builder",
+    "commits": 15,
+    "bot_commits": 15,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "GabrielScript__Neumann",
+    "commits": 297,
+    "bot_commits": 292,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "564f69c007",
+        "bot": true,
+        "subject": "Approve Lovable tool use",
+        "kind": "L",
+        "file": "src/pages/Dashboard.tsx",
+        "target": "/challenges",
+        "survives": false
+      },
+      {
+        "sha": "564f69c007",
+        "bot": true,
+        "subject": "Approve Lovable tool use",
+        "kind": "L",
+        "file": "src/pages/Dashboard.tsx",
+        "target": "/goals",
+        "survives": false
+      }
+    ],
+    "final_broken": []
+  },
+  {
+    "repo": "QAYSH__TourFlow",
+    "commits": 5,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 1,
+    "introduced": [
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/components/layout/Navbar.tsx",
+        "target": "/dashboard",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Blog.tsx",
+        "target": "/community",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Careers.tsx",
+        "target": "/careers/apply?position=${encodeURIComponent(position.title)}",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Changelog.tsx",
+        "target": "/changelog/rss",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Changelog.tsx",
+        "target": "/docs/webhooks",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Demo.tsx",
+        "target": "/dashboard",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Features.tsx",
+        "target": "/dashboard",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Login.tsx",
+        "target": "/dashboard",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/Login.tsx",
+        "target": "/forgot-password",
+        "survives": true
+      },
+      {
+        "sha": "2f61588f97",
+        "bot": false,
+        "subject": "TourFlow project with Convex backend",
+        "kind": "L",
+        "file": "src/pages/TourEditor.tsx",
+        "target": "/dashboard",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/components/layout/Navbar.tsx", "/dashboard"],
+      ["L", "src/pages/Blog.tsx", "/community"],
+      [
+        "L",
+        "src/pages/Careers.tsx",
+        "/careers/apply?position=${encodeURIComponent(position.title)}"
+      ],
+      ["L", "src/pages/Changelog.tsx", "/changelog/rss"],
+      ["L", "src/pages/Changelog.tsx", "/docs/webhooks"],
+      ["L", "src/pages/Demo.tsx", "/dashboard"],
+      ["L", "src/pages/Features.tsx", "/dashboard"],
+      ["L", "src/pages/Login.tsx", "/dashboard"],
+      ["L", "src/pages/Login.tsx", "/forgot-password"],
+      ["L", "src/pages/TourEditor.tsx", "/dashboard"]
+    ]
+  },
+  {
+    "repo": "Shagez__WebProject",
+    "commits": 2,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 1,
+    "introduced": [
+      {
+        "sha": "19b0893da1",
+        "bot": false,
+        "subject": "Add files via upload",
+        "kind": "#",
+        "file": "src/components/Navigation.tsx",
+        "target": "about",
+        "survives": true
+      }
+    ],
+    "final_broken": [["#", "src/components/Navigation.tsx", "about"]]
+  },
+  {
+    "repo": "WDP301-G7__FE",
+    "commits": 6,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 2,
+    "introduced": [
+      {
+        "sha": "743d1ba719",
+        "bot": false,
+        "subject": "Login - admin - manager - operation - sales",
+        "kind": "L",
+        "file": "src/pages/dashboards/AdminDashboard.tsx",
+        "target": "/audit-logs",
+        "survives": false
+      },
+      {
+        "sha": "743d1ba719",
+        "bot": false,
+        "subject": "Login - admin - manager - operation - sales",
+        "kind": "L",
+        "file": "src/pages/dashboards/OperationsDashboard.tsx",
+        "target": "/orders/${record.id}",
+        "survives": false
+      },
+      {
+        "sha": "743d1ba719",
+        "bot": false,
+        "subject": "Login - admin - manager - operation - sales",
+        "kind": "L",
+        "file": "src/pages/dashboards/OperationsDashboard.tsx",
+        "target": "/orders/${text}",
+        "survives": false
+      },
+      {
+        "sha": "743d1ba719",
+        "bot": false,
+        "subject": "Login - admin - manager - operation - sales",
+        "kind": "L",
+        "file": "src/pages/dashboards/SalesDashboard.tsx",
+        "target": "/orders/${record.id}",
+        "survives": false
+      },
+      {
+        "sha": "743d1ba719",
+        "bot": false,
+        "subject": "Login - admin - manager - operation - sales",
+        "kind": "L",
+        "file": "src/pages/dashboards/SalesDashboard.tsx",
+        "target": "/orders/${text}",
+        "survives": false
+      },
+      {
+        "sha": "86b49f9cb0",
+        "bot": false,
+        "subject": "Merge pull request #29 from WDP301-G7/dev",
+        "kind": "L",
+        "file": "src/pages/dashboards/admin-components/AdminDashboard_New.tsx",
+        "target": "/admin/orders/${order.id}",
+        "survives": true
+      },
+      {
+        "sha": "86b49f9cb0",
+        "bot": false,
+        "subject": "Merge pull request #29 from WDP301-G7/dev",
+        "kind": "L",
+        "file": "src/pages/dashboards/admin-components/AdminDashboard_New.tsx",
+        "target": "/admin/orders/${order.id}/edit",
+        "survives": true
+      },
+      {
+        "sha": "86b49f9cb0",
+        "bot": false,
+        "subject": "Merge pull request #29 from WDP301-G7/dev",
+        "kind": "L",
+        "file": "src/pages/dashboards/admin-components/AdminDashboard_New.tsx",
+        "target": "/admin/orders/create",
+        "survives": true
+      },
+      {
+        "sha": "86b49f9cb0",
+        "bot": false,
+        "subject": "Merge pull request #29 from WDP301-G7/dev",
+        "kind": "L",
+        "file": "src/pages/dashboards/admin-components/AdminMembershipManagement.tsx",
+        "target": "/unauthorized",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      [
+        "L",
+        "src/pages/dashboards/admin-components/AdminDashboard_New.tsx",
+        "/admin/orders/${order.id}"
+      ],
+      [
+        "L",
+        "src/pages/dashboards/admin-components/AdminDashboard_New.tsx",
+        "/admin/orders/${order.id}/edit"
+      ],
+      ["L", "src/pages/dashboards/admin-components/AdminDashboard_New.tsx", "/admin/orders/create"],
+      ["L", "src/pages/dashboards/admin-components/AdminMembershipManagement.tsx", "/unauthorized"]
+    ]
+  },
+  {
+    "repo": "apps-devs__apps-devs.github.io",
+    "commits": 6,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "bearBoy80__react-directory",
+    "commits": 70,
+    "bot_commits": 69,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "codingwithalina__ApplyPilot",
+    "commits": 71,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 4,
+    "introduced": [
+      {
+        "sha": "e235e76a21",
+        "bot": false,
+        "subject": "Create dashboard page with resume management",
+        "kind": "L",
+        "file": "src/pages/DashboardPage.tsx",
+        "target": "/resume/analyze",
+        "survives": false
+      },
+      {
+        "sha": "e235e76a21",
+        "bot": false,
+        "subject": "Create dashboard page with resume management",
+        "kind": "L",
+        "file": "src/pages/DashboardPage.tsx",
+        "target": "/resume/new",
+        "survives": false
+      },
+      {
+        "sha": "e235e76a21",
+        "bot": false,
+        "subject": "Create dashboard page with resume management",
+        "kind": "L",
+        "file": "src/pages/DashboardPage.tsx",
+        "target": "/resume/templates",
+        "survives": false
+      },
+      {
+        "sha": "a47114213b",
+        "bot": false,
+        "subject": "Update dashboard with comprehensive statistics and features",
+        "kind": "L",
+        "file": "src/pages/DashboardPage.tsx",
+        "target": "/resume/upload",
+        "survives": false
+      },
+      {
+        "sha": "5395f3efc7",
+        "bot": false,
+        "subject": "Add user menu and authentication state handling",
+        "kind": "L",
+        "file": "src/components/layout/NavBar.tsx",
+        "target": "/settings",
+        "survives": true
+      },
+      {
+        "sha": "8f49563e1a",
+        "bot": false,
+        "subject": "Enhance dashboard with new features",
+        "kind": "L",
+        "file": "src/pages/DashboardPage.tsx",
+        "target": "/settings",
+        "survives": true
+      }
+    ],
+    "final_broken": [
+      ["L", "src/components/layout/NavBar.tsx", "/settings"],
+      ["L", "src/pages/DashboardPage.tsx", "/settings"]
+    ]
+  },
+  {
+    "repo": "haithamAlgobery__UiProjectIthra",
+    "commits": 11,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "katipally__port",
+    "commits": 23,
+    "bot_commits": 6,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "konampranavi__Multilingual-Voice-Alerts-",
+    "commits": 2,
+    "bot_commits": 2,
+    "bot_commits_introducing": 1,
+    "human_commits_introducing": 0,
+    "introduced": [
+      {
+        "sha": "989dee7882",
+        "bot": true,
+        "subject": "Initialized repository for project Multi language alert app",
+        "kind": "L",
+        "file": "app/page.tsx",
+        "target": "/privacy",
+        "survives": true
+      },
+      {
+        "sha": "989dee7882",
+        "bot": true,
+        "subject": "Initialized repository for project Multi language alert app",
+        "kind": "L",
+        "file": "app/page.tsx",
+        "target": "/terms",
+        "survives": true
+      }
+    ],
+    "final_broken": [["L", "app/page.tsx", "/privacy"], ["L", "app/page.tsx", "/terms"]]
+  },
+  {
+    "repo": "surjeet-web__file-structure-editor",
+    "commits": 2,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "withkynam__duma",
+    "commits": 31,
+    "bot_commits": 31,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  },
+  {
+    "repo": "xurshidweeb__CoinSite",
+    "commits": 15,
+    "bot_commits": 0,
+    "bot_commits_introducing": 0,
+    "human_commits_introducing": 0,
+    "introduced": [],
+    "final_broken": []
+  }
+]

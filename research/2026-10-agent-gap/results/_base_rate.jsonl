@@ -1,0 +1,6 @@
+{"repo": "11ty__11ty-website", "commits": 301, "touch_images": [16, 301], "exact_moves": [3, 301], "agent_marked": 2, "agent_touch_images": [0, 2]}
+{"repo": "nodejs__nodejs.org", "commits": 657, "touch_images": [2, 657], "exact_moves": [6, 657], "agent_marked": 27, "agent_touch_images": [0, 27]}
+{"repo": "reactjs__react.dev", "commits": 158, "touch_images": [10, 158], "exact_moves": [1, 158], "agent_marked": 4, "agent_touch_images": [0, 4]}
+{"repo": "scratchfoundation__scratch-www", "commits": 491, "touch_images": [9, 491], "exact_moves": [1, 491], "agent_marked": 2, "agent_touch_images": [0, 2]}
+{"repo": "shadcn-ui__ui", "commits": 1242, "touch_images": [21, 1242], "exact_moves": [15, 1242], "agent_marked": 63, "agent_touch_images": [2, 63]}
+{"repo": "withastro__docs", "commits": 1696, "touch_images": [28, 1696], "exact_moves": [0, 1696], "agent_marked": 0, "agent_touch_images": [0, 0]}

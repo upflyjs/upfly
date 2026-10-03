@@ -1,0 +1,32 @@
+{
+  "run": "run-c2",
+  "modified_files": 66,
+  "deleted_files": 236,
+  "added_files": 236,
+  "renamed": 0,
+  "broken_before": 23,
+  "broken_after": 23,
+  "new_broken": [],
+  "fixed_broken": 0,
+  "originals_deleted": 192,
+  "webp_added": 192,
+  "webp_not_smaller": [],
+  "leftover_mentions_of_deleted_names": [
+    ["src/components/footer/conference/2016/footer.jsx", 26, "intel.png"],
+    ["src/components/footer/conference/2016/footer.jsx", 34, "lego-foundation.png"],
+    ["src/components/footer/conference/2016/footer.jsx", 66, "scratch-foundation.png"],
+    ["src/components/footer/conference/2016/footer.jsx", 42, "google.png"],
+    ["src/components/modal/social/modal.scss", 81, "twitter.png"],
+    ["src/components/modal/social/modal.scss", 85, "facebook.png"],
+    ["src/views/conference/2016/expect/expect.jsx", 120, "karen.jpg"],
+    ["src/views/conference/2016/expect/expect.jsx", 26, "mitch.jpg"],
+    ["src/views/conference/2016/index/index.jsx", 74, "schedule.png"],
+    ["static/cdn/maintenance.html", 304, "google-play-badge.png"],
+    ["static/cdn/maintenance.html", 320, "google-play-badge.png"],
+    ["static/cdn/maintenance.html", 240, "logo_sm.png"],
+    ["static/cdn/trouble.html", 305, "google-play-badge.png"],
+    ["static/cdn/trouble.html", 321, "google-play-badge.png"],
+    ["static/cdn/trouble.html", 240, "logo_sm.png"]
+  ],
+  "leftover_count": 15
+}

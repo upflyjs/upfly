@@ -1,0 +1,3405 @@
+[
+  {
+    "repo": "Donne120__alusc",
+    "stratum": "A",
+    "commits": 162,
+    "replayed": 162,
+    "bot_commits": 158,
+    "edits": 157,
+    "first": "2025-01-25",
+    "last": "2025-04-12",
+    "img_touch": [8, 157],
+    "img_added": [4, 157],
+    "ref_local": [14, 157],
+    "ref_ext": [1, 157],
+    "renames": [2, 157],
+    "any_img_work": [19, 157],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [31884, 15086, 15086, 15086],
+    "added_img_over_500k": 0,
+    "added_img_count": 4,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 268377,
+        "sourceFiles": 129,
+        "references": 3,
+        "linkedReferences": 2,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 1,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 3,
+      "files": 1,
+      "hosts": {
+        "images.unsplash.com": 3
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "QAYSH__TourFlow",
+    "stratum": "A",
+    "commits": 5,
+    "replayed": 5,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-12-11",
+    "last": "2025-12-11",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 114,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 1,
+      "files": 1,
+      "hosts": {
+        "images.unsplash.com": 1
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "Shagez__WebProject",
+    "stratum": "A",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-10-22",
+    "last": "2025-10-22",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 74,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "WDP301-G7__FE",
+    "stratum": "A",
+    "commits": 6,
+    "replayed": 6,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2026-01-18",
+    "last": "2026-04-02",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 4,
+        "assetBytes": 2957289,
+        "sourceFiles": 149,
+        "references": 10,
+        "linkedReferences": 10,
+        "referencedAssets": 4,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 1,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 2741450,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 2952212,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 1,
+      "files": 1,
+      "hosts": {
+        "images.unsplash.com": 1
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "katipally__port",
+    "stratum": "A",
+    "commits": 23,
+    "replayed": 23,
+    "bot_commits": 6,
+    "edits": 5,
+    "first": "2025-01-02",
+    "last": "2025-01-13",
+    "img_touch": [0, 5],
+    "img_added": [0, 5],
+    "ref_local": [1, 5],
+    "ref_ext": [0, 5],
+    "renames": [0, 5],
+    "any_img_work": [1, 5],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 2,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 236493,
+        "sourceFiles": 80,
+        "references": 1,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 9,
+      "files": 2,
+      "hosts": {
+        "placehold": 9
+      }
+    },
+    "events": [
+      ["9633e84ace", ["index.html", "/vite.svg", true, false]],
+      ["9633e84ace", ["src/App.tsx", "/vite.svg", true, false]]
+    ]
+  },
+  {
+    "repo": "Beggas2__Alento",
+    "stratum": "A",
+    "commits": 12,
+    "replayed": 12,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-12-09",
+    "last": "2025-12-09",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 1,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 2884063,
+        "sourceFiles": 133,
+        "references": 3,
+        "linkedReferences": 3,
+        "referencedAssets": 2,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 2,
+          "format-opportunity": 1,
+          "duplicate": 1
+        },
+        "potentialSavingBytes": 1413043,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 2,
+        "format-opportunity": 1,
+        "duplicate": 1
+      },
+      "oversized_max_bytes": 1440405,
+      "savings": {
+        "images": 1,
+        "bytes": 1440405,
+        "savedBytes": 1413043,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/logo.png",
+            "target": "src/assets/logo.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1413043,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["53c88fef44", ["index.html", "/logo.png", true, false]]]
+  },
+  {
+    "repo": "David-Temitope__alphadom",
+    "stratum": "A",
+    "commits": 311,
+    "replayed": 311,
+    "bot_commits": 199,
+    "edits": 198,
+    "first": "2025-07-11",
+    "last": "2026-04-29",
+    "img_touch": [10, 198],
+    "img_added": [8, 198],
+    "ref_local": [46, 198],
+    "ref_ext": [9, 198],
+    "renames": [0, 198],
+    "any_img_work": [48, 198],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [
+      16842604, 2877864, 2556300, 1727093, 1505289, 1183664, 1153121, 925910, 892076, 873564
+    ],
+    "added_img_over_500k": 14,
+    "added_img_count": 29,
+    "head_audit": {
+      "summary": {
+        "assets": 29,
+        "assetBytes": 35375894,
+        "sourceFiles": 229,
+        "references": 56,
+        "linkedReferences": 16,
+        "referencedAssets": 9,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 20,
+          "possibly-dead": 0,
+          "oversized": 14,
+          "format-opportunity": 9,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 25060499,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 20,
+        "oversized": 14,
+        "format-opportunity": 9
+      },
+      "oversized_max_bytes": 16842604,
+      "savings": {
+        "images": 9,
+        "bytes": 26682127,
+        "savedBytes": 25060499,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/favicon.png",
+            "target": "public/favicon.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 73670,
+            "replacesOriginal": false
+          },
+          {
+            "asset": "public/images/about-workspace.jpg",
+            "target": "public/images/about-workspace.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 15954940,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/hero-about.jpg",
+            "target": "public/images/hero-about.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1636471,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/hero-contact.jpg",
+            "target": "public/images/hero-contact.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 2420266,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/hero-vendors.jpg",
+            "target": "public/images/hero-vendors.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 2593980,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/become-vendor-hero.jpg",
+            "target": "src/assets/become-vendor-hero.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 900704,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/hero-default-1.jpg",
+            "target": "src/assets/hero-default-1.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 27377,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/hero-default-2.jpg",
+            "target": "src/assets/hero-default-2.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 37302,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/welcome-alphadom.png",
+            "target": "src/assets/welcome-alphadom.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1415789,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [
+      [
+        "6729d8b273",
+        [
+          "src/components/Navbar.tsx",
+          "/lovable-uploads/7c0030e1-c3fb-4c5e-ad6b-b92b91c45013.png",
+          false,
+          false
+        ]
+      ]
+    ]
+  },
+  {
+    "repo": "xurshidweeb__CoinSite",
+    "stratum": "A",
+    "commits": 15,
+    "replayed": 15,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2026-02-09",
+    "last": "2026-10-03",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 23,
+        "assetBytes": 5115075,
+        "sourceFiles": 91,
+        "references": 20,
+        "linkedReferences": 20,
+        "referencedAssets": 10,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 12,
+          "possibly-dead": 0,
+          "oversized": 2,
+          "format-opportunity": 4,
+          "duplicate": 1
+        },
+        "potentialSavingBytes": 1008816,
+        "savingQuality": {
+          "webp": [80, "lossless"]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 12,
+        "oversized": 2,
+        "format-opportunity": 4,
+        "duplicate": 1
+      },
+      "oversized_max_bytes": 713181,
+      "savings": {
+        "images": 4,
+        "bytes": 1488930,
+        "savedBytes": 1008816,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/logo.png",
+            "target": "public/logo.webp",
+            "format": "webp",
+            "quality": "lossless",
+            "savedBytes": 506497,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/astets/ij1.jpg",
+            "target": "src/astets/ij1.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 22030,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/astets/ij2.jpg",
+            "target": "src/astets/ij2.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 24203,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/coins.png",
+            "target": "src/coins.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 456086,
+            "replacesOriginal": false
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 55,
+      "files": 4,
+      "hosts": {
+        "images.unsplash.com": 55
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "codingwithalina__ApplyPilot",
+    "stratum": "A",
+    "commits": 71,
+    "replayed": 71,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-05-08",
+    "last": "2025-06-03",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3254,
+        "sourceFiles": 99,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GabrielScript__Neumann",
+    "stratum": "A",
+    "commits": 297,
+    "replayed": 297,
+    "bot_commits": 292,
+    "edits": 290,
+    "first": "2025-10-13",
+    "last": "2025-10-21",
+    "img_touch": [5, 290],
+    "img_added": [4, 290],
+    "ref_local": [11, 290],
+    "ref_ext": [2, 290],
+    "renames": [0, 290],
+    "any_img_work": [15, 290],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [1173638, 622107, 339656, 198273, 170799, 165556, 133016, 52141],
+    "added_img_over_500k": 2,
+    "added_img_count": 8,
+    "head_audit": {
+      "summary": {
+        "assets": 8,
+        "assetBytes": 2518783,
+        "sourceFiles": 165,
+        "references": 9,
+        "linkedReferences": 9,
+        "referencedAssets": 7,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 2,
+          "format-opportunity": 7,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 2282422,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 2,
+        "format-opportunity": 7
+      },
+      "oversized_max_bytes": 1173638,
+      "savings": {
+        "images": 7,
+        "bytes": 2515530,
+        "savedBytes": 2282422,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/logo.png",
+            "target": "src/assets/logo.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1006724,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-estadual.png",
+            "target": "src/assets/trophies/trophy-estadual.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 158915,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-internacional.png",
+            "target": "src/assets/trophies/trophy-internacional.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 182835,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-life-goal.png",
+            "target": "src/assets/trophies/trophy-life-goal.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 607229,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-municipal.png",
+            "target": "src/assets/trophies/trophy-municipal.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 49967,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-nacional.png",
+            "target": "src/assets/trophies/trophy-nacional.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 121384,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/trophies/trophy-regional.png",
+            "target": "src/assets/trophies/trophy-regional.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 155368,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["c262e11013", ["index.html", "/src/assets/logo.webp", false, false]]]
+  },
+  {
+    "repo": "abelv22__project-foundation",
+    "stratum": "A",
+    "commits": 8334,
+    "replayed": 401,
+    "bot_commits": 86,
+    "edits": 85,
+    "first": "2025-01-01",
+    "last": "2026-10-03",
+    "img_touch": [3, 85],
+    "img_added": [3, 85],
+    "ref_local": [3, 85],
+    "ref_ext": [1, 85],
+    "renames": [0, 85],
+    "any_img_work": [5, 85],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [14639048, 348371, 15677],
+    "added_img_over_500k": 1,
+    "added_img_count": 3,
+    "head_audit": {
+      "summary": {
+        "assets": 35,
+        "assetBytes": 1743838,
+        "sourceFiles": 8153,
+        "references": 15,
+        "linkedReferences": 10,
+        "referencedAssets": 6,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 28,
+          "possibly-dead": 1,
+          "oversized": 1,
+          "format-opportunity": 3,
+          "duplicate": 2
+        },
+        "potentialSavingBytes": 400794,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 28,
+        "possibly-dead": 1,
+        "oversized": 1,
+        "format-opportunity": 3,
+        "duplicate": 2
+      },
+      "oversized_max_bytes": 573107,
+      "savings": {
+        "images": 2,
+        "bytes": 283104,
+        "savedBytes": 267196,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/logo-adaptive.png",
+            "target": "src/assets/logo-adaptive.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 133598,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/logo-itaxibcn.png",
+            "target": "src/assets/logo-itaxibcn.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 133598,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "surjeet-web__file-structure-editor",
+    "stratum": "A",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-09-10",
+    "last": "2025-09-10",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 6,
+        "assetBytes": 13861,
+        "sourceFiles": 85,
+        "references": 10,
+        "linkedReferences": 10,
+        "referencedAssets": 5,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "bearBoy80__react-directory",
+    "stratum": "A",
+    "commits": 70,
+    "replayed": 70,
+    "bot_commits": 69,
+    "edits": 67,
+    "first": "2025-10-08",
+    "last": "2025-10-19",
+    "img_touch": [3, 67],
+    "img_added": [1, 67],
+    "ref_local": [3, 67],
+    "ref_ext": [2, 67],
+    "renames": [0, 67],
+    "any_img_work": [7, 67],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [20091],
+    "added_img_over_500k": 0,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 74112,
+        "sourceFiles": 83,
+        "references": 2,
+        "linkedReferences": 2,
+        "referencedAssets": 2,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 35374,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 1,
+        "bytes": 57126,
+        "savedBytes": 35374,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/hero-bg.jpg",
+            "target": "src/assets/hero-bg.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 35374,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "apps-devs__apps-devs.github.io",
+    "stratum": "A",
+    "commits": 6,
+    "replayed": 6,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-10-01",
+    "last": "2025-10-01",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 157675,
+        "sourceFiles": 78,
+        "references": 1,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 66828,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 1,
+        "bytes": 154422,
+        "savedBytes": 66828,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/hero-tech.jpg",
+            "target": "src/assets/hero-tech.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 66828,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 10,
+      "files": 2,
+      "hosts": {
+        "images.unsplash.com": 10
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "haithamAlgobery__UiProjectIthra",
+    "stratum": "A",
+    "commits": 11,
+    "replayed": 11,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": "2025-09-25",
+    "last": "2026-10-02",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 1,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 15,
+        "assetBytes": 2703551,
+        "sourceFiles": 104,
+        "references": 25,
+        "linkedReferences": 18,
+        "referencedAssets": 4,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 10,
+          "possibly-dead": 0,
+          "oversized": 2,
+          "format-opportunity": 3,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 317870,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "dead": 10,
+        "oversized": 2,
+        "format-opportunity": 3
+      },
+      "oversized_max_bytes": 1017284,
+      "savings": {
+        "images": 3,
+        "bytes": 436454,
+        "savedBytes": 317870,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/diverse-user-avatars.jpg",
+            "target": "public/diverse-user-avatars.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 67928,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/engineer.jpg",
+            "target": "public/engineer.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 129657,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/logoA.png",
+            "target": "public/logoA.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 120285,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["a807c25d29", ["app/view/page.tsx", "logoA.png", true, true]]]
+  },
+  {
+    "repo": "konampranavi__Multilingual-Voice-Alerts-",
+    "stratum": "A",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2025-07-16",
+    "last": "2025-09-01",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 5,
+        "assetBytes": 9728,
+        "sourceFiles": 47,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 3,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 3
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mobility-as-a-service",
+    "stratum": "B",
+    "commits": 3,
+    "replayed": 3,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-06-24",
+    "last": "2026-09-05",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 10,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__mobility-service",
+    "stratum": "B",
+    "commits": 13,
+    "replayed": 13,
+    "bot_commits": 12,
+    "edits": 11,
+    "first": "2024-06-24",
+    "last": "2026-09-05",
+    "img_touch": [2, 11],
+    "img_added": [1, 11],
+    "ref_local": [1, 11],
+    "ref_ext": [0, 11],
+    "renames": [0, 11],
+    "any_img_work": [2, 11],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [2075622],
+    "added_img_over_500k": 1,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 1425614,
+        "sourceFiles": 19,
+        "references": 1,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 1,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 1314676,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 1425614,
+      "savings": {
+        "images": 1,
+        "bytes": 1425614,
+        "savedBytes": 1314676,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/mobility.jpg",
+            "target": "public/images/mobility.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1314676,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__vessel-dock-master",
+    "stratum": "B",
+    "commits": 5,
+    "replayed": 5,
+    "bot_commits": 5,
+    "edits": 4,
+    "first": "2024-07-06",
+    "last": "2025-07-24",
+    "img_touch": [1, 4],
+    "img_added": [1, 4],
+    "ref_local": [1, 4],
+    "ref_ext": [0, 4],
+    "renames": [0, 4],
+    "any_img_work": [1, 4],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [849716],
+    "added_img_over_500k": 1,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 852969,
+        "sourceFiles": 70,
+        "references": 2,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 1,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 758708,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "oversized": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 849716,
+      "savings": {
+        "images": 1,
+        "bytes": 849716,
+        "savedBytes": 758708,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/vessel.png",
+            "target": "public/images/vessel.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 758708,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["39fa4bd574", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__g-appscheduler-fix",
+    "stratum": "B",
+    "commits": 10,
+    "replayed": 10,
+    "bot_commits": 10,
+    "edits": 9,
+    "first": "2024-07-30",
+    "last": "2025-07-16",
+    "img_touch": [0, 9],
+    "img_added": [0, 9],
+    "ref_local": [1, 9],
+    "ref_ext": [0, 9],
+    "renames": [0, 9],
+    "any_img_work": [1, 9],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 71,
+        "references": 2,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["ef9972913d", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__webapp-builder",
+    "stratum": "B",
+    "commits": 15,
+    "replayed": 15,
+    "bot_commits": 15,
+    "edits": 14,
+    "first": "2024-06-13",
+    "last": "2025-05-19",
+    "img_touch": [1, 14],
+    "img_added": [1, 14],
+    "ref_local": [1, 14],
+    "ref_ext": [1, 14],
+    "renames": [0, 14],
+    "any_img_work": [1, 14],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [3162696, 3162696, 3162696],
+    "added_img_over_500k": 3,
+    "added_img_count": 3,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 9488088,
+        "sourceFiles": 16,
+        "references": 3,
+        "linkedReferences": 3,
+        "referencedAssets": 3,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 3,
+          "format-opportunity": 3,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 9422554,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 3,
+        "format-opportunity": 3
+      },
+      "oversized_max_bytes": 3162696,
+      "savings": {
+        "images": 3,
+        "bytes": 9488088,
+        "savedBytes": 9422554,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/radio-button.png",
+            "target": "src/assets/radio-button.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 3122834,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/slider.png",
+            "target": "src/assets/slider.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 3149974,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "src/assets/text-field.png",
+            "target": "src/assets/text-field.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 3149746,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__cute-kitten-website",
+    "stratum": "B",
+    "commits": 7,
+    "replayed": 7,
+    "bot_commits": 6,
+    "edits": 5,
+    "first": "2024-06-28",
+    "last": "2024-12-05",
+    "img_touch": [1, 5],
+    "img_added": [1, 5],
+    "ref_local": [2, 5],
+    "ref_ext": [0, 5],
+    "renames": [0, 5],
+    "any_img_work": [2, 5],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [240400],
+    "added_img_over_500k": 0,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 240400,
+        "sourceFiles": 66,
+        "references": 2,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 136364,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 1,
+        "bytes": 240400,
+        "savedBytes": 136364,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/cute-kitten.jpg",
+            "target": "public/images/cute-kitten.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 136364,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["3253ab8ef6", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__auto-vision-assist",
+    "stratum": "B",
+    "commits": 36,
+    "replayed": 36,
+    "bot_commits": 25,
+    "edits": 24,
+    "first": "2024-07-18",
+    "last": "2024-11-23",
+    "img_touch": [0, 24],
+    "img_added": [0, 24],
+    "ref_local": [1, 24],
+    "ref_ext": [0, 24],
+    "renames": [0, 24],
+    "any_img_work": [2, 24],
+    "broken_intro_commits": 2,
+    "broken_intro_bot_commits": 2,
+    "broken_events": 2,
+    "broken_never_existed": 2,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 414158,
+        "sourceFiles": 111,
+        "references": 2,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 1,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 254117,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "dead": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 1,
+        "bytes": 265049,
+        "savedBytes": 254117,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/default-avatar.png",
+            "target": "public/images/default-avatar.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 254117,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [
+      ["905cba1534", ["index.html", "/vite.svg", false, true]],
+      [
+        "66372a690a",
+        ["src/layouts/navbar/_components/UserMenu.jsx", "/avatars/01.png", false, false]
+      ]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__mapping-wizard",
+    "stratum": "B",
+    "commits": 9,
+    "replayed": 9,
+    "bot_commits": 9,
+    "edits": 8,
+    "first": "2024-06-23",
+    "last": "2024-09-16",
+    "img_touch": [0, 8],
+    "img_added": [0, 8],
+    "ref_local": [0, 8],
+    "ref_ext": [0, 8],
+    "renames": [0, 8],
+    "any_img_work": [0, 8],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 10,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__audio-haven",
+    "stratum": "B",
+    "commits": 74,
+    "replayed": 74,
+    "bot_commits": 74,
+    "edits": 73,
+    "first": "2024-08-06",
+    "last": "2024-08-09",
+    "img_touch": [0, 73],
+    "img_added": [0, 73],
+    "ref_local": [5, 73],
+    "ref_ext": [0, 73],
+    "renames": [0, 73],
+    "any_img_work": [5, 73],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 68,
+        "references": 5,
+        "linkedReferences": 4,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["09c8377846", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__mobile-order-haven",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-08-09",
+    "last": "2024-08-09",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [1, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 68,
+        "references": 1,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 4,
+      "files": 1,
+      "hosts": {
+        "images.unsplash.com": 4
+      }
+    },
+    "events": [["51834d89a0", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__image-mimic-magic",
+    "stratum": "B",
+    "commits": 40,
+    "replayed": 40,
+    "bot_commits": 40,
+    "edits": 39,
+    "first": "2024-08-08",
+    "last": "2024-08-08",
+    "img_touch": [0, 39],
+    "img_added": [0, 39],
+    "ref_local": [0, 39],
+    "ref_ext": [2, 39],
+    "renames": [0, 39],
+    "any_img_work": [0, 39],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 75,
+        "references": 1,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 1,
+      "files": 1,
+      "hosts": {
+        "dicebear": 1
+      }
+    },
+    "events": [["3cbbfed2a8", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__cobra-detailing-portal",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-07-17",
+    "last": "2024-07-17",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [1, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [1, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 77,
+        "references": 3,
+        "linkedReferences": 2,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["0ea2fe44fc", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__picture-rep-app",
+    "stratum": "B",
+    "commits": 9,
+    "replayed": 9,
+    "bot_commits": 9,
+    "edits": 8,
+    "first": "2024-07-16",
+    "last": "2024-07-16",
+    "img_touch": [0, 8],
+    "img_added": [0, 8],
+    "ref_local": [3, 8],
+    "ref_ext": [0, 8],
+    "renames": [0, 8],
+    "any_img_work": [3, 8],
+    "broken_intro_commits": 2,
+    "broken_intro_bot_commits": 2,
+    "broken_events": 2,
+    "broken_never_existed": 2,
+    "broken_survived_to_head": 2,
+    "final_broken": 2,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 83,
+        "references": 4,
+        "linkedReferences": 2,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 2,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 2
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [
+      ["77dfceba72", ["index.html", "/vite.svg", false, true]],
+      ["3df23bdf39", ["src/pages/Settings.jsx", "/placeholder-avatar.jpg", false, true]]
+    ]
+  },
+  {
+    "repo": "GPT-Engineer-App__nav-login-website",
+    "stratum": "B",
+    "commits": 13,
+    "replayed": 13,
+    "bot_commits": 13,
+    "edits": 12,
+    "first": "2024-07-15",
+    "last": "2024-07-15",
+    "img_touch": [0, 12],
+    "img_added": [0, 12],
+    "ref_local": [0, 12],
+    "ref_ext": [0, 12],
+    "renames": [0, 12],
+    "any_img_work": [0, 12],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 3253,
+        "sourceFiles": 85,
+        "references": 1,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1
+      },
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["b5465cf74e", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__cloud-landing",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-07-03",
+    "last": "2024-07-03",
+    "img_touch": [1, 1],
+    "img_added": [1, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [1, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [1903020],
+    "added_img_over_500k": 1,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 1,
+        "assetBytes": 1903020,
+        "sourceFiles": 69,
+        "references": 1,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 1,
+          "possibly-dead": 0,
+          "oversized": 1,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "dead": 1,
+        "oversized": 1
+      },
+      "oversized_max_bytes": 1903020,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["4bee092fb3", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__landing-magic",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-07-03",
+    "last": "2024-07-03",
+    "img_touch": [1, 1],
+    "img_added": [1, 1],
+    "ref_local": [1, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [1, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [1926184, 119531, 119531, 119531],
+    "added_img_over_500k": 1,
+    "added_img_count": 4,
+    "head_audit": {
+      "summary": {
+        "assets": 4,
+        "assetBytes": 2284777,
+        "sourceFiles": 69,
+        "references": 2,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 3,
+          "oversized": 1,
+          "format-opportunity": 1,
+          "duplicate": 1
+        },
+        "potentialSavingBytes": 1718644,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "possibly-dead": 3,
+        "oversized": 1,
+        "format-opportunity": 1,
+        "duplicate": 1
+      },
+      "oversized_max_bytes": 1926184,
+      "savings": {
+        "images": 1,
+        "bytes": 1926184,
+        "savedBytes": 1718644,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/hero-image.png",
+            "target": "public/images/hero-image.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1718644,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["b18884dd8b", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__sleek-site",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-07-03",
+    "last": "2024-07-03",
+    "img_touch": [1, 1],
+    "img_added": [1, 1],
+    "ref_local": [1, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [1, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [
+      2128983, 1650124, 1309433, 824713, 493363, 218934, 109396, 85099, 85099, 85099
+    ],
+    "added_img_over_500k": 4,
+    "added_img_count": 10,
+    "head_audit": {
+      "summary": {
+        "assets": 10,
+        "assetBytes": 6990243,
+        "sourceFiles": 71,
+        "references": 13,
+        "linkedReferences": 12,
+        "referencedAssets": 9,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 1,
+          "oversized": 4,
+          "format-opportunity": 6,
+          "duplicate": 1
+        },
+        "potentialSavingBytes": 3308433,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "possibly-dead": 1,
+        "oversized": 4,
+        "format-opportunity": 6,
+        "duplicate": 1
+      },
+      "oversized_max_bytes": 2128983,
+      "savings": {
+        "images": 6,
+        "bytes": 3803109,
+        "savedBytes": 3308433,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/data-science.jpg",
+            "target": "public/images/data-science.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1888121,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/digital-marketing.jpg",
+            "target": "public/images/digital-marketing.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1187615,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/testimonial-jane.jpg",
+            "target": "public/images/testimonial-jane.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 58269,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/testimonial-john.jpg",
+            "target": "public/images/testimonial-john.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 58269,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/testimonial-sam.jpg",
+            "target": "public/images/testimonial-sam.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 58269,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/web-development.jpg",
+            "target": "public/images/web-development.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 57890,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["b233fc7c0e", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__build-my-site",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-07-03",
+    "last": "2024-07-03",
+    "img_touch": [1, 1],
+    "img_added": [1, 1],
+    "ref_local": [1, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [1, 1],
+    "broken_intro_commits": 1,
+    "broken_intro_bot_commits": 1,
+    "broken_events": 1,
+    "broken_never_existed": 1,
+    "broken_survived_to_head": 1,
+    "final_broken": 1,
+    "check_errors": {},
+    "added_img_bytes": [1457090, 1374277, 1118991],
+    "added_img_over_500k": 3,
+    "added_img_count": 3,
+    "head_audit": {
+      "summary": {
+        "assets": 3,
+        "assetBytes": 3950358,
+        "sourceFiles": 70,
+        "references": 4,
+        "linkedReferences": 3,
+        "referencedAssets": 3,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 1,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 3,
+          "format-opportunity": 3,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 3689416,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "broken": 1,
+        "oversized": 3,
+        "format-opportunity": 3
+      },
+      "oversized_max_bytes": 1457090,
+      "savings": {
+        "images": 3,
+        "bytes": 3950358,
+        "savedBytes": 3689416,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/project1.jpg",
+            "target": "public/images/project1.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1307385,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/project2.jpg",
+            "target": "public/images/project2.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1035001,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/project3.jpg",
+            "target": "public/images/project3.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1347030,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": [["b75178ca66", ["index.html", "/vite.svg", false, true]]]
+  },
+  {
+    "repo": "GPT-Engineer-App__landing-page-enhancer",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-06-23",
+    "last": "2024-06-23",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [1, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 10,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 2,
+      "files": 1,
+      "hosts": {
+        "placehold": 2
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__high-agency-builder-website",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-06-23",
+    "last": "2024-06-23",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 10,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__research-signup-page",
+    "stratum": "B",
+    "commits": 5,
+    "replayed": 5,
+    "bot_commits": 5,
+    "edits": 4,
+    "first": "2024-06-23",
+    "last": "2024-06-23",
+    "img_touch": [2, 4],
+    "img_added": [2, 4],
+    "ref_local": [2, 4],
+    "ref_ext": [0, 4],
+    "renames": [0, 4],
+    "any_img_work": [2, 4],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [2014347, 1991955],
+    "added_img_over_500k": 2,
+    "added_img_count": 2,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 4006302,
+        "sourceFiles": 10,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 1,
+          "possibly-dead": 1,
+          "oversized": 2,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "dead": 1,
+        "possibly-dead": 1,
+        "oversized": 2
+      },
+      "oversized_max_bytes": 2014347,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__fashionista-social-marketplace",
+    "stratum": "B",
+    "commits": 4,
+    "replayed": 4,
+    "bot_commits": 4,
+    "edits": 3,
+    "first": "2024-06-23",
+    "last": "2024-06-23",
+    "img_touch": [1, 3],
+    "img_added": [1, 3],
+    "ref_local": [1, 3],
+    "ref_ext": [0, 3],
+    "renames": [0, 3],
+    "any_img_work": [1, 3],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [2032833, 1921912],
+    "added_img_over_500k": 2,
+    "added_img_count": 2,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 3954745,
+        "sourceFiles": 14,
+        "references": 2,
+        "linkedReferences": 2,
+        "referencedAssets": 2,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 2,
+          "format-opportunity": 2,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 3547415,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 2,
+        "format-opportunity": 2
+      },
+      "oversized_max_bytes": 2032833,
+      "savings": {
+        "images": 2,
+        "bytes": 3954745,
+        "savedBytes": 3547415,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "public/images/ar-fashion-show.png",
+            "target": "public/images/ar-fashion-show.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1817053,
+            "replacesOriginal": true
+          },
+          {
+            "asset": "public/images/virtual-try-on.png",
+            "target": "public/images/virtual-try-on.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 1730362,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__unique-blog-nest",
+    "stratum": "B",
+    "commits": 1,
+    "replayed": 1,
+    "bot_commits": 1,
+    "edits": 0,
+    "first": "2024-05-27",
+    "last": "2024-05-27",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 9,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__cozy-corners",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-05-27",
+    "last": "2024-05-27",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [0, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 9,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__pic-share-hub",
+    "stratum": "B",
+    "commits": 1,
+    "replayed": 1,
+    "bot_commits": 1,
+    "edits": 0,
+    "first": "2024-05-27",
+    "last": "2024-05-27",
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 9,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__travel-portal",
+    "stratum": "B",
+    "commits": 0,
+    "replayed": 0,
+    "bot_commits": 0,
+    "edits": 0,
+    "first": null,
+    "last": null,
+    "img_touch": [0, 0],
+    "img_added": [0, 0],
+    "ref_local": [0, 0],
+    "ref_ext": [0, 0],
+    "renames": [0, 0],
+    "any_img_work": [0, 0],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 0,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 0,
+      "files": 0,
+      "hosts": {}
+    },
+    "events": []
+  },
+  {
+    "repo": "GPT-Engineer-App__tasty-recipes",
+    "stratum": "B",
+    "commits": 2,
+    "replayed": 2,
+    "bot_commits": 2,
+    "edits": 1,
+    "first": "2024-05-27",
+    "last": "2024-05-27",
+    "img_touch": [0, 1],
+    "img_added": [0, 1],
+    "ref_local": [0, 1],
+    "ref_ext": [1, 1],
+    "renames": [0, 1],
+    "any_img_work": [0, 1],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [],
+    "added_img_over_500k": 0,
+    "added_img_count": 0,
+    "head_audit": {
+      "summary": {
+        "assets": 0,
+        "assetBytes": 0,
+        "sourceFiles": 9,
+        "references": 0,
+        "linkedReferences": 0,
+        "referencedAssets": 0,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 0,
+          "format-opportunity": 0,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 0,
+        "savingQuality": {},
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {},
+      "oversized_max_bytes": 0,
+      "savings": {
+        "images": 0,
+        "bytes": 0,
+        "savedBytes": 0,
+        "unmeasured": 0,
+        "conversions": []
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 3,
+      "files": 1,
+      "hosts": {
+        "placehold": 3
+      }
+    },
+    "events": []
+  },
+  {
+    "repo": "withkynam__duma",
+    "stratum": "A",
+    "commits": 31,
+    "replayed": 31,
+    "bot_commits": 31,
+    "edits": 29,
+    "first": "2025-11-10",
+    "last": "2025-11-10",
+    "img_touch": [1, 29],
+    "img_added": [1, 29],
+    "ref_local": [1, 29],
+    "ref_ext": [7, 29],
+    "renames": [0, 29],
+    "any_img_work": [1, 29],
+    "broken_intro_commits": 0,
+    "broken_intro_bot_commits": 0,
+    "broken_events": 0,
+    "broken_never_existed": 0,
+    "broken_survived_to_head": 0,
+    "final_broken": 0,
+    "check_errors": {},
+    "added_img_bytes": [2119365],
+    "added_img_over_500k": 1,
+    "added_img_count": 1,
+    "head_audit": {
+      "summary": {
+        "assets": 2,
+        "assetBytes": 2122618,
+        "sourceFiles": 82,
+        "references": 1,
+        "linkedReferences": 1,
+        "referencedAssets": 1,
+        "findings": {
+          "serving-root-unknown": 0,
+          "broken": 0,
+          "dead": 0,
+          "possibly-dead": 0,
+          "oversized": 1,
+          "format-opportunity": 1,
+          "duplicate": 0
+        },
+        "potentialSavingBytes": 2040963,
+        "savingQuality": {
+          "webp": [80]
+        },
+        "probed": true,
+        "unmeasuredAssets": 0
+      },
+      "kinds": {
+        "oversized": 1,
+        "format-opportunity": 1
+      },
+      "oversized_max_bytes": 2119365,
+      "savings": {
+        "images": 1,
+        "bytes": 2119365,
+        "savedBytes": 2040963,
+        "unmeasured": 0,
+        "conversions": [
+          {
+            "asset": "src/assets/logo.png",
+            "target": "src/assets/logo.webp",
+            "format": "webp",
+            "quality": 80,
+            "savedBytes": 2040963,
+            "replacesOriginal": true
+          }
+        ]
+      }
+    },
+    "head_external": {
+      "stock_image_urls": 351,
+      "files": 1,
+      "hosts": {
+        "images.unsplash.com": 351
+      }
+    },
+    "events": []
+  }
+]
