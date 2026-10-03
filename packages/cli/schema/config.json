@@ -26,7 +26,7 @@
       "default": "replace"
     },
     "format": {
-      "description": "The format images are converted to. \"avif\" makes smaller files, which some older browsers cannot show. --format overrides it for one run.",
+      "description": "The format images are converted to. \"avif\" is the other choice, which some older browsers cannot show. --format overrides it for one run.",
       "type": "string",
       "enum": ["webp", "avif"],
       "default": "webp"

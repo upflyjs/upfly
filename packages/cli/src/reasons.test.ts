@@ -16,7 +16,7 @@ describe('declineGroup', () => {
     expect(groups).toEqual([
       ['images/badge.png', 'would save too little'],
       ['images/badge@2x.png', 'would save too little'],
-      ['images/favicon.png', 'its references stay as written'],
+      ['images/favicon.png', 'no reference would move to a new file'],
       ['images/never-referenced.png', 'nothing links to it'],
       ['images/removed.png', 'nothing links to it'],
       ['images/team.jpg', 'would save too little'],
@@ -59,7 +59,7 @@ describe('declineGroup', () => {
       ],
       [
         '`src/App.jsx` reaches it only through `./img/${name}.png`, a template assembled at run time. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file',
-        'its references stay as written',
+        'no reference would move to a new file',
       ],
     ];
     for (const [reason, group] of cases) expect(declineGroup(reason), reason).toBe(group);

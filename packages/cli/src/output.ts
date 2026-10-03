@@ -205,7 +205,7 @@ function describeProgress(event: ProgressEvent): string {
   if (event.stage === 'measuring') return `measuring images: ${event.done} of ${event.total}`;
   const counts = Object.entries(event)
     .filter(([key]) => key !== 'stage')
-    .map(([key, value]) => `${value} ${key}`)
+    .map(([key, value]) => `${value} ${value === 1 ? key.replace(/s$/, '') : key}`)
     .join(', ');
   return counts === '' ? `${event.stage}...` : `${event.stage}: ${counts}`;
 }

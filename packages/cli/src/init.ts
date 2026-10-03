@@ -122,7 +122,7 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
 const FORMAT_REASON: Reason = {
   setting: 'format',
   value: 'webp',
-  why: 'the default; "avif" makes smaller files, which some older browsers cannot show',
+  why: 'the default; "avif" is the other choice, which some older browsers cannot show',
 };
 
 /** Why the files already there stop `init`, and what to do instead. */

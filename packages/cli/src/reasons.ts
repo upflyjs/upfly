@@ -28,7 +28,7 @@ const DECLINES: readonly (readonly [RegExp, string])[] = [
   [/ could not be read to rule out a mention of it$/, 'a file that may name it could not be read'],
   [/ still names its path, in a file this run excluded$/, 'named in a file this run leaves out'],
   [/ still names its path in a form Upfly cannot rewrite$/, 'named where Upfly cannot rewrite it'],
-  [/\. No reference would move to a new file,/, 'its references stay as written'],
+  [/\. No reference would move to a new file,/, 'no reference would move to a new file'],
   [/ loads it through the build as /, 'its build may not load the new format'],
   [
     /, so (?:repointing )?the reference would (?:load|break)/,

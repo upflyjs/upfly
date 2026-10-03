@@ -28,7 +28,7 @@ Options: none
   Leave        6 images, 2.4 KB
                  3  would save too little
                  2  nothing links to it
-                 1  its references stay as written
+                 1  no reference would move to a new file
 
     Each of these images stays as it is, for the reason given.
       images/badge.png  70 B  converting it would save 34 B, under the 1 KB a saving must reach to be reported or converted

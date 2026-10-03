@@ -61,7 +61,7 @@ Upfly optimize · dry run
   Leave        7 images, 2.7 KB
                  3  would save too little
                  2  SVG, which Upfly does not convert
-                 1  its references stay as written
+                 1  no reference would move to a new file
                  1  nothing links to it
 
   Full plan    .upfly/optimize.txt
@@ -86,7 +86,7 @@ Upfly optimize · applied
   Left alone   7 images, 2.7 KB
                  3  would save too little
                  2  SVG, which Upfly does not convert
-                 1  its references stay as written
+                 1  no reference would move to a new file
                  1  nothing links to it
 
   Run          20261002T170507-b9cf: 5 files created, 2 changed, 5 removed

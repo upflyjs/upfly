@@ -190,6 +190,13 @@ describe('progressReporter', () => {
     expect(err).toEqual(['\r\u001b[2Kmeasuring images: 120 of 2910']);
   });
 
+  it('names a count of one in the singular', () => {
+    const { io, err } = capture(true);
+    const progress = progressReporter(io, 'optimize', false);
+    progress.update({ stage: 'measured', images: 1 });
+    expect(err).toEqual(['\r\u001b[2Kmeasured: 1 image']);
+  });
+
   it('says nothing when stderr is a file or a pipe', () => {
     const { io, out, err } = capture(false);
     const progress = progressReporter(io, 'audit', false);

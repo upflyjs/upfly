@@ -68,7 +68,7 @@ describe('upfly init', () => {
         '',
         'Why:',
         '  public: a folder named public beside package.json, where a site built with a framework serves files from',
-        '  format: webp, the default; "avif" makes smaller files, which some older browsers cannot show',
+        '  format: webp, the default; "avif" is the other choice, which some older browsers cannot show',
         '',
         'Every Upfly command in this folder now reads it. Edit it to change what Upfly treats as the site.',
         '',
@@ -187,7 +187,7 @@ describe('upfly init', () => {
         {
           setting: 'format',
           value: 'webp',
-          why: 'the default; "avif" makes smaller files, which some older browsers cannot show',
+          why: 'the default; "avif" is the other choice, which some older browsers cannot show',
         },
       ],
     });
