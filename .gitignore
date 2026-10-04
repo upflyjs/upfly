@@ -14,3 +14,6 @@ fixtures/**/dist/
 packages/cli/README.md
 packages/cli/LICENSE
 packages/core/LICENSE
+
+# Private instructions for local Claude Code sessions, beside the public CLAUDE.md
+CLAUDE.local.md
