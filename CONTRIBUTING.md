@@ -1,7 +1,7 @@
 # Contributing
 
-Thanks for looking. This project is small and the maintainer reads everything: you will get
-a first reply within three days.
+Thanks for looking. This project is small and I read everything: you will get a first reply
+from me within three days.
 
 ## Before you write code
 
@@ -102,7 +102,7 @@ Write each comment for a stranger opening the file for the first time:
 
 ## Using AI
 
-AI-assisted work is welcome; the maintainer uses AI too. Three things are asked of you:
+AI-assisted work is welcome; I use AI too. Three things I ask of you:
 
 1. **The description is in your own words.** The pull request, the issue and the commit
    messages. A generated wall of text tells a reviewer nothing.

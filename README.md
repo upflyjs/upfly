@@ -313,12 +313,6 @@ pnpm check              # lint, the comment check, typecheck and the tests: the 
 pnpm accuracy:measure   # the accuracy suite, both runs
 ```
 
-## How it was built
-
-The code was written with AI coding assistants, working from written briefs one stage at a time; a separate session
-re-ran each stage's claims before they were recorded. The accuracy suite's figures and the quoted runs can be
-repeated from this repository; the link check and the two scripts behind the recall sample are not yet published.
-
 ## License
 
 MIT © [Rinkal Kumar](https://github.com/ramin-010)
