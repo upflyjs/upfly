@@ -598,7 +598,14 @@ describe('a phone photo its camera tagged to be turned', () => {
   });
 });
 
-describe('an animated GIF, when the run converts to AVIF', () => {
+/**
+ * AVIF is the slowest encode. Alone this test takes about four seconds, but in a full run on a
+ * loaded machine it can pass the shared 30-second limit, so it gets its own. The limit only has
+ * to catch a hung test.
+ */
+const AVIF_LIMIT_MS = 120_000;
+
+describe('an animated GIF, when the run converts to AVIF', { timeout: AVIF_LIMIT_MS }, () => {
   it('stays, with its page as written, since AVIF would hold one still picture of its frames', async () => {
     const { default: sharp } = await import('sharp');
     const root = await copy();
