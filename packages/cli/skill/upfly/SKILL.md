@@ -1,6 +1,6 @@
 ---
 name: upfly
-description: Convert a project's images to WebP or AVIF and rewrite every reference to them without breaking the site; find where an image is used; tell whether an image is safe to delete; find broken image paths and identical copies. Use when a task touches the project's image files, such as optimizing or converting images, or finding unused, missing or duplicate images.
+description: Convert a project's images to WebP or AVIF and rewrite the references to them without breaking the site; find where an image is used; tell whether an image is safe to delete; find broken image paths and identical copies. Use when a task touches the project's image files, such as optimizing or converting images, or finding unused, missing or duplicate images.
 ---
 
 # Upfly

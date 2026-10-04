@@ -1,7 +1,7 @@
 # Evidence
 
-What Upfly's accuracy and safety claims rest on: how each was measured, the full results, and what each result does
-not show. The [README](README.md) quotes them.
+What Upfly's accuracy and safety claims rest on: how each was measured, the full results and what each result does
+not show, then every limit in full. The [README](README.md) quotes them.
 
 ## The accuracy suite
 
@@ -84,3 +84,24 @@ Its blind spots, which go with it:
 
 `pnpm validate` over the five pinned repositories produces the mentions; the 300 were drawn with seed `20261001`.
 The two scripts that drew the sample and judged each mention are outside this repository, not yet published.
+
+## Limits in full
+
+- **File types Upfly does not read yet:** Vue, Svelte, PHP, ERB, Liquid, Nunjucks and YAML frontmatter. A reference
+  only they hold is not seen. The audit names each file it could not read, and an image named in one is reported as
+  possibly unused, never as unused.
+- **Zero configuration is tested on JavaScript projects only.** Any site can name its website folder with
+  `--public <dir>`, or in `upfly.config.json`.
+- **An image the build loads converts only for Vite, Next.js and Astro**, which load WebP and AVIF by themselves.
+  Under any other build (webpack, Rollup, esbuild, Parcel, or one Upfly cannot name), such an image keeps its format,
+  and the plan says why: fewer conversions, never a broken build.
+- **A stylesheet with a syntax error is not read.** A browser skips the one declaration it cannot read and reads the
+  rest; Upfly reads none of that file, so an image only it names is reported as possibly unused, never as unused, and
+  the report names the error and its line.
+- **A site already built by a tool Upfly does not know may have its output read as source.** Upfly skips the folders
+  only a tool writes (`dist`, `build`, `_site` and others) and `public/` beside Hugo's, Gatsby's or Hexo's own
+  settings file. For anything else, run Upfly before building, or leave the output out with `--exclude <folder>/`.
+- **A reference Upfly cannot read keeps working only while the original stays**: one in a file type it does not
+  read, such as an email template, or outside the repository, such as an email already sent or another site.
+  Removing originals, the default, breaks those references; `--keep-originals` keeps every original.
+- **`optimize` measures every image before converting it**, so the first run on a large site takes a while.

@@ -68,6 +68,7 @@ npx upfly audit                       # the images, the references to them, what
 npx upfly optimize                    # the plan, as a dry run; changes nothing
 npx upfly optimize --apply --commit   # carry out the plan as one commit
 npx upfly undo                        # put back every file the last run changed
+npx upfly --help                      # every command; upfly <command> --help for its options
 ```
 
 A real run, on a committed copy of [`fixtures/vite-react`](fixtures/vite-react) from this repository, at commit
@@ -283,24 +284,15 @@ A zero in a random 300 still allows up to 29 such misses among the 3,101, at 95%
 
 ## Limits
 
-- **File types Upfly does not read yet:** Vue, Svelte, PHP, ERB, Liquid, Nunjucks and YAML frontmatter. A reference
-  only they hold is not seen. The audit names each file it could not read, and an image named in one is reported as
-  possibly unused, never as unused.
-- **Zero configuration is tested on JavaScript projects only.** Any site can name its website folder with
-  `--public <dir>`, or in `upfly.config.json`.
-- **An image the build loads converts only for Vite, Next.js and Astro**, which load WebP and AVIF by themselves.
-  Under any other build (webpack, Rollup, esbuild, Parcel, or one Upfly cannot name), such an image keeps its format,
-  and the plan says why: fewer conversions, never a broken build.
-- **A stylesheet with a syntax error is not read.** A browser skips the one declaration it cannot read and reads the
-  rest; Upfly reads none of that file, so an image only it names is reported as possibly unused, never as unused, and
-  the report names the error and its line.
-- **A site already built by a tool Upfly does not know may have its output read as source.** Upfly skips the folders
-  only a tool writes (`dist`, `build`, `_site` and others) and `public/` beside Hugo's, Gatsby's or Hexo's own
-  settings file. For anything else, run Upfly before building, or leave the output out with `--exclude <folder>/`.
-- **A reference Upfly cannot read keeps working only while the original stays**: one in a file type it does not
-  read, such as an email template, or outside the repository, such as an email already sent or another site.
-  Removing originals, the default, breaks those references; `--keep-originals` keeps every original.
-- **`optimize` measures every image before converting it**, so the first run on a large site takes a while.
+- **Not read yet:** Vue, Svelte, PHP, ERB, Liquid, Nunjucks and YAML frontmatter. An image named only there is
+  reported as possibly unused, never as unused.
+- **Zero configuration is tested on JavaScript projects;** any other site names its folder with `--public <dir>`.
+- **Images a build loads convert only under Vite, Next.js and Astro;** under other bundlers they keep their format.
+- **Removing originals breaks references Upfly cannot see**, such as an email already sent;
+  `--keep-originals` keeps them.
+- **The first `optimize` on a large site takes a while:** it measures every image before converting it.
+
+Each limit in full is in [EVIDENCE.md](EVIDENCE.md#limits-in-full).
 
 ## No network, no telemetry
 

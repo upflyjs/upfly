@@ -1,8 +1,8 @@
 # Using Upfly from a coding agent
 
-Upfly finds every image in a project and every place the project refers to one, converts
-images to WebP or AVIF, and rewrites the references, reporting each one it cannot rewrite
-safely. It never deletes an image that nothing uses. By default it removes a converted
+Upfly finds every image in a project and the places the project refers to one in the files
+it reads, converts images to WebP or AVIF, and rewrites the references, reporting each one it
+cannot rewrite safely. It never deletes an image that nothing uses. By default it removes a converted
 image's original once no file it reads still names it, wherever the image sits;
 `--keep-originals` keeps every original. It makes no network calls and sends nothing
 anywhere.
@@ -148,7 +148,6 @@ unused. Apply it the way `optimize` is applied: with the user's yes,
 `npx upfly init` writes `upfly.config.json` with the folders the site is served from, as
 Upfly works them out, and says why it chose each. Show the user the file: a wrong folder
 is the likeliest reason for a wrong result.
-
 
 ## The Agent Skill
 
