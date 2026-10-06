@@ -32,6 +32,7 @@ import {
   newRunId,
   planRelocation,
   prepare,
+  searchScope,
 } from 'upfly-core/internal';
 import { refuseValidationCorpus } from './repos.js';
 
@@ -87,6 +88,15 @@ export async function runEngine(
     aliases: output.aliases,
     discovery: output.discovery,
   };
+}
+
+/**
+ * The files the search after a move reads for each old path, from the walk: every file it
+ * found, read or not, and the files the run's ignore rules excluded, which a page can still
+ * be. A scope limits what a run changes, never what it reads.
+ */
+export async function filesAfterMove(discovery: DiscoveryResult): Promise<readonly string[]> {
+  return (await searchScope(discovery, true)).files;
 }
 
 /**

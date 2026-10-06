@@ -19,7 +19,7 @@ import { join, sep } from 'node:path';
 import { argv, exit, stdout } from 'node:process';
 import sharp from 'sharp';
 import { type Move, checkMoveRegression, findSurvivingPaths } from 'upfly-core/internal';
-import { relocateTree, runEngine } from './engine-run.js';
+import { filesAfterMove, relocateTree, runEngine } from './engine-run.js';
 import { REPOS, VALIDATION_ROOT, refuseValidationCorpus } from './repos.js';
 
 /**
@@ -168,13 +168,11 @@ async function run(name: string, keep: boolean): Promise<boolean> {
 
     // The check that reads no graph: a text search for each moved asset's old path. Only
     // accepted moves are searched, since a refused move's asset is still at its old path.
-    // The files come from the walk, scanned and unscanned alike, not from the graph.
+    // The files come from the walk, scanned, unscanned and excluded alike, not from the graph.
     stdout.write('\n');
     const survived = await findSurvivingPaths({
       moves: plan.moves,
-      files: [...after.discovery.sourceFiles, ...after.discovery.unscannedFiles].map(
-        (file) => file.relative,
-      ),
+      files: await filesAfterMove(after.discovery),
       readFile: (relative) => readFile(join(root, relative), 'utf8'),
       servingDirs: after.servingRoots.dirs,
     });
