@@ -7,7 +7,9 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 export type GitState =
   | { readonly kind: 'no-git' }
@@ -195,7 +197,7 @@ function changesSince(root: string, against: string): Found {
 export function ignoredPaths(root: string, paths: readonly string[]): string[] {
   if (paths.length === 0) return [];
   // `check-ignore` takes plain paths and rejects the literal-pathspec setting.
-  const result = git(root, ['check-ignore', '--stdin', '-z'], nulList(paths), false);
+  const result = git(root, ['check-ignore', '--stdin', '-z'], nulList(paths), { literal: false });
   // Exit 1 is git's answer "none of them".
   if (result.status === 1) return [];
   return must(result, 'check-ignore')
@@ -243,34 +245,71 @@ export function identityProblem(root: string): string | null {
 /**
  * Commits exactly `paths`, as they are on disk, and returns the new commit's hash. A path
  * that no longer exists is committed as a deletion. Changes staged for any other path stay
- * staged and out of the commit.
+ * staged and out of the commit. A moved file keeps the executable mark its old path had.
  *
  * @param root the project directory, inside a git work tree
  * @param paths POSIX paths relative to `root`
  * @param message the commit message
+ * @param moved the files among `paths` that moved, each committed at `to` with the mode
+ * `from` has in the index
  * @throws when git refuses; the message carries git's own reason
  */
-export function commitPaths(root: string, paths: readonly string[], message: string): string {
+export function commitPaths(
+  root: string,
+  paths: readonly string[],
+  message: string,
+  moved: readonly { readonly from: string; readonly to: string }[] = [],
+): string {
   const list = nulList(paths);
-  // A new file must be in the index before a commit limited to named paths can take it.
-  must(git(root, ['add', '--pathspec-from-file=-', '--pathspec-file-nul'], list), 'add');
-  must(
-    git(
-      root,
-      [
-        'commit',
-        '--quiet',
-        '--only',
-        '--pathspec-from-file=-',
-        '--pathspec-file-nul',
-        '-m',
-        message,
-      ],
-      list,
-    ),
-    'commit',
-  );
+  const executable = executableAfterMove(root, moved);
+  // The commit is made from an index of its own, HEAD with these paths as they are on disk,
+  // so nothing staged for another path joins it. `git commit --only` makes the same commit
+  // but gives a path new to HEAD the mode on disk, and Windows keeps no executable bit there.
+  const folder = mkdtempSync(join(tmpdir(), 'upfly-commit-'));
+  const own = { GIT_INDEX_FILE: join(folder, 'index') };
+  try {
+    must(git(root, ['read-tree', 'HEAD'], undefined, { env: own }), 'read-tree');
+    stage(root, list, executable, own);
+    must(git(root, ['commit', '--quiet', '-m', message], undefined, { env: own }), 'commit');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+  // The project's own index then holds these paths as committed, as after any commit.
+  stage(root, list, executable);
   return must(git(root, ['rev-parse', 'HEAD']), 'rev-parse').stdout.trim();
+}
+
+/** Adds the paths in `list` to an index: the one `env` names, or else the project's own. */
+function stage(
+  root: string,
+  list: string,
+  executable: readonly string[],
+  env: Readonly<Record<string, string>> = {},
+): void {
+  must(git(root, ['add', '--pathspec-from-file=-', '--pathspec-file-nul'], list, { env }), 'add');
+  if (executable.length === 0) return;
+  must(
+    git(root, ['update-index', '--chmod=+x', '-z', '--stdin'], nulList(executable), { env }),
+    'update-index',
+  );
+}
+
+/** Where each moved file goes whose old path the index marks executable. */
+function executableAfterMove(
+  root: string,
+  moved: readonly { readonly from: string; readonly to: string }[],
+): string[] {
+  if (moved.length === 0) return [];
+  // `ls-files` reads no list of paths from stdin, and a long list would not fit on a command
+  // line, so it lists the project's whole index: `<mode> <object> <stage>\t<path>` per file.
+  const staged = must(git(root, ['ls-files', '--stage', '-z']), 'ls-files').stdout;
+  const marked = new Set(
+    staged
+      .split('\0')
+      .filter((entry) => entry.startsWith('100755 '))
+      .map((entry) => entry.slice(entry.indexOf('\t') + 1)),
+  );
+  return moved.filter((move) => marked.has(move.from)).map((move) => move.to);
 }
 
 /**
@@ -302,11 +341,24 @@ interface GitResult {
   readonly missing: boolean;
 }
 
-function git(root: string, args: readonly string[], input?: string, literal = true): GitResult {
+interface GitOptions {
+  /** Whether git reads paths literally, never as patterns; true unless a command rejects it. */
+  readonly literal?: boolean;
+  /** More environment for the call, such as the index it works on. */
+  readonly env?: Readonly<Record<string, string>>;
+}
+
+function git(
+  root: string,
+  args: readonly string[],
+  input?: string,
+  options: GitOptions = {},
+): GitResult {
+  const literal = options.literal ?? true;
   const result = spawnSync('git', args, {
     cwd: root,
     encoding: 'utf8',
-    env: literal ? { ...process.env, GIT_LITERAL_PATHSPECS: '1' } : process.env,
+    env: { ...process.env, ...(literal ? { GIT_LITERAL_PATHSPECS: '1' } : {}), ...options.env },
     ...(input === undefined ? {} : { input }),
     maxBuffer: 256 * 1024 * 1024,
   });

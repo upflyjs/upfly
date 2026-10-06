@@ -4,7 +4,7 @@
  * lines left naming an old path, and the refusals.
  */
 
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -176,6 +176,22 @@ describe('upfly move', () => {
     // After --commit, git's index holds the run's files, so the tree is compared staged.
     git(root, 'add', '-A');
     expect(git(root, 'diff', '--cached', '--name-only', start)).toBe('');
+  });
+
+  it('commits a moved image with the executable mark it was committed with', () => {
+    const root = site();
+    commitAll(root);
+    chmodSync(join(root, 'public/hero.png'), 0o755);
+    git(root, 'update-index', '--chmod=+x', 'public/hero.png');
+    git(root, 'commit', '--quiet', '-m', 'an executable image');
+
+    const run = upfly(['move', 'public/hero.png', 'public/img/hero.png', '--apply', '--commit'], {
+      cwd: root,
+    });
+
+    expect(run.status, run.stderr).toBe(0);
+    expect(git(root, 'ls-tree', 'HEAD', 'public/img/hero.png')).toMatch(/^100755 /);
+    expect(git(root, 'status', '--porcelain')).toBe('');
   });
 
   it('moves every image in a folder, and into a folder named with a slash', () => {

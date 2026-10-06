@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -146,6 +154,38 @@ describe('commitPaths', () => {
       'M\tindex.html',
     ]);
     expect(gitState(root)).toMatchObject({ changed: ['notes.txt'] });
+  });
+
+  it('commits a moved file with the mode its old path had, executable or not', () => {
+    const root = repository({
+      'img/run.gif': 'gif',
+      'img/plain.gif': 'gif too',
+      'index.html': 'a',
+    });
+    chmodSync(join(root, 'img/run.gif'), 0o755);
+    git(root, 'update-index', '--chmod=+x', 'img/run.gif');
+    git(root, 'commit', '--quiet', '-m', 'one executable image');
+    mkdirSync(join(root, 'moved'));
+    renameSync(join(root, 'img/run.gif'), join(root, 'moved/run.gif'));
+    renameSync(join(root, 'img/plain.gif'), join(root, 'moved/plain.gif'));
+    write(root, 'index.html', 'b');
+
+    commitPaths(
+      root,
+      ['img/plain.gif', 'img/run.gif', 'index.html', 'moved/plain.gif', 'moved/run.gif'],
+      'the move',
+      [
+        { from: 'img/plain.gif', to: 'moved/plain.gif' },
+        { from: 'img/run.gif', to: 'moved/run.gif' },
+      ],
+    );
+
+    const modes = git(root, 'ls-tree', 'HEAD', 'moved/')
+      .trim()
+      .split('\n')
+      .map((line) => line.split(' ')[0]);
+    expect(modes).toEqual(['100644', '100755']);
+    expect(gitState(root)).toMatchObject({ changed: [] });
   });
 
   it('takes a path with spaces and shell characters literally', () => {

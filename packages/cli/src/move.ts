@@ -122,6 +122,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
         root,
         pathsTouched(result.manifest),
         commitMessage(result.manifest, result.plan),
+        runOf(result.manifest).moved,
       );
     } catch (error) {
       return stop({

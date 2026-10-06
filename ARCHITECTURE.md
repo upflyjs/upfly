@@ -2649,10 +2649,16 @@ The promise is that the run's changes are the only ones a reviewer has to look a
 - **`--commit` needs a clean folder and cannot be combined with `--allow-dirty`**: a file holding
   both the user's edit and the run's would put the user's edit in Upfly's commit, and `git revert`
   would take it out again. It also needs a git identity, checked before anything is written.
-- **The commit holds exactly the files the run wrote**, from the manifest: `git add` and then
-  `git commit --only` on those paths, read literally (`GIT_LITERAL_PATHSPECS`), so a name holding
-  `[` never matches a second file and work the user staged elsewhere stays staged and out of the
-  commit. Paths travel on stdin, never through a shell.
+- **The commit holds exactly the files the run wrote**, from the manifest. It is made from an index
+  of its own (`GIT_INDEX_FILE`): HEAD's tree, then `git add` of those paths, read literally
+  (`GIT_LITERAL_PATHSPECS`), so a name holding `[` never matches a second file and work the user
+  staged elsewhere stays staged and out of the commit. The project's own index is then brought to
+  what was committed. Paths travel on stdin, never through a shell.
+- **A moved file keeps its executable mark in the commit.** `git commit --only` would build the
+  same commit, but it gives a path new to HEAD the mode on disk, and Windows (`core.filemode`
+  false) keeps no executable bit there, so `move --commit` dropped it. The moved path now takes the
+  mode its old path has in the index. A commit the user makes of an `undo` meets the same limit on
+  Windows, for the same reason; `git revert` of the run's commit keeps the mode.
 - **A commit that could not hold the whole run stops the run before it writes.** Once the plan is
   final, `optimize` hands it to a `beforeWrite` check, and the CLI asks `git check-ignore` about
   every path the plan would write; if git would refuse any of them, nothing is written.
