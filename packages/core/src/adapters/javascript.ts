@@ -212,6 +212,31 @@ function parseWith(text: string, plugins: readonly string[]): BabelNode {
 }
 
 /**
+ * Where the comments are in JavaScript or TypeScript text, as `[start, end)` offsets, from
+ * the same parse that reads the references.
+ *
+ * @param extension the dialect, as a dotted extension such as `.tsx`
+ * @returns the ranges, or `null` when the extension is not a JavaScript dialect or the text
+ * does not parse
+ */
+export function javaScriptCommentRanges(
+  text: string,
+  extension: string,
+): readonly (readonly [number, number])[] | null {
+  const plugins = PLUGINS_BY_EXTENSION.get(extension);
+  if (plugins === undefined) return null;
+  let ast: BabelNode;
+  try {
+    ast = parseWith(text, plugins);
+  } catch {
+    return null;
+  }
+  return ((ast as File).comments ?? []).map(
+    (comment) => [comment.start ?? 0, comment.end ?? 0] as const,
+  );
+}
+
+/**
  * Whether `text` parses, and when it does not, whether it stopped early rather than
  * being wrong.
  *

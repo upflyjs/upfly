@@ -43,6 +43,35 @@ const PARSERS: ReadonlyMap<string, (css: string) => Root> = new Map([
   ['.less', (css: string) => lessParser.parse(css, { from: undefined })],
 ]);
 
+/**
+ * Where the comments are in a stylesheet, as `[start, end)` offsets into `text`, read by the
+ * same parser the adapter uses, so a `//` line counts as a comment only in SCSS and Less.
+ *
+ * @param extension the dialect, `.css`, `.scss` or `.less`
+ * @returns the ranges, or `null` when the dialect is not one of those or the text does not
+ * parse
+ */
+export function cssCommentRanges(
+  text: string,
+  extension: string,
+): readonly (readonly [number, number])[] | null {
+  const parse = PARSERS.get(extension);
+  if (parse === undefined) return null;
+  let root: Root;
+  try {
+    root = parse(text);
+  } catch {
+    return null;
+  }
+  const ranges: (readonly [number, number])[] = [];
+  root.walkComments((comment) => {
+    const start = comment.source?.start?.offset;
+    const end = comment.source?.end?.offset;
+    if (start !== undefined && end !== undefined) ranges.push([start, end]);
+  });
+  return ranges;
+}
+
 /** Function names whose direct string arguments are themselves image paths. */
 function isImageSet(functionName: string): boolean {
   // `image-set`, plus the vendor-prefixed `-webkit-image-set` and `-ms-image-set`.

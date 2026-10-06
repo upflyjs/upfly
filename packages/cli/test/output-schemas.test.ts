@@ -86,6 +86,10 @@ const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] =
   ['optimize --only', (line) => line.command === 'optimize' && line.only !== null],
   ['optimize applied', (line) => line.command === 'optimize' && line.run !== null],
   ['dedupe applied', (line) => line.command === 'dedupe' && line.run !== null],
+  [
+    'refs unfollowed',
+    (line) => line.command === 'refs' && (line.unfollowed as unknown[]).length > 0,
+  ],
   ['undo a run', (line) => line.command === 'undo' && line.undone !== null],
   ['undo none', (line) => line.command === 'undo' && line.undone === null],
 ];
@@ -382,6 +386,7 @@ describe('every --json line validates against the published schemas', () => {
       'optimize --only',
       'optimize applied',
       'dedupe applied',
+      'refs unfollowed',
       'undo a run',
       'undo none',
     ];

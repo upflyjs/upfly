@@ -193,6 +193,96 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
   };
 }
 
+/** One place a spelling of a path occurs in a file's text. */
+export interface PathOccurrence {
+  /** POSIX-relative path of the file it was found in. */
+  readonly file: string;
+  readonly line: number;
+  /** Offset of the match in the file's text, in UTF-16 code units. */
+  readonly offset: number;
+  /** The text that matched, as the file spells it. */
+  readonly spelling: string;
+}
+
+export interface PathOccurrencesInput {
+  /** The paths to look for, POSIX-relative to the project root. */
+  readonly paths: readonly string[];
+  /** Every file to search, as `OldPathSearchInput.files`. */
+  readonly files: readonly string[];
+  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
+  readonly readFile: (relative: string) => Promise<string>;
+  /** Serving directories, as `OldPathSearchInput.servingDirs`. */
+  readonly servingDirs: readonly string[];
+}
+
+export interface PathOccurrencesResult {
+  /**
+   * Every match of every spelling, by file, then offset, then the longer spelling first.
+   * Spellings overlap, since `img/hero.png` ends `/img/hero.png`, so one place in a file can
+   * match several of them, each ending where the file name ends.
+   */
+  readonly occurrences: readonly PathOccurrence[];
+  readonly filesSearched: number;
+  readonly unsearchable: readonly Unsearchable[];
+  /** Every spelling looked for. */
+  readonly spellings: readonly string[];
+  /** The text of each file that holds an occurrence, so a caller can read around one. */
+  readonly texts: ReadonlyMap<string, string>;
+}
+
+/**
+ * Every place the paths occur in the files, in any spelling and any letter case: the same
+ * search as `findSurvivingPaths`, reporting every match rather than one per line, and
+ * discounting nothing. What a match means is for the caller to work out, which is why the
+ * texts that hold one come back with it.
+ */
+export async function findPathOccurrences(
+  input: PathOccurrencesInput,
+): Promise<PathOccurrencesResult> {
+  const spellings = [
+    ...new Set(input.paths.flatMap((path) => spellingsFor(path, input.servingDirs))),
+  ].sort((a, b) => b.length - a.length || compareStrings(a, b));
+  const index = indexNeedles(spellings.map(foldCase));
+
+  const occurrences: PathOccurrence[] = [];
+  const unsearchable: Unsearchable[] = [];
+  const texts = new Map<string, string>();
+  let filesSearched = 0;
+
+  for (const file of [...input.files].sort(compareStrings)) {
+    let text: string;
+    try {
+      text = await input.readFile(file);
+    } catch (cause) {
+      unsearchable.push({ file, reason: (cause as Error).message });
+      continue;
+    }
+    filesSearched++;
+    const found = occurrencesIn(foldCase(text), index);
+    if (found.length === 0) continue;
+    texts.set(file, text);
+    const lineAt = lineIndex(text);
+    for (const { needle, offsets } of found) {
+      for (const at of offsets) {
+        occurrences.push({
+          file,
+          line: lineAt(at),
+          offset: at,
+          spelling: text.slice(at, at + needle.length),
+        });
+      }
+    }
+  }
+
+  occurrences.sort(
+    (a, b) =>
+      compareStrings(a.file, b.file) ||
+      a.offset - b.offset ||
+      b.spelling.length - a.spelling.length,
+  );
+  return { occurrences, filesSearched, unsearchable, spellings, texts };
+}
+
 /**
  * The survivors in one file: at most one per line, the match met first when the spellings
  * are taken in rank order, longest first, and each spelling's matches from the top. The
@@ -343,7 +433,7 @@ function containedIn(destinations: readonly Matches[]): (start: number, end: num
 }
 
 /** The one-based line of an offset, from a table of line breaks built once per file. */
-function lineIndex(text: string): (offset: number) => number {
+export function lineIndex(text: string): (offset: number) => number {
   const breaks: number[] = [];
   for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) breaks.push(at);
   return (offset) => 1 + countBelow(breaks, offset);

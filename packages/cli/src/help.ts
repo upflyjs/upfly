@@ -18,8 +18,9 @@ Commands:
                    does not exist. Changes nothing.
   init [dir]       Write upfly.config.json with the folders Upfly works out, and say why.
   refs <image> [dir]
-                   List where one image is referenced, whether Upfly could rewrite each
-                   reference, and what optimize would do with it. Changes nothing.
+                   List every line that names one image: the references, whether Upfly
+                   could rewrite each, the lines it does not follow and why, and what
+                   optimize would do with it. Changes nothing.
   dedupe [dir]     Keep one copy of each image stored more than once and point the
                    references at it. Deletes nothing; shows the plan unless run with --apply.
 
@@ -168,10 +169,15 @@ file already exists, which the message names; 4 for a failure Upfly did not anti
 
 const REFS = `Usage: upfly refs <image> [dir] [options]
 
-Lists the references Upfly can read to one image: the file and line, the path as written,
-and, for one optimize would leave as it is, why. Then the verdict: what optimize would do
-with the image, with the configured format and policy, or that it is unused. It reads the
-whole project, measures only that image, and changes nothing.
+Lists every line in the project that names one image. First its references: the file and
+line, the path as written, and, for one optimize would leave as it is, why. Then, under
+Not followed, every other line a search for the image's path finds, in any letter case,
+with why Upfly does not follow it: a full address, a path built at runtime, a value in data
+or a component's props, a file type Upfly does not read, a comment. Upfly leaves those as
+written when it converts or moves the image. A line that names another file of the same
+name is in neither list. Last, the verdict: what optimize would do with the image, with the
+configured format and policy, or that it is unused. It reads the whole project, the files
+--exclude leaves out included, measures only that image, and changes nothing.
 
 image is a path from the current folder, and must be inside the project.
 

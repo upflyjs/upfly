@@ -758,6 +758,33 @@ function addReference(
   });
 }
 
+/** A region of Markdown text the readers leave alone, as `markdownRegionAt` names it. */
+export type InactiveMarkdown = 'comment' | 'code' | 'frontmatter';
+
+/**
+ * What a Markdown text holds at an offset where no reader looks: an HTML comment, code (a
+ * fence, an indented block or a code span), or the YAML frontmatter at the very start, which
+ * no adapter reads. `null` is text the readers do read. The regions are the ones
+ * `maskInactiveRegions` blanks, told apart.
+ *
+ * @param extension `.md`, `.markdown` or `.mdx`, which has no indented code blocks
+ */
+export function markdownRegionAt(
+  text: string,
+  extension: string,
+): (offset: number) => InactiveMarkdown | null {
+  const bodyStart = FRONTMATTER.exec(text)?.[0].length ?? 0;
+  const masked = maskInactiveRegions(text, { indentedCode: extension !== '.mdx' });
+  const comments = [...maskFencedBlocks(text).matchAll(/<!--[\s\S]*?-->/g)].map(
+    (match) => [match.index, match.index + match[0].length] as const,
+  );
+  return (offset) => {
+    if (offset < bodyStart) return 'frontmatter';
+    if (masked[offset] === text[offset]) return null;
+    return comments.some(([start, end]) => start <= offset && offset < end) ? 'comment' : 'code';
+  };
+}
+
 /**
  * Blank out every region of Markdown text where Markdown syntax is not active, so a search
  * for references cannot match inside code.

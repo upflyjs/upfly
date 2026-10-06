@@ -98,6 +98,25 @@ export const htmlAdapter: Adapter = defineAdapter({
   },
 });
 
+/**
+ * Where the comments are in an HTML document, as `[start, end)` offsets into `text`, read with
+ * the options the adapter parses with. parse5 recovers from any error, so every text has an
+ * answer.
+ */
+export function htmlCommentRanges(text: string): readonly (readonly [number, number])[] {
+  const document = parse(text, { sourceCodeLocationInfo: true, scriptingEnabled: false });
+  const ranges: (readonly [number, number])[] = [];
+  const visit = (node: ParsedNode): void => {
+    if (node.nodeName === '#comment' && node.sourceCodeLocation) {
+      ranges.push([node.sourceCodeLocation.startOffset, node.sourceCodeLocation.endOffset]);
+    }
+    if ('childNodes' in node) for (const child of node.childNodes) visit(child);
+    if ('content' in node) visit(node.content);
+  };
+  visit(document);
+  return ranges;
+}
+
 interface Context {
   readonly file: string;
   readonly text: string;

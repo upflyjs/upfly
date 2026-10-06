@@ -7,7 +7,7 @@
 import { readdirSync } from 'node:fs';
 import ignore from 'ignore';
 import { defaultAdapters } from './adapters/default-adapters.js';
-import { discover, listExcludedFiles } from './discover/discover.js';
+import { discover } from './discover/discover.js';
 import {
   type PipelineOutput,
   type PipelineProgress,
@@ -17,8 +17,8 @@ import {
 import type { PublicPolicy } from './plan/plan.js';
 import { createSharpProbe } from './probe/probe-sharp.js';
 import type { EncodeFormat } from './probe/probe.js';
+import { searchScope } from './project-search.js';
 import type { ServingRoots } from './resolve/resolve.js';
-import type { DiscoveryResult } from './types.js';
 import { createNodeFileStore } from './write/file-store-node.js';
 import {
   type OptimizeInput,
@@ -144,7 +144,9 @@ export async function optimizeFromPipeline(
     probes: pipeline.probes ?? [],
     probe: await createSharpProbe(),
     store: createNodeFileStore(discovery.root),
-    ...(await searchScope(discovery, input.publicPolicy)),
+    // Under replace, the search reads past the run's exclusions: they limit what the run
+    // changes, and a page one left out may still show the original.
+    ...(await searchScope(discovery, input.publicPolicy === 'replace')),
     // The same walk again, for the search made after the encodes.
     listFiles: async () =>
       searchScope(
@@ -153,7 +155,7 @@ export async function optimizeFromPipeline(
           adapters: defaultAdapters,
           ...(input.extraIgnores === undefined ? {} : { extraIgnores: input.extraIgnores }),
         }),
-        input.publicPolicy,
+        input.publicPolicy === 'replace',
       ),
     servingRoots: pipeline.servingRoots,
     aliases: pipeline.aliases,
@@ -175,38 +177,6 @@ function namedBy(only: OnlyImages): (relative: string) => boolean {
   const paths = new Set(only.paths ?? []);
   const patterns = ignore().add([...(only.patterns ?? [])]);
   return (relative) => paths.has(relative) || patterns.ignores(relative);
-}
-
-/**
- * What the search for mentions of a deleted original reads, from one walk: every file the walk
- * found, not only those the graph holds a reference in, since the search is for references the
- * graph missed.
- */
-async function searchScope(
-  discovery: DiscoveryResult,
-  publicPolicy: PublicPolicy,
-): Promise<{
-  readonly files: readonly string[];
-  readonly excludedFiles: readonly string[];
-  readonly unread: readonly { readonly file: string; readonly reason: string }[];
-}> {
-  // Under replace, the search reads past the run's exclusions: they limit what the run
-  // changes, and a page one left out may still show the original.
-  const excluded =
-    publicPolicy === 'replace' ? await listExcludedFiles(discovery) : { files: [], unread: [] };
-  return {
-    files: [
-      ...[...discovery.sourceFiles, ...discovery.unscannedFiles].map((file) => file.relative),
-      ...excluded.files,
-    ],
-    excludedFiles: excluded.files,
-    // A directory the walk could not list reached no search, so a mention inside it cannot
-    // be ruled out.
-    unread: discovery.skipped
-      .filter((entry) => entry.reason === 'unreadable-directory')
-      .map((entry) => ({ file: entry.relative, reason: entry.detail }))
-      .concat(excluded.unread),
-  };
 }
 
 /**

@@ -14,9 +14,14 @@ reads the folder given after it, or the current folder, and prints plain text; a
 ## Where to start
 
 - One image: `npx upfly refs <image> --json`. It lists every reference to that image
-  (file, line, the path as written, whether a run could rewrite it) and a verdict: what
-  `upfly optimize` would do with it, or that it is unused. It is the small answer, and the
-  right one for a question such as "is it safe to delete this image?".
+  (file, line, the path as written, whether a run could rewrite it), then in `unfollowed`
+  every other line that names its path, which Upfly does not follow, each with `reason`
+  and `why` (a full address, a path built at runtime, a value in data or props, a file type
+  Upfly does not read, a comment), and a verdict: what `upfly optimize` would do with it,
+  or that it is unused. It is the small answer, and the right one for a question such as
+  "is it safe to delete this image?". Read both lists before changing an image: Upfly
+  leaves each line in `unfollowed` as written, so a move or a rename has to change those
+  by hand, and a `full-address` line may be the site's own address.
 - The whole project: `npx upfly audit --json`. It changes nothing. The report can run to
   megabytes on a large project; `--no-probe` skips measuring the images and is much
   faster when only the references matter. Its `savings` is what `upfly optimize` would
@@ -63,6 +68,8 @@ Never edit `.upfly/`: it is the record `upfly undo` follows.
 Run `npx upfly refs <image> --json` and read the verdict.
 
 - Any entry in `references` means it is used: each names the file and line.
+- An entry in `unfollowed` names its path where Upfly does not follow it, such as a full
+  address in a page's metadata. Treat it as a use until a person has looked.
 - `possibly-unused`: no reference Upfly can follow reaches it, but its name appears
   somewhere, listed in `mentions`. Read them before calling it unused.
 - `unused`: no reference Upfly can read names it. That is not proof. A path built at

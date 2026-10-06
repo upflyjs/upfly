@@ -36,12 +36,14 @@ import type {
   ProbeDiagnostic,
   ScanDiagnostic,
   ServingRootDecision,
+  UnfollowedReason,
   UnscannedExtension,
+  Unsearchable,
 } from 'upfly-core/internal';
 import { describe, expect, it } from 'vitest';
 import type { TooLargeFinding } from './check.js';
 import type { Reason } from './init.js';
-import type { ReferenceAnswer, Verdict } from './refs.js';
+import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
 import type { Undone } from './undo.js';
 
 type Schema = { readonly [keyword: string]: unknown };
@@ -692,6 +694,31 @@ describe('the command schemas and the types each command prints agree', () => {
         rewritable: 'required',
         why: 'optional',
       }),
+    );
+    expectFields(
+      at('refs.json', '/properties/unfollowed/items'),
+      fields<UnfollowedAnswer>({
+        file: 'required',
+        line: 'required',
+        text: 'required',
+        reason: 'required',
+        why: 'required',
+        host: 'optional',
+      }),
+    );
+    expect(enumOf(at('refs.json', '/properties/unfollowed/items/properties/reason'))).toEqual(
+      members<UnfollowedReason>({
+        'full-address': true,
+        'built-at-runtime': true,
+        'data-or-props': true,
+        'unread-file-type': true,
+        comment: true,
+        other: true,
+      }),
+    );
+    expectFields(
+      at('refs.json', '/properties/unsearchable/items'),
+      fields<Unsearchable>({ file: 'required', reason: 'required' }),
     );
     expect(constsOf('refs.json', '/properties/verdict', 'kind')).toEqual(
       members<Verdict['kind']>({

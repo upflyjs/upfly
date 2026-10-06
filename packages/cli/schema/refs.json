@@ -1,9 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "upfly refs --json: the result",
-  "description": "The last line upfly refs <image> --json prints: every reference to that one image, whether a run could rewrite each, and what upfly optimize would do with it. Progress lines come before it (events.json); an image that is missing, outside the project or not one Upfly found gives an error line with exit code 2 instead (events.json).",
+  "description": "The last line upfly refs <image> --json prints: every reference to that one image, whether a run could rewrite each, every other line that names its path, which Upfly does not follow, and what upfly optimize would do with it. Read references and unfollowed together before changing the image. Progress lines come before it (events.json); an image that is missing, outside the project or not one Upfly found gives an error line with exit code 2 instead (events.json).",
   "type": "object",
-  "required": ["type", "command", "exitCode", "image", "bytes", "references", "verdict"],
+  "required": [
+    "type",
+    "command",
+    "exitCode",
+    "image",
+    "bytes",
+    "references",
+    "unfollowed",
+    "verdict"
+  ],
   "additionalProperties": false,
   "properties": {
     "type": { "const": "result" },
@@ -33,6 +42,50 @@
             "description": "Why it stays as written. Present exactly when rewritable is false.",
             "type": "string"
           }
+        }
+      }
+    },
+    "unfollowed": {
+      "description": "Every other line that names the image's path, found by a search of the project's files in any letter case, which Upfly does not follow: each stays as written when Upfly converts or moves the image. A line that names another file of the same name is not here. At most one entry per line.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "text", "reason", "why"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "description": "The file that holds it.", "type": "string" },
+          "line": { "description": "The line, counted from 1.", "type": "integer", "minimum": 1 },
+          "text": {
+            "description": "The path as the line writes it, such as a whole address.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why Upfly does not follow it: a full address, which it never rewrites since it cannot tell which host is the site's own; a path built at runtime; a value in data or a component's props; a file type it does not read; a comment; or another reason, which why says.",
+            "enum": [
+              "full-address",
+              "built-at-runtime",
+              "data-or-props",
+              "unread-file-type",
+              "comment",
+              "other"
+            ]
+          },
+          "why": { "description": "The reason, as a sentence.", "type": "string" },
+          "host": { "description": "The host, for a full address.", "type": "string" }
+        }
+      }
+    },
+    "unsearchable": {
+      "description": "Files the search could not read, so a line in them naming the image cannot be ruled out. Present only when there is one.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["file", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "reason": { "type": "string" }
         }
       }
     },

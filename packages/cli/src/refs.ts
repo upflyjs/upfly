@@ -1,7 +1,9 @@
 /**
- * `upfly refs <image>`: every reference to one image, whether `optimize` could rewrite each,
- * and what it would do with the image. The whole project is read, since a reference can sit
- * in any file; only that image is measured. Nothing is written.
+ * `upfly refs <image>`: every line that names one image. First the references Upfly follows,
+ * with whether `optimize` could rewrite each, then every other line a search for the image's
+ * path finds, with why Upfly does not follow it, and last what `optimize` would do with the
+ * image. The whole project is read, since a line can sit in any file; only that image is
+ * measured. Nothing is written.
  */
 
 import { statSync } from 'node:fs';
@@ -11,10 +13,14 @@ import { type EncodeFormat, type OptimizeProjectResult, optimizeProject } from '
 import {
   type AssetNode,
   type LinkedReference,
+  type UnfollowedLine,
+  type UnfollowedReason,
   citeReferences,
+  compareStrings,
   formatBytes,
   isLinked,
   relativePath,
+  unfollowedLines,
   whyReferenceStays,
 } from 'upfly-core/internal';
 import type { RefsOptions } from './args.js';
@@ -37,6 +43,24 @@ export interface ReferenceAnswer {
   readonly rewritable: boolean;
   /** Why it stays as written, when it does. */
   readonly why?: string;
+}
+
+/**
+ * A line that names the image which Upfly does not follow: a full address, a path built at
+ * runtime, a comment, a file type it does not read, and the like, with the reason.
+ */
+export interface UnfollowedAnswer {
+  /** POSIX-relative path of the file that holds it. */
+  readonly file: string;
+  /** One-based line. */
+  readonly line: number;
+  /** The path as the line writes it, such as a whole address. */
+  readonly text: string;
+  readonly reason: UnfollowedReason;
+  /** Why Upfly does not follow it. */
+  readonly why: string;
+  /** The host, for a full address. */
+  readonly host?: string;
 }
 
 /** What `optimize` would do with the image, with the configured format and policy. */
@@ -117,7 +141,9 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
   }
 
   const references = await answersFor(node, result, format);
-  const verdict = verdictFor(node, result, format);
+  const search = await unfollowedLines(result.pipeline, [path]);
+  const unfollowed = search.lines.map(unfollowedAnswer);
+  const verdict = verdictFor(node, result, format, unfollowed);
   if (options.json) {
     emit(io, {
       type: 'result',
@@ -126,13 +152,27 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
       image: path,
       bytes: node.asset.bytes,
       references,
+      unfollowed,
+      ...(search.unsearchable.length === 0 ? {} : { unsearchable: search.unsearchable }),
       verdict,
     });
   } else {
     const styles = stylesFor(io.stdout, io.env, options);
-    io.stdout.write(spaced(render(node, references, verdict, styles).split('\n')));
+    const lines = render(node, references, unfollowed, search.unsearchable, verdict, styles);
+    io.stdout.write(spaced(lines.split('\n')));
   }
   return EXIT_CODES.OK;
+}
+
+function unfollowedAnswer(line: UnfollowedLine): UnfollowedAnswer {
+  return {
+    file: line.file,
+    line: line.line,
+    text: line.text,
+    reason: line.reason,
+    why: line.why,
+    ...(line.host === undefined ? {} : { host: line.host }),
+  };
 }
 
 function isFile(path: string): boolean {
@@ -169,18 +209,33 @@ async function answersFor(
   });
 }
 
-function verdictFor(node: AssetNode, result: OptimizeProjectResult, format: EncodeFormat): Verdict {
+function verdictFor(
+  node: AssetNode,
+  result: OptimizeProjectResult,
+  format: EncodeFormat,
+  unfollowed: readonly UnfollowedAnswer[],
+): Verdict {
   const path = node.asset.relative;
   if (node.references.length === 0) {
     const hedged = result.pipeline.audit.findings.find(
       (finding) => finding.kind === 'possibly-dead' && finding.asset === path,
     );
-    return hedged?.kind === 'possibly-dead'
-      ? {
+    if (hedged?.kind === 'possibly-dead') {
+      return {
+        kind: 'possibly-unused',
+        mentions: hedged.evidence.map(({ where, quote }) => ({ where, quote })),
+      };
+    }
+    // A line that names its path, such as a full address, may be a use the audit cannot see.
+    return unfollowed.length === 0
+      ? { kind: 'unused' }
+      : {
           kind: 'possibly-unused',
-          mentions: hedged.evidence.map(({ where, quote }) => ({ where, quote })),
-        }
-      : { kind: 'unused' };
+          mentions: unfollowed.map((line) => ({
+            where: `${line.file}:${line.line}`,
+            quote: line.text,
+          })),
+        };
   }
   const { plan, refusal } = result.optimize;
   if (refusal !== null) return { kind: 'not-converted', why: refusal.reason.replace(/\.$/, '') };
@@ -216,6 +271,8 @@ function unmeasuredWhy(
 function render(
   node: AssetNode,
   references: readonly ReferenceAnswer[],
+  unfollowed: readonly UnfollowedAnswer[],
+  unsearchable: readonly { readonly file: string; readonly reason: string }[],
   verdict: Verdict,
   styles: Styles,
 ): string {
@@ -232,9 +289,46 @@ function render(
       ? ['No reference Upfly can read reaches it.']
       : [styles.accent(`References (${references.length})`), ...cited]),
     '',
+    ...notFollowed(unfollowed, styles),
+    ...(unsearchable.length === 0
+      ? []
+      : [
+          `${unsearchable.length === 1 ? '1 file' : `${unsearchable.length} files`} could not be read, so a line in ${unsearchable.length === 1 ? 'it' : 'them'} naming the image cannot be ruled out: ${unsearchable.map((entry) => `${entry.file} (${entry.reason})`).join(', ')}.`,
+          '',
+        ]),
     `${styles.accent('Verdict:')} ${verdictText(node, references, verdict)}`,
     '',
   ].join('\n');
+}
+
+/** The order the reasons are printed in: the ones a reader most often has to act on first. */
+const REASON_ORDER: readonly UnfollowedReason[] = [
+  'full-address',
+  'built-at-runtime',
+  'data-or-props',
+  'unread-file-type',
+  'comment',
+  'other',
+];
+
+/** The lines Upfly does not follow, grouped under each reason, which is printed once. */
+function notFollowed(lines: readonly UnfollowedAnswer[], styles: Styles): string[] {
+  if (lines.length === 0) return [];
+  const groups = new Map<string, UnfollowedAnswer[]>();
+  const ordered = [...lines].sort(
+    (a, b) =>
+      REASON_ORDER.indexOf(a.reason) - REASON_ORDER.indexOf(b.reason) ||
+      compareStrings(a.why, b.why),
+  );
+  for (const line of ordered) groups.set(line.why, [...(groups.get(line.why) ?? []), line]);
+  return [
+    `${styles.accent(`Not followed (${lines.length})`)}: other lines that name it, which Upfly leaves as written`,
+    ...[...groups].flatMap(([why, group]) => [
+      `  ${why}`,
+      ...group.map((line) => `    ${line.file}:${line.line}  ${line.text}`),
+    ]),
+    '',
+  ];
 }
 
 function verdictText(

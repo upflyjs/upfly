@@ -17,9 +17,12 @@ Run it as `npx upfly <command>` in the project folder. The full guide is
 ## One image: where is it used, and can it go?
 
 Run `npx upfly refs <image> --json`. It lists each reference (`file`, `line`, the path as
-written) and gives a `verdict`.
+written), every other line that names its path in `unfollowed`, each with `why` Upfly does
+not follow it, and gives a `verdict`. Read both lists before changing the image: Upfly
+leaves the lines in `unfollowed` as written.
 
 - Any entry in `references` means the image is used.
+- An entry in `unfollowed`, such as a full address, may be a use too.
 - `possibly-unused`: its name appears in the places listed in `mentions`. Read them.
 - `unused`: no reference Upfly can read names it. That is not proof: a path built at
   runtime, or a link from outside the repository, can still reach it.

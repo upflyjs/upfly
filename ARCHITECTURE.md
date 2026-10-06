@@ -2278,6 +2278,48 @@ walked again. An original a mention then names is kept, with the reason, and the
 converted file is written and the references the plan read still move to it, as under
 `keep-original`. What that leaves uncovered is under "The transaction".
 
+### Every line that names an image
+
+`refs` answers for one image with its references, the ones the graph follows, and then with
+every other line a search for the image's path finds, each with why Upfly does not follow it
+(`findUnfollowedLines`, `unfollowed.ts`). The search is the one above, `findPathOccurrences`
+reporting every match rather than one per line, over every file the walk found and every
+file the run's ignore rules excluded: a scope limits what a run changes, never what it reads.
+Together the two lists hold every line the search finds, once, except a line that names
+another file of the same name, which is in neither. That exception is the hard part: four
+images called `logo.png` must not each claim the lines that name the other three.
+
+Each place the search finds is read against the graph first. Inside a reference that leads
+to this image, the line is one of its references; inside one that leads to another image, or
+into a folder the walk does not index, it names that file. A broken reference names no file,
+and is listed only when it names this image in another letter case, or when it is written
+from the site's root in a run that could not tell where the site is served from. A `dynamic`
+one is a path built at runtime, a `discarded` one a value in data or props, an
+`unresolved-alias` one a path through an alias nothing declares.
+
+Outside every reference the place is read as text. A file name that goes on past the match
+(`logo.png.webp`), or a folder name the match starts inside (`old-img/logo.png`), is another
+file's. A full address names the image when its path ends with the image's URL under a
+serving root or with its path in the repository, which a link to a code host ends with; when
+two images' addresses fit, the longest decides. Upfly cannot tell which host serves the site
+itself, so it never rewrites a full address, and each one listed carries its host for the
+reader. A setting naming the site's own addresses would make those references; it would
+apply in the full-address branch of `placeOf`, and is not built. A template hole before the
+path (`${base}`, `{{ site.url }}`, an ERB tag) makes it a path built at runtime. Any other
+path is resolved from the file that holds it, as an unasserted reference would be: beside the
+file, then from the project root, from a serving root or through an alias, with letter case
+folded. One that leads to another image, or into an excluded folder, names that file. What is
+left is listed with where it sits: a file the run excluded, a type no adapter reads, a file
+that did not parse, a comment, Markdown code or frontmatter, or plain text. Comments are found
+by the parser of the adapter that reads the file, Babel, parse5 or PostCSS, and Markdown's own
+masks, never by a pattern over code.
+
+A place Upfly cannot pin on another file is listed rather than dropped, as the independent
+check reports a coincidence: a glance costs less than a missed line, which after a move is a
+broken image. The work this adds is one more read of every text file, a parse for comments
+only of a file holding a place outside every reference, and one call to the resolver for the
+whole search.
+
 ## Performance budget
 
 Building the graph on a 10k-file / 2k-image repository must stay **under 3 seconds** cold.
