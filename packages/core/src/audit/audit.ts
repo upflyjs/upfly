@@ -607,7 +607,34 @@ function byReportOrder(a: Finding, b: Finding): number {
     return b.wastedBytes - a.wastedBytes || compareStrings(subjectOf(a), subjectOf(b));
   }
 
-  return compareStrings(subjectOf(a), subjectOf(b)) || compareStrings(detailOf(a), detailOf(b));
+  return (
+    compareStrings(subjectOf(a), subjectOf(b)) ||
+    lineOf(a) - lineOf(b) ||
+    compareStrings(detailOf(a), detailOf(b))
+  );
+}
+
+/**
+ * Orders references to missing images as a reader meets them: by file, then line, then the
+ * path as written. It is the order the audit lists its broken findings in, so a list that
+ * merges them with other cited references keeps it by sorting with this.
+ *
+ * @example [...suppressed, ...broken].sort(byFileAndLine)
+ */
+export function byFileAndLine(
+  a: Pick<BrokenFinding, 'file' | 'line' | 'rawPath'>,
+  b: Pick<BrokenFinding, 'file' | 'line' | 'rawPath'>,
+): number {
+  return (
+    compareStrings(a.file, b.file) ||
+    (a.line ?? 0) - (b.line ?? 0) ||
+    compareStrings(a.rawPath, b.rawPath)
+  );
+}
+
+/** A broken finding's line, so the references in one file read from the top; 0 for the rest. */
+function lineOf(finding: Finding): number {
+  return finding.kind === 'broken' ? (finding.line ?? 0) : 0;
 }
 
 function subjectOf(finding: Finding): string {

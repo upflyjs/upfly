@@ -498,7 +498,8 @@ So two things happen below a floor:
    that names the real problem, says how many findings it replaced, and tells the user to declare a
    serving root. A broken relative path is not affected. Each replaced reference is listed under the
    finding, in `suppressed`, with its file, line and path as written, in the order its `broken`
-   finding would have had, so none is set aside where a reader cannot see it. The human report
+   finding would have had (by file, then line, as a reader goes through a file:
+   `byFileAndLine`), so none is set aside where a reader cannot see it. The human report
    prints each one as it prints a broken finding. Their target is unknown rather than missing, so
    an asset one of them names is `possibly-dead`, citing each, never `dead` (see "`possibly-dead`,
    and why "zero references" is usually a lie"). So is an asset a root-relative pattern could

@@ -67,9 +67,9 @@ describe('upfly check', () => {
         'Failed: 2 references name an image that does not exist.',
         '',
         'References to images that do not exist (2)',
-        '    about.html:3  img/team.png',
         '    about.html:2  img/used.pn',
         '      ends in .pn, one keystroke from .png: a likely typo, so no image shows here',
+        '    about.html:3  img/team.png',
         '',
       ].join('\n'),
     );
@@ -226,7 +226,7 @@ describe('upfly check', () => {
         'Only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there.',
         '',
         'References to images that do not exist (10)',
-        ...[10, 11, 12, 3, 4, 5, 6, 7, 8, 9].map((n) => `    index.html:${n}  /img/photo-${n}.png`),
+        ...[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => `    index.html:${n}  /img/photo-${n}.png`),
         '',
       ].join('\n'),
     );

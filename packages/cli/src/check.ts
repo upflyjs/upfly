@@ -13,7 +13,7 @@ import {
   runPipeline,
   servingRootsFor,
 } from 'upfly-core';
-import { compareStrings, fewResolvedIn, formatBytes, relativePath } from 'upfly-core/internal';
+import { byFileAndLine, fewResolvedIn, formatBytes, relativePath } from 'upfly-core/internal';
 import type { CheckOptions } from './args.js';
 import { isDirectory } from './audit.js';
 import { loadConfig } from './config.js';
@@ -203,7 +203,7 @@ function judge(
       (finding): finding is BrokenFinding => finding.kind === 'broken',
     ),
     ...(unknown?.suppressed ?? []).map((entry): BrokenFinding => ({ kind: 'broken', ...entry })),
-  ].sort((a, b) => compareStrings(a.file, b.file) || compareStrings(a.rawPath, b.rawPath));
+  ].sort(byFileAndLine);
   const overLimit =
     limit === null ? [] : output.graph.assets.filter(({ asset }) => asset.bytes > limit);
   const tooLarge = overLimit

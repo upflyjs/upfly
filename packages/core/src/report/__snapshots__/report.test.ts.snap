@@ -234,15 +234,15 @@ exports[`buildReport > eleventy, with no serving root found: matches the approve
       "suppressed": [
         {
           "file": "src/css/site.css",
-          "line": 8,
-          "rawPath": "/img/diagram.png",
-          "where": "src/css/site.css:8",
+          "line": 2,
+          "rawPath": "/img/texture.png",
+          "where": "src/css/site.css:2",
         },
         {
           "file": "src/css/site.css",
-          "line": 12,
+          "line": 8,
           "rawPath": "/img/diagram.png",
-          "where": "src/css/site.css:12",
+          "where": "src/css/site.css:8",
         },
         {
           "file": "src/css/site.css",
@@ -252,9 +252,9 @@ exports[`buildReport > eleventy, with no serving root found: matches the approve
         },
         {
           "file": "src/css/site.css",
-          "line": 2,
-          "rawPath": "/img/texture.png",
-          "where": "src/css/site.css:2",
+          "line": 12,
+          "rawPath": "/img/diagram.png",
+          "where": "src/css/site.css:12",
         },
         {
           "file": "src/posts/first.md",
@@ -577,10 +577,10 @@ Findings: 10 items
     10 broken-reference findings are withheld: they are almost certainly this one problem
     declare the directory your site serves from and run again, for example publicDirs: ["src"]
     the withheld references, which a run with that directory declared will check:
-      src/css/site.css:8  /img/diagram.png
-      src/css/site.css:12  /img/diagram.png
-      src/css/site.css:8  /img/inline.png
       src/css/site.css:2  /img/texture.png
+      src/css/site.css:8  /img/diagram.png
+      src/css/site.css:8  /img/inline.png
+      src/css/site.css:12  /img/diagram.png
       src/posts/first.md:5  /img/diagram.png
       src/posts/first.md:9  /img/inline.png
       src/posts/second.md:8  /img/diagram.png

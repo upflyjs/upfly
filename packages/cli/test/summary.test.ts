@@ -398,6 +398,11 @@ describe('the next command', () => {
     );
     expect(human.stdout).toContain('  Next         npx upfly check --public public\n');
     expect(human.stdout).not.toMatch(/--public <dir>|is unknown|could not tell/);
+    // Listed as a reader meets them, by file and then line, though photo-10 sorts before photo-3.
+    const listed = upfly(['audit', '--public', 'public', '--show', 'broken'], { cwd: root });
+    expect(listed.stdout.match(/index\.html:\d+/g)).toEqual(
+      [3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => `index.html:${n}`),
+    );
     const report = (
       JSON.parse(json.stdout.trim().split('\n').at(-1) ?? '{}') as {
         report: { findings: unknown[]; coverage: { servingRoots: unknown } };

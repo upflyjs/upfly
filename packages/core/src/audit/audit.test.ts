@@ -368,17 +368,17 @@ describe('audit', () => {
         {
           kind: 'broken',
           file: 'index.html',
-          line: 3,
-          where: 'index.html:3',
-          rawPath: 'gone.png?v=3',
-        },
-        {
-          kind: 'broken',
-          file: 'index.html',
           line: 2,
           where: 'index.html:2',
           rawPath: 'img/photo.wepb',
           note: 'ends in .wepb, one keystroke from .webp: a likely typo, so no image shows here',
+        },
+        {
+          kind: 'broken',
+          file: 'index.html',
+          line: 3,
+          where: 'index.html:3',
+          rawPath: 'gone.png?v=3',
         },
       ]);
     });
@@ -682,6 +682,25 @@ describe('audit', () => {
       ]);
     });
 
+    it("lists a file's broken references from its first line down", async () => {
+      const source = '<p>\n<img src="./zebra.png">\n<img src="./apple.png">\n';
+      const result = await audit({
+        graph: graphOf({
+          references: [
+            broken('index.html', './zebra.png', source.indexOf('./zebra.png')),
+            broken('index.html', './apple.png', source.indexOf('./apple.png')),
+          ],
+        }),
+        sweep: NO_SWEEP,
+        readFile: files({ '/repo/index.html': source }),
+      });
+
+      expect(result.findings.map((finding) => 'where' in finding && finding.where)).toEqual([
+        'index.html:2',
+        'index.html:3',
+      ]);
+    });
+
     it('produces the same findings however the inputs are ordered', async () => {
       const assets = [asset('a.png', 900_000), asset('b.png', 900_000)];
       const probes = [probe('a.png'), probe('b.png')];
@@ -888,10 +907,8 @@ describe('a run that could not find the serving root', () => {
       where: `index.html:${index + 1}`,
       rawPath: `/missing${index}.png`,
     });
-    // In path order, as broken findings are: `/missing10.png` sorts before `/missing2.png`.
-    expect(diagnosis.suppressed).toEqual(
-      [1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 2, 3, 4, 5, 6, 7, 8, 9].map(cited),
-    );
+    // In line order, as broken findings are, though `/missing10.png` sorts before `/missing2.png`.
+    expect(diagnosis.suppressed).toEqual(Array.from({ length: 19 }, (_, n) => cited(n + 1)));
     expect(diagnosis.suppressedBroken).toBe(diagnosis.suppressed.length);
     // A relative path is broken whatever the serving root is, so it stays a finding of its
     // own and out of the list.

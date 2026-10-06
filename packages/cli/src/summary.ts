@@ -22,7 +22,7 @@ import {
   type AssetProbe,
   type Graph,
   type MovePlan,
-  compareStrings,
+  byFileAndLine,
   fewResolvedIn,
   formatBytes,
   servingRootOf,
@@ -291,7 +291,7 @@ function namedFolderBrokenRow(
   const entries = [
     ...unknown.suppressed,
     ...report.findings.filter((finding): finding is BrokenFinding => finding.kind === 'broken'),
-  ].sort((a, b) => compareStrings(a.file, b.file) || compareStrings(a.rawPath, b.rawPath));
+  ].sort(byFileAndLine);
   const one = entries.length === 1;
   return {
     label: 'Broken',
