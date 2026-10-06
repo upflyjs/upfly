@@ -27,6 +27,7 @@ import type { RefsOptions } from './args.js';
 import { isDirectory } from './audit.js';
 import { loadConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
+import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { headline, spaced } from './layout.js';
 import { policyFor } from './optimize.js';
 import { type Io, type Styles, emit, progressReporter, stopWith, stylesFor } from './output.js';
@@ -99,6 +100,7 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
     return stopWith(io, options, EXIT_CODES.USAGE, `${config.file} ${config.message}`);
   }
   const settings = config.kind === 'loaded' ? config.config : {};
+  const upfly = upflyCommand(io.env, io.script);
 
   const image = resolve(options.image);
   const within = relative(root, image);
@@ -107,7 +109,7 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
       io,
       options,
       EXIT_CODES.USAGE,
-      `${options.image} is outside the project at ${root}. Name an image inside it, or name its project after it: upfly refs <image> <folder>.`,
+      `${options.image} is outside the project at ${root}. Name an image inside it, or name its project after it: ${upfly} refs <image> <folder>.`,
     );
   }
   if (!isFile(image)) {
@@ -158,7 +160,7 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
     });
   } else {
     const styles = stylesFor(io.stdout, io.env, options);
-    const lines = render(node, references, unfollowed, search.unsearchable, verdict, styles);
+    const lines = render(node, references, unfollowed, search.unsearchable, verdict, styles, upfly);
     io.stdout.write(spaced(lines.split('\n')));
   }
   return EXIT_CODES.OK;
@@ -275,6 +277,7 @@ function render(
   unsearchable: readonly { readonly file: string; readonly reason: string }[],
   verdict: Verdict,
   styles: Styles,
+  upfly: UpflyCommand,
 ): string {
   const cited = references.flatMap((reference) => [
     `    ${reference.line === null ? reference.file : `${reference.file}:${reference.line}`}  ${reference.text}`,
@@ -296,7 +299,7 @@ function render(
           `${unsearchable.length === 1 ? '1 file' : `${unsearchable.length} files`} could not be read, so a line in ${unsearchable.length === 1 ? 'it' : 'them'} naming the image cannot be ruled out: ${unsearchable.map((entry) => `${entry.file} (${entry.reason})`).join(', ')}.`,
           '',
         ]),
-    `${styles.accent('Verdict:')} ${verdictText(node, references, verdict)}`,
+    `${styles.accent('Verdict:')} ${verdictText(node, references, verdict, upfly)}`,
     '',
   ].join('\n');
 }
@@ -335,6 +338,7 @@ function verdictText(
   node: AssetNode,
   references: readonly ReferenceAnswer[],
   verdict: Verdict,
+  upfly: UpflyCommand,
 ): string {
   switch (verdict.kind) {
     case 'converts': {
@@ -348,7 +352,7 @@ function verdictText(
     case 'not-converted':
       return `not converted: ${verdict.why}.`;
     case 'unused':
-      return 'unused. Nothing names it, not even by file name in a file Upfly could not read; Upfly never deletes an image that nothing uses, and `upfly audit` lists it with its size.';
+      return `unused. Nothing names it, not even by file name in a file Upfly could not read; Upfly never deletes an image that nothing uses, and \`${upfly} audit\` lists it with its size.`;
     case 'possibly-unused':
       return `possibly unused. No reference Upfly can follow reaches it, but its name appears in ${verdict.mentions.map((mention) => mention.where).join(', ')}.`;
   }

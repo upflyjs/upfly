@@ -6,6 +6,7 @@
 
 import { parseArgs } from 'node:util';
 import { normaliseServedDir } from './config.js';
+import type { UpflyCommand } from './invocation.js';
 
 export type CommandName =
   | 'audit'
@@ -256,7 +257,10 @@ const MOVE = {
  *
  * @param argv the process arguments without the node binary and the script path
  */
-export function parseCommandLine(argv: readonly string[]): Parsed {
+export function parseCommandLine(
+  argv: readonly string[],
+  upfly: UpflyCommand = 'npx upfly',
+): Parsed {
   const [first, ...rest] = argv;
   if (first === undefined || first === '--help' || first === '-h' || first === 'help') {
     return { kind: 'help', command: null };
@@ -267,7 +271,7 @@ export function parseCommandLine(argv: readonly string[]): Parsed {
       kind: 'usage-error',
       command: null,
       message: first.startsWith('-')
-        ? `${first} needs a command before it, such as \`upfly audit ${first}\``
+        ? `${first} needs a command before it, such as \`${upfly} audit ${first}\``
         : `unknown command \`${first}\``,
     };
   }
@@ -275,9 +279,9 @@ export function parseCommandLine(argv: readonly string[]): Parsed {
   if (command === 'audit') return parseAudit(rest);
   if (command === 'optimize') return parseOptimize(rest);
   if (command === 'check') return parseCheck(rest);
-  if (command === 'refs') return parseRefs(rest);
+  if (command === 'refs') return parseRefs(rest, upfly);
   if (command === 'dedupe') return parseDedupe(rest);
-  if (command === 'move') return parseMove(rest);
+  if (command === 'move') return parseMove(rest, upfly);
   return parseCommonOnly(command, rest);
 }
 
@@ -326,7 +330,7 @@ function parseDedupeArgs(args: readonly string[]) {
   return parseArgs({ args: [...args], options: DEDUPE, allowPositionals: true, strict: true });
 }
 
-function parseMove(args: readonly string[]): Parsed {
+function parseMove(args: readonly string[], upfly: UpflyCommand): Parsed {
   const command = 'move';
   let parsed: ReturnType<typeof parseMoveArgs>;
   try {
@@ -341,8 +345,7 @@ function parseMove(args: readonly string[]): Parsed {
     return {
       kind: 'usage-error',
       command,
-      message:
-        'move needs the image or folder to move and where it goes, such as `upfly move public/hero.png public/img/hero.png`',
+      message: `move needs the image or folder to move and where it goes, such as \`${upfly} move public/hero.png public/img/hero.png\``,
     };
   }
   const dir = directoryOf(rest);
@@ -381,7 +384,7 @@ function parseMoveArgs(args: readonly string[]) {
   return parseArgs({ args: [...args], options: MOVE, allowPositionals: true, strict: true });
 }
 
-function parseRefs(args: readonly string[]): Parsed {
+function parseRefs(args: readonly string[], upfly: UpflyCommand): Parsed {
   const command = 'refs';
   let parsed: ReturnType<typeof parseRefsArgs>;
   try {
@@ -396,7 +399,7 @@ function parseRefs(args: readonly string[]): Parsed {
     return {
       kind: 'usage-error',
       command,
-      message: 'refs needs the path of an image, such as `upfly refs public/hero.png`',
+      message: `refs needs the path of an image, such as \`${upfly} refs public/hero.png\``,
     };
   }
   const dir = directoryOf(rest);

@@ -1429,6 +1429,29 @@ describe('refusing to plan a run whose serving root is unknown', () => {
     expect(plan.refusal?.reason).toContain('Declare the directory your site serves from');
   });
 
+  it('says what resolved in a folder the project named, and does not ask for it again', () => {
+    for (const dirs of [['public'], ['public', 'static']]) {
+      const plan = planOptimization(
+        input({
+          assets: [asset('src/logo.png')],
+          references: unresolvedRootRelative(20),
+          servingRoots: { dirs, declared: true },
+        }),
+      );
+
+      expect(plan.refusal).toMatchObject({
+        code: 'serving-root-unknown',
+        linked: 0,
+        checkable: 20,
+      });
+      expect(plan.refusal?.reason).toContain(
+        `None of the 20 root-relative references resolved in ${dirs.join(' and ')}, named as the`,
+      );
+      expect(plan.refusal?.reason).toContain('Upfly rewrites nothing while so few resolve.');
+      expect(plan.refusal?.reason).not.toMatch(/declare|--public|publicDirs/i);
+    }
+  });
+
   it('plans nothing at all, so a caller that ignores the refusal writes nothing', () => {
     const plan = planOptimization(
       input({ assets: [asset('src/logo.png')], references: unresolvedRootRelative(20) }),

@@ -120,6 +120,33 @@ describe('scanSources', () => {
     ]);
   });
 
+  it('starts the next read the moment any finishes, while a slow one is still reading', async () => {
+    const started: string[] = [];
+    const waiting = new Map<string, () => void>();
+    const readFile: ReadFilePort = (path) => {
+      started.push(path);
+      return new Promise((resolve) => waiting.set(path, () => resolve(`ref:${path}`)));
+    };
+    const run = scanSources({
+      sourceFiles: ['a.html', 'b.html', 'c.html'].map((name) => sourceFile(name, 'test-html')),
+      adapters,
+      readFile,
+      concurrency: 2,
+    });
+
+    waiting.get('/repo/b.html')?.();
+    await new Promise((done) => setImmediate(done));
+    expect(started).toEqual(['/repo/a.html', '/repo/b.html', '/repo/c.html']);
+
+    waiting.get('/repo/c.html')?.();
+    waiting.get('/repo/a.html')?.();
+    expect((await run).references.map((reference) => reference.rawPath)).toEqual([
+      '/repo/a.html',
+      '/repo/b.html',
+      '/repo/c.html',
+    ]);
+  });
+
   it('produces identical output across concurrency settings', async () => {
     const files = Object.fromEntries(
       Array.from({ length: 40 }, (_, index) => [`/repo/f${index}.html`, `ref:img${index}.png`]),

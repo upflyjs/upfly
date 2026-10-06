@@ -15,6 +15,7 @@ import type { DedupeOptions } from './args.js';
 import { scopeWords } from './audit.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { type GitState, RUN_TRAILER, commitPaths, gitState, ignoredPaths } from './git.js';
+import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
   type Refusal,
@@ -54,9 +55,10 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
   const { root, settings } = project;
 
   const git = gitState(root);
-  const unfinished = await unfinishedRun(root);
+  const upfly = upflyCommand(io.env, io.script);
+  const unfinished = await unfinishedRun(root, upfly);
   if (options.apply) {
-    const refusal = unfinished ?? gitRefusal(git, options, root);
+    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
     if (refusal !== null) return stop(refusal);
   }
 
@@ -76,18 +78,19 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
       onProgress: (event) => progress.update(event),
       beforeWrite: (plan) => {
         guard.refusal =
-          keepProblem(plan, options.keep) ?? (options.commit ? ignoredRefusal(root, plan) : null);
+          keepProblem(plan, options.keep, upfly) ??
+          (options.commit ? ignoredRefusal(root, plan) : null);
         return guard.refusal === null;
       },
     });
   } catch (error) {
     progress.clear();
-    const refusal = await engineRefusal(error, root);
+    const refusal = await engineRefusal(error, root, upfly);
     if (refusal === null) throw error;
     return stop(refusal);
   }
   progress.clear();
-  const problem = guard.refusal ?? keepProblem(result.plan, options.keep);
+  const problem = guard.refusal ?? keepProblem(result.plan, options.keep, upfly);
   if (problem !== null) return stop(problem);
 
   let commit: string | null = null;
@@ -102,7 +105,7 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
       return stop({
         code: EXIT_CODES.INTERNAL,
         reason: 'GIT_COMMIT_FAILED',
-        message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`upfly undo\` to put every file back.`,
+        message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`${upfly} undo\` to put every file back.`,
       });
     }
   }
@@ -111,14 +114,18 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
     git,
     commit,
     unfinished: unfinished !== null,
-    notes: notes(options, git, unfinished),
+    notes: notes(options, git, unfinished, upfly),
     started,
   });
   return EXIT_CODES.OK;
 }
 
 /** A `--keep` that names no copy, or two copies of one image, as a usage error. */
-function keepProblem(plan: DedupePlan, keep: readonly string[]): Refusal | null {
+function keepProblem(
+  plan: DedupePlan,
+  keep: readonly string[],
+  upfly: UpflyCommand,
+): Refusal | null {
   const setOf = new Map<string, number>();
   plan.sets.forEach((set, index) => {
     setOf.set(set.keep, index);
@@ -128,7 +135,7 @@ function keepProblem(plan: DedupePlan, keep: readonly string[]): Refusal | null 
   if (strangers.length > 0) {
     return {
       code: EXIT_CODES.USAGE,
-      message: `--keep ${strangers.join(', ')} ${strangers.length === 1 ? 'is' : 'are'} not one of the identical copies Upfly found. \`upfly audit\` lists each set of identical copies.`,
+      message: `--keep ${strangers.join(', ')} ${strangers.length === 1 ? 'is' : 'are'} not one of the identical copies Upfly found. \`${upfly} audit\` lists each set of identical copies.`,
     };
   }
   for (const index of plan.sets.keys()) {
@@ -199,14 +206,15 @@ function write(options: DedupeOptions, io: Io, result: DedupeProjectResult, outc
     });
     return;
   }
+  const upfly = upflyCommand(io.env, io.script);
   let next: NextStep | null = null;
-  if (options.apply) next = manifest === null ? null : nextAfterRun(outcome.commit);
+  if (options.apply) next = manifest === null ? null : nextAfterRun(outcome.commit, upfly);
   else if (plan.rewrites.length > 0) {
     const flags = [
       ...options.keep.flatMap((path) => ['--keep', path]),
       ...scopeWords({ ...options, dir: '.' }),
     ];
-    next = nextAfterPlan('dedupe', options.dir, flags, outcome.git, outcome.unfinished);
+    next = nextAfterPlan('dedupe', options.dir, flags, outcome.git, outcome.unfinished, upfly);
   }
   const summary = (file: ReportFile) =>
     dedupeSummary({
@@ -218,6 +226,7 @@ function write(options: DedupeOptions, io: Io, result: DedupeProjectResult, outc
       notes: outcome.notes,
       file,
       next,
+      upfly,
     });
   const root = result.pipeline.graph.root;
   const text = renderFile(summary({ written: reportPath('dedupe') }), {

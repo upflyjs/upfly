@@ -9,6 +9,7 @@
  * ARCHITECTURE.md.
  */
 
+import { mapInOrder } from '../map-in-order.js';
 import { compareStrings, extensionOf, isVectorExtension } from '../paths.js';
 import type { Asset } from '../types.js';
 
@@ -285,8 +286,9 @@ export interface ProbeOptions {
    */
   readonly alwaysMeasure?: readonly Asset[];
   /**
-   * Assets measured at once. Defaults to 4, kept small because libvips already
-   * multithreads inside each encode.
+   * Assets measured at once, the next starting as soon as any finishes. Defaults to 4, the
+   * size of Node's thread pool, which sharp's work runs on: more at once would only queue
+   * there, unless `UV_THREADPOOL_SIZE` was set before Node started.
    */
   readonly concurrency?: number;
   /**
@@ -375,26 +377,17 @@ export async function probeAssets(
   assets: readonly Asset[],
   options: ProbeOptions,
 ): Promise<AssetProbe[]> {
-  const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
   const withinCap = assetsWithinCap(assets, options);
-  const results: AssetProbe[] = [];
   let done = 0;
-  const measure = async (asset: Asset): Promise<AssetProbe> => {
+  // The next asset starts as soon as any finishes, so one large image never holds back the
+  // rest. The output follows the asset list, not which encode finished first, and the cap
+  // changes which assets are encoded, never the order they come back in.
+  return mapInOrder(assets, options.concurrency ?? DEFAULT_CONCURRENCY, async (asset) => {
     const probe = await probeOne(asset, options, withinCap);
     done += 1;
     options.onMeasured?.(done, assets.length);
     return probe;
-  };
-
-  for (let index = 0; index < assets.length; index += concurrency) {
-    const batch = assets.slice(index, index + concurrency);
-    // `Promise.all` preserves input order, so the output order follows the asset list,
-    // not which encode finished first. The cap changes which assets are encoded, never
-    // the order they come back in.
-    results.push(...(await Promise.all(batch.map(measure))));
-  }
-
-  return results;
+  });
 }
 
 /**

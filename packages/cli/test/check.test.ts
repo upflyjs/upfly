@@ -179,7 +179,7 @@ describe('upfly check', () => {
         '',
         'Passed: no reference names a missing image.',
         '',
-        '1 reference could not be checked, since Upfly cannot know which file it names; `upfly audit` lists it with the reason.',
+        '1 reference could not be checked, since Upfly cannot know which file it names; `npx upfly audit` lists it with the reason.',
         '',
       ].join('\n'),
     );
@@ -192,8 +192,85 @@ describe('upfly check', () => {
 
     expect(run.status).toBe(0);
     expect(run.stdout).toContain(
-      '1 file could not be parsed or read, so no reference in it was checked; `upfly audit` names it with the reason.',
+      '1 file could not be parsed or read, so no reference in it was checked; `npx upfly audit` names it with the reason.',
     );
+  });
+
+  /**
+   * A site a script converted: twelve root-relative images in its page, ten of them now only a
+   * WebP beside the name the page still uses. With two folders, the images alternate between.
+   */
+  function convertedByScript(folders: readonly string[] = ['public']): string {
+    const root = tempFolder(roots, 'upfly-check-named-');
+    const tags = Array.from({ length: 12 }, (_, n) => `<img src="/img/photo-${n + 1}.png">`);
+    write(root, 'index.html', `${tags.join('\n')}\n`);
+    for (let n = 1; n <= 12; n += 1) {
+      const folder = folders[n % folders.length] ?? 'public';
+      write(root, `${folder}/img/photo-${n}.${n <= 2 ? 'png' : 'webp'}`, image(100, n));
+    }
+    return root;
+  }
+
+  it('lists what a folder named with --public did not resolve, with exit 1, not asking for it again', () => {
+    const root = convertedByScript();
+
+    const human = upfly(['check', root, '--public', 'public']);
+    const json = upfly(['check', root, '--public', 'public', '--json']);
+
+    expect(human.status).toBe(1);
+    expect(human.stdout.slice(1, -1)).toBe(
+      [
+        'Upfly check',
+        '',
+        'Failed: 10 references name an image that does not exist.',
+        'Only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there.',
+        '',
+        'References to images that do not exist (10)',
+        ...[10, 11, 12, 3, 4, 5, 6, 7, 8, 9].map((n) => `    index.html:${n}  /img/photo-${n}.png`),
+        '',
+      ].join('\n'),
+    );
+    expect(human.stderr).toBe('');
+    expect(json.status).toBe(1);
+    const said = result(json.stdout);
+    expect(said).toMatchObject({
+      exitCode: 1,
+      passed: false,
+      fewResolved: { folders: ['public'], linked: 2, checkable: 12 },
+    });
+    expect(said.findings).toHaveLength(10);
+    expect(said.findings).toContainEqual({
+      kind: 'broken',
+      file: 'index.html',
+      line: 3,
+      where: 'index.html:3',
+      rawPath: '/img/photo-3.png',
+    });
+
+    // With no folder named, the same project still stops, asking for one.
+    const unnamed = upfly(['check', root]);
+    expect(unnamed.status).toBe(3);
+    expect(unnamed.stderr).toContain('--public <dir>');
+  });
+
+  it('trusts folders named by publicDirs in the config the same way, one or two', () => {
+    for (const folders of [['public'], ['public', 'static']]) {
+      const root = convertedByScript(folders);
+      write(root, 'upfly.config.json', `${JSON.stringify({ publicDirs: folders })}\n`);
+
+      const human = upfly(['check', root]);
+      const json = upfly(['check', root, '--json']);
+
+      expect(human.status).toBe(1);
+      expect(human.stdout).toContain(
+        `Only 2 of 12 root-relative references resolved in ${folders.join(' and ')}, named as the`,
+      );
+      expect(human.stdout + human.stderr).not.toMatch(/--public|publicDirs|could not work out/);
+      expect(result(json.stdout)).toMatchObject({
+        exitCode: 1,
+        fewResolved: { folders, linked: 2, checkable: 12 },
+      });
+    }
   });
 
   it('refuses with exit 3 when it cannot tell where the site is served from', () => {
@@ -319,7 +396,7 @@ describe('upfly check --changed', () => {
 
     expect(run.status).toBe(2);
     expect(run.stderr).toContain(
-      '`img` is a folder: to check the uncommitted changes in it, put the folder before --changed, as in `upfly check img --changed`',
+      '`img` is a folder: to check the uncommitted changes in it, put the folder before --changed, as in `npx upfly check img --changed`',
     );
   });
 });

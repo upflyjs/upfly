@@ -349,6 +349,28 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
     expect(snapshot(root, NOT_THE_PROJECT)).toEqual(before);
   });
 
+  it('when a folder was named and too few references resolve there, without asking for it again', () => {
+    const root = tempFolder(roots, 'upfly-named-root-');
+    const tags = Array.from({ length: 12 }, (_, n) => `<img src="/img/photo-${n + 1}.png">`);
+    write(root, 'index.html', `${tags.join('\n')}\n`);
+    const logo = readFileSync(join(FIXTURES, 'plain-html/images/logo.png'));
+    for (const n of [1, 2]) write(root, `public/img/photo-${n}.png`, logo);
+
+    const human = upfly(['optimize', root, '--public', 'public']);
+    const run = upfly(['optimize', root, '--public', 'public', '--json']);
+
+    expect(human.status).toBe(3);
+    expect(human.stderr).toContain(
+      'Only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there. Upfly rewrites nothing while so few resolve. `npx upfly check` lists the 10 references with the file and line of each.',
+    );
+    expect(human.stderr).not.toMatch(/--public|publicDirs/);
+    expect(run.status).toBe(3);
+    expect(result(run.stdout)).toMatchObject({
+      reason: 'SERVING_ROOT_UNKNOWN',
+      message: expect.stringContaining('`npx upfly check` lists the 10 references'),
+    });
+  });
+
   it('when most root-relative references point nowhere, so the served folder is unknown', () => {
     const root = tempFolder(roots, 'upfly-unknown-root-');
     const missing = Array.from({ length: 10 }, (_, n) => `<img src="/pictures/missing-${n}.png">`);
@@ -365,7 +387,7 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
     // The run prints no report, so the refusal says where the references it set aside are.
     expect(result(run.stdout)).toMatchObject({
       message: expect.stringContaining(
-        '`upfly audit` lists the 10 references that did not resolve',
+        '`npx upfly audit` lists the 10 references that did not resolve',
       ),
     });
   });

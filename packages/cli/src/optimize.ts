@@ -40,6 +40,7 @@ import {
   ignoredPaths,
   insideRepository,
 } from './git.js';
+import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
 import { count, writtenByKind } from './plan-text.js';
@@ -77,9 +78,10 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
   const { root, settings } = project;
 
   const git = gitState(root);
-  const unfinished = await unfinishedRun(root);
+  const upfly = upflyCommand(io.env, io.script);
+  const unfinished = await unfinishedRun(root, upfly);
   if (options.apply) {
-    const refusal = unfinished ?? gitRefusal(git, options, root);
+    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
     if (refusal !== null) return stop(refusal);
   }
 
@@ -90,7 +92,7 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
   let commit: string | null = null;
   const { manifest, plan } = result.optimize;
   if (options.commit && manifest !== null) {
-    const committed = commitRun(root, manifest, plan);
+    const committed = commitRun(root, manifest, plan, upfly);
     if (typeof committed !== 'string') return stop(committed);
     commit = committed;
   }
@@ -101,7 +103,7 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
     commit,
     unfinished: unfinished !== null,
     format: options.format ?? settings.format ?? 'webp',
-    notes: [...notes(options, git, unfinished), ...onlyNotes(result)],
+    notes: [...notes(options, git, unfinished, upfly), ...onlyNotes(result)],
     started,
   });
   return EXIT_CODES.OK;
@@ -188,19 +190,24 @@ async function carryOut(
     });
   } catch (error) {
     progress.clear();
-    const refusal = await engineRefusal(error, root);
+    const refusal = await engineRefusal(error, root, upflyCommand(io.env, io.script));
     if (refusal === null) throw error;
     return refusal;
   }
   progress.clear();
 
   const { refusal } = result.optimize;
+  const upfly = upflyCommand(io.env, io.script);
   if (refusal !== null) {
     return {
       code: EXIT_CODES.ABORTED,
       reason: 'SERVING_ROOT_UNKNOWN',
       // The command prints no report, so the refusal says where the set-aside references are.
-      message: `${refusal.reason} Name it with --public <dir>, or publicDirs in the config file; use . for the project root. \`upfly audit\` lists the ${count(refusal.checkable - refusal.linked, 'reference')} that did not resolve, with the file and line of each.`,
+      // A folder that was named is not asked for again: the reason says what resolved there.
+      message:
+        publicDirs === null
+          ? `${refusal.reason} Name it with --public <dir>, or publicDirs in the config file; use . for the project root. \`${upfly} audit\` lists the ${count(refusal.checkable - refusal.linked, 'reference')} that did not resolve, with the file and line of each.`
+          : `${refusal.reason} \`${upfly} check\` lists the ${count(refusal.checkable - refusal.linked, 'reference')} with the file and line of each.`,
     };
   }
   if (ignored.length > 0) {
@@ -233,14 +240,19 @@ export function ignoredByGit(root: string, ignored: readonly string[]): string {
 }
 
 /** Commits exactly the files the run wrote, and returns the commit's hash. */
-function commitRun(root: string, manifest: Manifest, plan: OptimizationPlan): string | Refusal {
+function commitRun(
+  root: string,
+  manifest: Manifest,
+  plan: OptimizationPlan,
+  upfly: UpflyCommand,
+): string | Refusal {
   try {
     return commitPaths(root, pathsTouched(manifest), commitMessage(manifest, plan));
   } catch (error) {
     return {
       code: EXIT_CODES.INTERNAL,
       reason: 'GIT_COMMIT_FAILED',
-      message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`upfly undo\` to put every file back.`,
+      message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`${upfly} undo\` to put every file back.`,
     };
   }
 }
@@ -249,7 +261,7 @@ function commitRun(root: string, manifest: Manifest, plan: OptimizationPlan): st
  * A run in progress, or one that stopped part way, either of which a new write must wait
  * for. The engine refuses both as well; asking first says so before the project is read.
  */
-export async function unfinishedRun(root: string): Promise<Refusal | null> {
+export async function unfinishedRun(root: string, upfly: UpflyCommand): Promise<Refusal | null> {
   const store = createNodeFileStore(root);
   const holder = await readLockHolder(store);
   if (holder !== null && processIsAlive(holder.pid)) {
@@ -278,7 +290,7 @@ export async function unfinishedRun(root: string): Promise<Refusal | null> {
   return {
     code: EXIT_CODES.ABORTED,
     reason: 'TRANSACTION_INTERRUPTED',
-    message: `The last run (${manifest.runId}, started ${manifest.startedAt}) stopped before it finished. Run \`upfly undo\` to put back every file it wrote, then run this again.`,
+    message: `The last run (${manifest.runId}, started ${manifest.startedAt}) stopped before it finished. Run \`${upfly} undo\` to put back every file it wrote, then run this again.`,
   };
 }
 
@@ -287,6 +299,7 @@ export function gitRefusal(
   git: GitState,
   options: Pick<OptimizeOptions, 'dir' | 'commit' | 'allowDirty'>,
   root: string,
+  upfly: UpflyCommand,
 ): Refusal | null {
   if (git.kind !== 'repository' || !git.tracked) {
     const why = unprotected(git, options.dir);
@@ -301,7 +314,7 @@ export function gitRefusal(
     return {
       code: EXIT_CODES.ABORTED,
       reason: 'NO_REPOSITORY',
-      message: `${capitalise(why)}, so git could not put these files back. \`upfly undo\` can: to write without git, add --allow-dirty.`,
+      message: `${capitalise(why)}, so git could not put these files back. \`${upfly} undo\` can: to write without git, add --allow-dirty.`,
     };
   }
 
@@ -340,7 +353,11 @@ function unprotected(git: GitState, dir: string): string {
 }
 
 /** The engine's own refusals, as exit 3 with what to do; null for anything else. */
-export async function engineRefusal(error: unknown, root: string): Promise<Refusal | null> {
+export async function engineRefusal(
+  error: unknown,
+  root: string,
+  upfly: UpflyCommand,
+): Promise<Refusal | null> {
   if (!(error instanceof UpflyError)) return null;
   switch (error.code) {
     case 'TRANSACTION_LOCKED':
@@ -349,18 +366,18 @@ export async function engineRefusal(error: unknown, root: string): Promise<Refus
       return {
         code: EXIT_CODES.ABORTED,
         reason: error.code,
-        message: `${error.message} Run \`upfly undo\`, then run this again.`,
+        message: `${error.message} Run \`${upfly} undo\`, then run this again.`,
       };
     case 'TRANSACTION_PLAN_INVALID':
     case 'TRANSACTION_FOREIGN_CHANGE': {
       // Either can happen before the first write or part way through; only part way
       // through is there a pending record for undo to follow.
-      const stopped = (await unfinishedRun(root))?.reason === 'TRANSACTION_INTERRUPTED';
+      const stopped = (await unfinishedRun(root, upfly))?.reason === 'TRANSACTION_INTERRUPTED';
       return {
         code: EXIT_CODES.ABORTED,
         reason: error.code,
         message: stopped
-          ? `${error.message} The run stopped part way: \`upfly undo\` puts back every file it wrote.`
+          ? `${error.message} The run stopped part way: \`${upfly} undo\` puts back every file it wrote.`
           : error.message,
       };
     }
@@ -418,6 +435,7 @@ export function notes(
   options: Pick<OptimizeOptions, 'apply' | 'dir'>,
   git: GitState,
   unfinished: Refusal | null,
+  upfly: UpflyCommand,
 ): string[] {
   if (options.apply) return [];
   const said: string[] = [];
@@ -433,7 +451,7 @@ export function notes(
     }
   } else {
     said.push(
-      `${capitalise(unprotected(git, options.dir))}: --apply writes here only with --allow-dirty, and \`upfly undo\` is then the way back.`,
+      `${capitalise(unprotected(git, options.dir))}: --apply writes here only with --allow-dirty, and \`${upfly} undo\` is then the way back.`,
     );
   }
   return said;
@@ -482,8 +500,9 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
   }
 
   const nothingToDo = run.plan.conversions.length === 0 && run.plan.rewrites.length === 0;
+  const upfly = upflyCommand(io.env, io.script);
   let next: NextStep | null = null;
-  if (options.apply) next = run.manifest === null ? null : nextAfterRun(outcome.commit);
+  if (options.apply) next = run.manifest === null ? null : nextAfterRun(outcome.commit, upfly);
   else if (!nothingToDo) {
     next = nextAfterPlan(
       'optimize',
@@ -491,6 +510,7 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       planFlags(options),
       outcome.git,
       outcome.unfinished,
+      upfly,
     );
   }
   const summary = (file: ReportFile) =>
@@ -508,6 +528,7 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       notes: outcome.notes,
       file,
       next,
+      upfly,
       report,
       servingRoots: pipeline.servingRoots,
     });

@@ -46,7 +46,7 @@ interface VariantSpec {
   readonly withMentions: boolean;
   /** Extra environment for the child process that measures it. */
   readonly env: Readonly<Record<string, string>>;
-  /** Override `scanSources`' batch size. Absent means the shipped default of 16. */
+  /** How many files `scanSources` reads at once. Absent means the shipped default of 16. */
   readonly concurrency?: number;
 }
 
@@ -87,7 +87,7 @@ export const VARIANT_SPEC: Readonly<Record<Variant, VariantSpec>> = {
     withMentions: false,
     env: {},
   },
-  // The batch barrier's cost, as `scan` at a far wider concurrency. `scanSources`
+  // What a far wider concurrency would gain, as `scan` at that width. `scanSources`
   // already takes `concurrency`, so the treatment costs no code.
   wide: {
     label: `concurrency ${WIDE_CONCURRENCY}`,
@@ -157,7 +157,7 @@ export async function measureBreakdown(root: string, variant: Variant): Promise<
   const parseByExtension = new Map<string, number>();
 
   // Reads overlap and parses do not, so they are measured differently. `scanSources`
-  // reads in concurrent batches, and summing concurrent durations measures occupancy,
+  // reads several files at once, and summing concurrent durations measures occupancy,
   // not time. So `readMs` is the union of the intervals with at least one read in flight,
   // and the occupancy sum is kept beside it because their ratio is the effective
   // concurrency. Parsing is synchronous, so the sum of parse durations is elapsed time.

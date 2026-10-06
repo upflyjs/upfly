@@ -29,6 +29,9 @@ afterEach(() => {
 
 const LOGO = readFileSync(join(FIXTURES, 'plain-html/images/logo.png'));
 
+/** What a package manager sets when it starts the run, as `pnpm exec upfly` does. */
+const PACKAGE_MANAGER = { npm_config_user_agent: 'pnpm/10.12.1 npm/? node/v22.14.0 win32 x64' };
+
 /** The plain HTML site, with a download link to the logo and a folder only a template reaches. */
 function site(): string {
   const root = copyFixture('plain-html', tempFolder(roots, 'upfly-refs-'));
@@ -204,8 +207,21 @@ describe('upfly refs', () => {
     expect(run.status).toBe(0);
     expect(run.stdout).toContain('No reference Upfly can read reaches it.');
     expect(run.stdout).toContain(
-      'Verdict: unused. Nothing names it, not even by file name in a file Upfly could not read; Upfly never deletes an image that nothing uses, and `upfly audit` lists it with its size.',
+      'Verdict: unused. Nothing names it, not even by file name in a file Upfly could not read; Upfly never deletes an image that nothing uses, and `npx upfly audit` lists it with its size.',
     );
+  });
+
+  it('prints each command as a project install types it when a package manager starts it', () => {
+    const root = site();
+    const elsewhere = tempFolder(roots, 'upfly-refs-elsewhere-');
+    write(elsewhere, 'outside.png', LOGO);
+    const run = (...args: string[]) => upfly(['refs', ...args], { env: PACKAGE_MANAGER });
+
+    const unused = run(join(root, 'images/never-referenced.png'), root);
+    const outside = run(join(elsewhere, 'outside.png'), root);
+
+    expect(unused.stdout).toContain('and `npx upfly audit` lists it with its size.');
+    expect(outside.stderr).toContain('name its project after it: npx upfly refs <image> <folder>.');
   });
 
   it('says where the name of a possibly unused image appears', () => {

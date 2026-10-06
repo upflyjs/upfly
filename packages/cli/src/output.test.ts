@@ -190,6 +190,27 @@ describe('progressReporter', () => {
     expect(err).toEqual(['\r\u001b[2Kmeasuring images: 120 of 2910']);
   });
 
+  it('shows every measuring count on a terminal, and writes twenty of a big run as JSON lines', () => {
+    const terminal = capture(true);
+    const json = capture(false);
+    const shown = progressReporter(terminal.io, 'audit', false);
+    const written = progressReporter(json.io, 'audit', true);
+    for (let done = 1; done <= 1004; done += 1) {
+      shown.update({ stage: 'measuring', done, total: 1004 });
+      written.update({ stage: 'measuring', done, total: 1004 });
+    }
+
+    expect(terminal.err).toHaveLength(1004);
+    expect(terminal.err.at(-1)).toBe('\r\u001b[2Kmeasuring images: 1004 of 1004');
+    expect(json.out).toHaveLength(20);
+    expect(json.out[0]).toBe(
+      '{"type":"progress","command":"audit","stage":"measuring","done":51,"total":1004}\n',
+    );
+    expect(json.out.at(-1)).toBe(
+      '{"type":"progress","command":"audit","stage":"measuring","done":1004,"total":1004}\n',
+    );
+  });
+
   it('names a count of one in the singular', () => {
     const { io, err } = capture(true);
     const progress = progressReporter(io, 'optimize', false);

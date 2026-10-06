@@ -19,6 +19,7 @@ import { convertibleImages, optimizeFromPipeline } from 'upfly-core/internal';
 import type { AuditOptions } from './args.js';
 import { loadConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
+import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import { policyFor } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
@@ -186,8 +187,9 @@ function write(
     });
     return;
   }
-  const next = nextAfterAudit(options, report, savings);
-  const summary = (file: ReportFile) => auditSummary(report, savings, file, next);
+  const upfly = upflyCommand(io.env, io.script);
+  const next = nextAfterAudit(options, report, savings, upfly);
+  const summary = (file: ReportFile) => auditSummary(report, savings, file, next, upfly);
   const text = renderFile(summary({ written: reportPath('audit') }), {
     when: localTime(run.started),
     folder: root,
@@ -198,7 +200,7 @@ function write(
   const said = output.diagnostics.length + output.scanDiagnostics.length;
   if (said > 0) {
     io.stderr.write(
-      `The imaging and parsing libraries left ${said} ${said === 1 ? 'message' : 'messages'} of their own; \`upfly audit --json\` includes their text.\n`,
+      `The imaging and parsing libraries left ${said} ${said === 1 ? 'message' : 'messages'} of their own; \`${upfly} audit --json\` includes their text.\n`,
     );
   }
 }
@@ -211,21 +213,29 @@ function nextAfterAudit(
   options: AuditOptions,
   report: Report,
   savings: Savings | null,
+  upfly: UpflyCommand,
 ): NextStep | null {
   const { findings } = report.summary;
-  // `optimize` refuses to plan until the folder is named, so that comes first.
+  // `optimize` refuses to plan until the folder is named, so that comes first; once it is
+  // named, until the references that name no file there are fixed, which `check` lists.
+  if (findings['serving-root-unknown'] > 0 && report.coverage.servingRoots.declared) {
+    return {
+      words: [...upfly.split(' '), 'check', ...scopeWords(options)],
+      text: `${upfly} check, with the same folder and options`,
+    };
+  }
   if (findings['serving-root-unknown'] > 0) {
     return {
       words: null,
-      text: 'name the folder the site serves: upfly audit --public <dir>',
+      text: `name the folder the site serves: ${upfly} audit --public <dir>`,
     };
   }
   const converts = (savings?.conversions.length ?? 0) > 0;
   const command = converts ? 'optimize' : findings.duplicate > 0 ? 'dedupe' : null;
   if (command === null) return null;
   return {
-    words: ['upfly', command, ...scopeWords(options)],
-    text: `upfly ${command}, with the same folder and options`,
+    words: [...upfly.split(' '), command, ...scopeWords(options)],
+    text: `${upfly} ${command}, with the same folder and options`,
   };
 }
 

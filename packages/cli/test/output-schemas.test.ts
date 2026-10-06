@@ -287,6 +287,14 @@ describe('every --json line validates against the published schemas', () => {
     expect(tooLarge.exitCode).toBe(1);
     write(small, 'upfly.config.json', '{ "publicDirs": ["."] }\n');
     expect(result(upfly(['check', small, '--json'])).passed).toBe(true);
+
+    // A folder named where too few references resolve: its references are findings.
+    const named = tempFolder(roots, 'upfly-schema-check-');
+    const tags = Array.from({ length: 12 }, (_, n) => `<img src="/img/photo-${n + 1}.png">`);
+    write(named, 'index.html', `${tags.join('\n')}\n`);
+    for (const n of [1, 2]) write(named, `public/img/photo-${n}.png`, 'not decoded');
+    const few = result(upfly(['check', named, '--json', '--public', 'public']));
+    expect(few.fewResolved).toEqual({ folders: ['public'], linked: 2, checkable: 12 });
   }, 120_000);
 
   it('refs, one image per verdict', () => {

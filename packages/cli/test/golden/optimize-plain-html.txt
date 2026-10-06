@@ -28,8 +28,9 @@ Options: none
 
   Leave        6 images, 2.4 KB
                  3  would save too little
-                 2  nothing links to it
                  1  no reference would move to a new file
+                 1  possibly unused
+                 1  unused
 
     Each of these images stays as it is, for the reason given.
       images/badge.png  70 B  converting it would save 34 B, under the 1 KB a saving must reach to be reported or converted
@@ -39,8 +40,8 @@ Options: none
       images/removed.png  70 B  nothing links to it and something we could not read mentions it, so converting would change a file whose references we cannot see
       images/team.jpg  2 KB  converting it would save 994 B, under the 1 KB a saving must reach to be reported or converted
 
-  Next         upfly optimize --apply
+  Next         npx upfly optimize --apply
 
-  Dry run: no project file was changed. With --apply, upfly optimize would
+  Dry run: no project file was changed. With --apply, npx upfly optimize would
   convert 5 images and save 93.1 KB.
 

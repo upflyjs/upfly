@@ -30,6 +30,9 @@ afterEach(() => {
 
 const LOGO = readFileSync(join(FIXTURES, 'plain-html/images/logo.png'));
 
+/** What a package manager sets when it starts the run, as `pnpm exec upfly` does. */
+const PACKAGE_MANAGER = { npm_config_user_agent: 'pnpm/10.12.1 npm/? node/v22.14.0 win32 x64' };
+
 /** A site served from `public`: the hero named three ways, and by a full address. */
 function site(): string {
   const root = tempFolder(roots, 'upfly-move-');
@@ -109,6 +112,30 @@ describe('upfly move', () => {
     expect(readFileSync(join(root, '.upfly/move.txt'), 'utf8')).toContain(
       'src/seo.ts:1  https://example.com/hero.png',
     );
+  });
+
+  it('prints each command as a project install types it when a package manager starts it', () => {
+    const root = site();
+    commitAll(root);
+    const elsewhere = tempFolder(roots, 'upfly-move-elsewhere-');
+    const run = (...args: string[]) =>
+      upfly(['move', ...args], { cwd: root, env: PACKAGE_MANAGER });
+
+    const plan = run('public/hero.png', 'public/img/hero.png');
+    const outside = run('public/hero.png', join(elsewhere, 'hero.png'));
+    const none = run('public/hero.png');
+    const applied = run('public/hero.png', 'public/img/hero.png', '--apply');
+
+    expect(plan.stdout).toMatch(
+      /\n {2}Next +npx upfly move public\/hero\.png public\/img\/hero\.png --apply\n/,
+    );
+    expect(outside.stderr).toContain('name its project after them: npx upfly move <from> <to>');
+    expect(none.stderr).toContain('such as `npx upfly move public/hero.png public/img/hero.png`');
+    expect(none.stderr).toContain('See `npx upfly move --help`.');
+    expect(applied.stdout).toContain(
+      "run the project's build, if it has one, then npx upfly check",
+    );
+    expect(applied.stdout).toContain('npx upfly undo puts every file back');
   });
 
   it('moves and commits exactly the run, and upfly undo puts every byte back', () => {

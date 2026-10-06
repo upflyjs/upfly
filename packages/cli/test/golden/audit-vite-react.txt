@@ -7,8 +7,8 @@ Options: none
   References   12 of 12 resolved, from 5 source files
   Savings      75.5 KB as WebP at quality 80, across 5 images
 
-    upfly optimize would convert each of these images and move every reference
-    it can rewrite to the new file.
+    npx upfly optimize would convert each of these images and move every
+    reference it can rewrite to the new file.
       public/photos/wide.jpg → public/photos/wide.webp  10.2 KB → 8.7 KB
       public/photos/wide@2x.jpg → public/photos/wide@2x.webp  36.2 KB → 30.9 KB
       public/screenshot.png → public/screenshot.webp  10.9 KB → 1.1 KB
@@ -26,10 +26,11 @@ Options: none
       src/assets/orphan.png  70 B
 
   Copies       1 set of identical images, 210 B recoverable
-                 upfly dedupe points each set's references at one copy
+                 npx upfly dedupe points each set's references at one copy
 
-    The files in each set hold the same bytes. upfly dedupe keeps one copy of
-    each set and points the references to the others at it; it deletes nothing.
+    The files in each set hold the same bytes. npx upfly dedupe keeps one copy
+    of each set and points the references to the others at it; it deletes
+    nothing.
       70 B each, 210 B recoverable by keeping one:
         public/icons/touch.png
         src/assets/orphan.png
@@ -38,9 +39,9 @@ Options: none
 
   Skipped      nothing
 
-  Next         upfly optimize
+  Next         npx upfly optimize
 
-  upfly optimize would convert 5 images and save 75.5 KB.
+  npx upfly optimize would convert 5 images and save 75.5 KB.
 
 What Upfly could not check
 

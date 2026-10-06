@@ -23,10 +23,11 @@ Options: none
       src/index.css:15  ./assets/unused-in-css.png  an import names a file for the bundler, and public/icons/touch.png is in a folder the site serves as it is, which bundlers such as Vite do not import from
 
   Unused       1 copy, 70 B, with no reference left
-                 Upfly never deletes it; upfly audit lists it as unused
+                 Upfly never deletes it; npx upfly audit lists it as unused
 
-    No reference names these copies once the plan is written. upfly dedupe
-    deletes none of them; upfly audit then lists each as unused, with its size.
+    No reference names these copies once the plan is written. npx upfly dedupe
+    deletes none of them; npx upfly audit then lists each as unused, with its
+    size.
       src/assets/orphan.png
 
   Dry run: no project file was changed, and there is nothing to do.

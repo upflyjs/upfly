@@ -4,6 +4,7 @@ import type { Asset, RawReference, Reference } from '../types.js';
 import {
   MINIMUM_ROOT_RELATIVE,
   RESOLUTION_FLOOR,
+  fewResolvedIn,
   resolutionHealth,
   withheldReferences,
 } from './resolution-health.js';
@@ -181,5 +182,33 @@ describe('root-relativeness, read from the path the text proves', () => {
     });
 
     expect(withheldReferences(graph)).toContain(withheld);
+  });
+});
+
+describe('what a run told where the site is served from says when too little resolved there', () => {
+  it('says how many resolved in the folder named, and that the rest name no file there', () => {
+    expect(fewResolvedIn({ linked: 2, checkable: 12 }, ['public'])).toBe(
+      'only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there',
+    );
+  });
+
+  it('names every folder, and agrees with more than one', () => {
+    expect(
+      fewResolvedIn({ linked: 1, checkable: 10 }, ['public', 'static', 'apps/web/public']),
+    ).toBe(
+      'only 1 of 10 root-relative references resolved in public, static and apps/web/public, named as the folders the site is served from; if they are, the other 9 name no file there',
+    );
+  });
+
+  it('calls the project root by name, and says none and all when none resolved', () => {
+    expect(fewResolvedIn({ linked: 0, checkable: 12 }, [''])).toBe(
+      'none of the 12 root-relative references resolved in the project root, named as the folder the site is served from; if it is, all 12 name no file there',
+    );
+  });
+
+  it('says that no folder was named when the list named none', () => {
+    expect(fewResolvedIn({ linked: 0, checkable: 11 }, [])).toBe(
+      'none of the 11 root-relative references resolved, and no folder was named as the one the site is served from',
+    );
   });
 });

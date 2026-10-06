@@ -505,6 +505,18 @@ So two things happen below a floor:
    name from whichever directory the site serves, since the resolver had no serving root to glob
    the pattern against.
 
+**A folder the project named is never asked for again.** When `--public` or `publicDirs` named
+where the site is served from (`ServingRoots.declared`) and the floor is still crossed, the engine
+did not fail to work the folder out: it was told, and too little resolved there. The finding and
+the planner's refusal stand, since a run that resolved so little rewrites nothing and the folder may
+be wrong, and the assets the withheld references could name stay `possibly-dead`. What changes is
+what the run says: how many resolved in the folders named, and that if the site is served from
+there the rest name no file there (`fewResolvedIn`, one sentence for every place that says it).
+`upfly check` lists them as its findings, with that line, and fails with exit 1 rather than
+stopping; `upfly audit` lists them under Broken and points at `check`; `upfly optimize` still
+refuses, pointing at `check` rather than at `--public`. With no folder named, the refusal is as
+above.
+
 **The measure is deliberately narrow: root-relative references only, linked over linked-plus-broken.**
 Only those depend on a serving root. Root-relative is read from the path a reference's text proves
 (`provenPath`), in the measure, the withheld list, the audit's split and the pattern list alike, so
@@ -1410,11 +1422,12 @@ usually holds more files than everything else combined, and the only way to stay
 budget is to never descend into it at all. A glob has to consider each path in order to reject
 it; a walker drops the entire subtree on a single directory-name lookup.
 
-Directories are read a level at a time, up to sixteen in parallel, and the same bound applies to
-the `stat` of each image afterwards. The limit is there to avoid exhausting file descriptors, not
-to match CPU count, since this work is entirely IO-bound. A shared work queue would parallelise
-slightly better at the very top of the tree, but needs active-worker bookkeeping to stop workers
-exiting while a peer is still producing work, and this module is meant to stay readable.
+Directories are read a level at a time, up to sixteen at once, the next starting as soon as any
+finishes, and the same bound applies to the `stat` of each image afterwards. The limit is there to
+avoid exhausting file descriptors, not to match CPU count, since this work is entirely IO-bound. A
+shared work queue across levels would parallelise slightly better at the very top of the tree, but
+needs active-worker bookkeeping to stop workers exiting while a peer is still producing work, and
+this module is meant to stay readable.
 
 What it declines to do, it records. Symlinks and Windows junctions are not followed (a junction
 reports as a symlink to `lstat`, which is why the check comes first: following one can put the
@@ -2355,9 +2368,14 @@ That budget covers **discovery, parsing, resolution and graph building only**. P
 encoding are explicitly excluded and reported as a separate number: both are dominated by
 libvips, and optimising against a target that included them would mean tuning our code against
 somebody else's decode time. **They are bounded separately, because their profiles are opposite:**
-reads are IO-bound and default to **16 at a time** (`scan.ts`), encodes are CPU-bound with libvips
-already multithreading internally and default to **4** (`probe.ts`), a measured default:
-`os.cpus() - 1` was about 21% worse.
+reads are IO-bound and default to **16 at a time** (`scan.ts`), encodes are CPU-bound and default
+to **4** (`probe.ts`), a measured default: `os.cpus() - 1` was about 21% worse. One encode keeps
+about one core busy whatever libvips is allowed, so the parallelism is across images, and sharp's
+work runs on Node's thread pool, four threads unless `UV_THREADPOOL_SIZE` is set before Node starts
+(setting it from inside the program has no effect on Windows). Both bounds are kept full: the next
+file or image starts the moment any finishes (`mapInOrder`, used by the walk, the sizing, the scan
+and the probe), since a group that waits for its slowest member leaves most of its slots idle while
+one large image encodes.
 
 `bench/` is checked in and runs in CI against a fixed fixture, so a regression shows up as a
 number rather than a feeling. **Any performance claim in the README must come from a number `bench/`

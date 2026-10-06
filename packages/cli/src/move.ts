@@ -19,6 +19,7 @@ import type { MoveOptions } from './args.js';
 import { isDirectory, scopeWords } from './audit.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { type GitState, RUN_TRAILER, commitPaths, gitState, ignoredPaths } from './git.js';
+import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
   type Refusal,
@@ -74,13 +75,14 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
   const project = await openProject(options);
   if ('code' in project) return stop(project);
   const { root, settings } = project;
-  const paths = pathsOf(options, root);
+  const upfly = upflyCommand(io.env, io.script);
+  const paths = pathsOf(options, root, upfly);
   if ('code' in paths) return stop(paths);
 
   const git = gitState(root);
-  const unfinished = await unfinishedRun(root);
+  const unfinished = await unfinishedRun(root, upfly);
   if (options.apply) {
-    const refusal = unfinished ?? gitRefusal(git, options, root);
+    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
     if (refusal !== null) return stop(refusal);
   }
 
@@ -105,7 +107,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
     });
   } catch (error) {
     progress.clear();
-    const refusal = await engineRefusal(error, root);
+    const refusal = await engineRefusal(error, root, upfly);
     if (refusal === null) throw error;
     return stop(refusal);
   }
@@ -125,7 +127,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
       return stop({
         code: EXIT_CODES.INTERNAL,
         reason: 'GIT_COMMIT_FAILED',
-        message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`upfly undo\` to put every file back.`,
+        message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`${upfly} undo\` to put every file back.`,
       });
     }
   }
@@ -134,8 +136,9 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
     git,
     commit,
     unfinished: unfinished !== null,
-    notes: notes(options, git, unfinished),
+    notes: notes(options, git, unfinished, upfly),
     started,
+    upfly,
   });
   return EXIT_CODES.OK;
 }
@@ -145,7 +148,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
  * current folder, as a shell would. A destination that is a folder, or ends in a slash, takes
  * the image or folder in under its own name, as `mv` does.
  */
-function pathsOf(options: MoveOptions, root: string): Paths | Refusal {
+function pathsOf(options: MoveOptions, root: string, upfly: UpflyCommand): Paths | Refusal {
   const usage = (message: string): Refusal => ({ code: EXIT_CODES.USAGE, message });
   const from = resolve(options.from);
   if (!existsSync(from)) return usage(`there is no file or folder at ${options.from}.`);
@@ -157,7 +160,7 @@ function pathsOf(options: MoveOptions, root: string): Paths | Refusal {
   ] as const) {
     if (insideOf(root, path) === null) {
       return usage(
-        `${given} is outside the project at ${root}. Name paths inside it, or name its project after them: upfly move <from> <to> <folder>.`,
+        `${given} is outside the project at ${root}. Name paths inside it, or name its project after them: ${upfly} move <from> <to> <folder>.`,
       );
     }
   }
@@ -237,6 +240,8 @@ interface Outcome {
   readonly notes: readonly string[];
   /** When the run started, for the report file's first lines. */
   readonly started: Date;
+  /** How the commands it prints are typed. */
+  readonly upfly: UpflyCommand;
 }
 
 function write(options: MoveOptions, io: Io, result: MoveProjectResult, outcome: Outcome): void {
@@ -260,7 +265,7 @@ function write(options: MoveOptions, io: Io, result: MoveProjectResult, outcome:
     return;
   }
   let next: NextStep | null = null;
-  if (options.apply) next = manifest === null ? null : nextAfterRun(outcome.commit);
+  if (options.apply) next = manifest === null ? null : nextAfterRun(outcome.commit, outcome.upfly);
   else if (plan.moves.length > 0) {
     next = nextAfterPlan(
       'move',
@@ -268,6 +273,7 @@ function write(options: MoveOptions, io: Io, result: MoveProjectResult, outcome:
       scopeWords({ ...options, dir: '.' }),
       outcome.git,
       outcome.unfinished,
+      outcome.upfly,
       [options.from, options.to],
     );
   }
