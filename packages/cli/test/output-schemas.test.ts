@@ -86,6 +86,7 @@ const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] =
   ['optimize --only', (line) => line.command === 'optimize' && line.only !== null],
   ['optimize applied', (line) => line.command === 'optimize' && line.run !== null],
   ['dedupe applied', (line) => line.command === 'dedupe' && line.run !== null],
+  ['move applied', (line) => line.command === 'move' && line.run !== null],
   [
     'refs unfollowed',
     (line) => line.command === 'refs' && (line.unfollowed as unknown[]).length > 0,
@@ -336,6 +337,24 @@ describe('every --json line validates against the published schemas', () => {
     result(upfly(['optimize', vite, '--json']));
   }, 180_000);
 
+  it('move, planned, applied and committed, and undo putting it back', () => {
+    git(site, 'add', '-A');
+    git(site, 'commit', '--quiet', '--allow-empty', '-m', 'before the move');
+    const move = [
+      'move',
+      join(site, 'img/banner.png'),
+      join(site, 'img/moved/banner.png'),
+      site,
+      '--json',
+      '--public',
+      '.',
+    ];
+    result(upfly(move));
+    const applied = result(upfly([...move, '--apply', '--commit']));
+    expect(applied.commit).toMatch(/^[0-9a-f]{40}$/);
+    result(upfly(['undo', site, '--json']));
+  }, 120_000);
+
   it('reached every branch the schemas describe', () => {
     const expected = [
       'progress discovered',
@@ -358,6 +377,7 @@ describe('every --json line validates against the published schemas', () => {
       'result init',
       'result refs',
       'result dedupe',
+      'result move',
       'finding dead',
       'finding possibly-dead',
       'finding broken',
@@ -386,6 +406,7 @@ describe('every --json line validates against the published schemas', () => {
       'optimize --only',
       'optimize applied',
       'dedupe applied',
+      'move applied',
       'refs unfollowed',
       'undo a run',
       'undo none',

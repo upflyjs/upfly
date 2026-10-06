@@ -13,7 +13,7 @@ Commands:
   optimize [dir]   Convert images, update the references it can rewrite, and remove each
                    original they replace. Shows the plan and changes nothing unless run
                    with --apply.
-  undo [dir]       Put back every file the last optimize or dedupe --apply changed.
+  undo [dir]       Put back every file the last optimize, dedupe or move --apply changed.
   check [dir]      Fail, for continuous integration, when a reference names an image that
                    does not exist. Changes nothing.
   init [dir]       Write upfly.config.json with the folders Upfly works out, and say why.
@@ -23,6 +23,10 @@ Commands:
                    optimize would do with it. Changes nothing.
   dedupe [dir]     Keep one copy of each image stored more than once and point the
                    references at it. Deletes nothing; shows the plan unless run with --apply.
+  move <from> <to> [dir]
+                   Move an image, or the images in a folder, update the references Upfly
+                   can rewrite, and list every other line that still names the old path.
+                   Deletes nothing; shows the plan unless run with --apply.
 
 Options for every command:
   --json         Print one JSON object per line: progress, then the result
@@ -32,9 +36,9 @@ Options for every command:
 dir is the project to read, the current directory by default. Its upfly.config.ts or
 upfly.config.json is read if there is one.
 
-audit, optimize and dedupe print a summary, and keep it with every list in full in a file
-named after the command (.upfly/audit.txt, .upfly/optimize.txt, .upfly/dedupe.txt), which
-git is told to ignore. --full prints that file; --show <row> prints one row of it with its
+audit, optimize, dedupe and move print a summary, and keep it with every list in full in a
+file named after the command (.upfly/audit.txt, .upfly/optimize.txt, .upfly/dedupe.txt,
+.upfly/move.txt), which git is told to ignore. --full prints that file; --show <row> prints one row of it with its
 list.
 `;
 
@@ -116,9 +120,9 @@ what to do; 4 for a failure Upfly did not anticipate.
 
 const UNDO = `Usage: upfly undo [dir] [options]
 
-Puts back every file the last optimize --apply or dedupe --apply changed: removed
-originals come back, updated references point at them again, and converted files are
-removed. It checks each file first and changes nothing if any of them was edited since
+Puts back every file the last optimize, dedupe or move --apply changed: removed originals
+come back, updated references point at them again, converted files are removed, and
+moved images go back where they were. It checks each file first and changes nothing if any of them was edited since
 that run.
 
 Options:
@@ -228,6 +232,43 @@ usage or configuration error, such as a --keep that names no copy; 3 when Upfly 
 write, and the message says why and what to do; 4 for a failure Upfly did not anticipate.
 `;
 
+const MOVE = `Usage: upfly move <from> <to> [dir] [options]
+
+Moves an image, or each image in a folder, and updates each reference to it that Upfly
+can rewrite to name the new place, in the form it was written in. A move Upfly cannot make
+safely is refused with the reason: a destination outside the project or already holding a
+file, a move between the bundled source and a folder the site is served from, an image a
+path built at runtime also matches. A reference that cannot follow is listed with the
+reason, and so is every other line that still names the old path, such as a full address
+or a comment, found by a search of every file: Upfly leaves those as written. Without
+--apply it changes no project file and shows a summary of the plan, with the full plan in
+.upfly/move.txt. It deletes no image.
+
+from and to are paths from the current folder, inside the project. A to that is a folder,
+or ends in a slash, takes from in under its own name.
+
+Options:
+  --full                 Print the full plan instead of the summary
+  --show <row>           Print one row of the summary with its complete list: move,
+                         update, leave, unfollowed or refused
+  --apply                Write the plan. Refused while the project folder has uncommitted
+                         changes or git does not track it, as optimize is
+  --dry-run              Show the plan and change nothing, as a run without --apply does
+  --commit               With --apply: commit exactly the files the run wrote, as one
+                         commit that git revert undoes
+  --allow-dirty          With --apply: write even with uncommitted changes, or outside a
+                         git repository. upfly undo still puts the files back
+  --public <dir>         A folder the site is served from, such as public; repeat it for
+                         several, and use . for the project root itself
+  --exclude <pattern>    Leave matching paths out, in .gitignore syntax; repeatable. Their
+                         files are still searched for lines naming the old path
+  --json                 Print one JSON object per line: progress, then the result
+
+Exit status: 0 when the run finished; 2 for a usage or configuration error, such as a path
+outside the project or one that names no image; 3 when Upfly refused to write, or refused
+every move asked for, and the message says why; 4 for a failure Upfly did not anticipate.
+`;
+
 const TEXT: Record<CommandName, string> = {
   audit: AUDIT,
   optimize: OPTIMIZE,
@@ -236,6 +277,7 @@ const TEXT: Record<CommandName, string> = {
   init: INIT,
   refs: REFS,
   dedupe: DEDUPE,
+  move: MOVE,
 };
 
 /** The help for one command, or the general help when `command` is null. */

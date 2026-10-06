@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "upfly move --json: the result",
+  "description": "The last line upfly move <from> <to> --json prints when the run finishes: the images that move, the references pointed at their new place, each move refused and each reference that cannot follow with the reason, and every other line that still names an old path. Without --apply nothing is written and run is null. No image is deleted. Progress lines come before it (events.json); a run that stops, or refuses every move it was asked for, prints an error line instead (events.json).",
+  "type": "object",
+  "required": [
+    "type",
+    "command",
+    "exitCode",
+    "apply",
+    "plan",
+    "run",
+    "commit",
+    "repository",
+    "notes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "result" },
+    "command": { "const": "move" },
+    "exitCode": { "const": 0 },
+    "apply": {
+      "description": "Whether --apply was given, so the plan was written.",
+      "type": "boolean"
+    },
+    "plan": {
+      "type": "object",
+      "required": ["moves", "rewrites", "refused", "declined", "unfollowed"],
+      "additionalProperties": false,
+      "properties": {
+        "moves": {
+          "description": "Each image that moves, in path order: one, or every image under a folder.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/move" }
+        },
+        "rewrites": {
+          "description": "The references that name the new place, one entry per file, in path order.",
+          "type": "array",
+          "items": { "$ref": "optimize.json#/definitions/rewrite" }
+        },
+        "refused": {
+          "description": "Each move Upfly will not make, with the reason. A refused move writes nothing.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/refused" }
+        },
+        "declined": {
+          "description": "References to a moved image that cannot follow it, each with the reason. The image still moves, so each of these breaks unless it is changed by hand.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/declined" }
+        },
+        "unfollowed": {
+          "description": "Every other line that names a moved image's old path, found by a search of the project's files in any letter case, which Upfly does not follow and leaves as written, as upfly refs lists them.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/unfollowed" }
+        }
+      }
+    },
+    "unsearchable": {
+      "description": "Files the search for the old paths could not read, so a line in them cannot be ruled out. Present only when there is one.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["file", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "run": {
+      "description": "What an applied run wrote, or null when it wrote nothing: a dry run, or a plan with nothing to do. upfly undo puts every one of these files back.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["id", "moved", "changed"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "description": "The run's id, which the commit message names.",
+              "type": "string"
+            },
+            "moved": {
+              "description": "Each image moved, from where to where.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/move" }
+            },
+            "changed": {
+              "description": "Each file whose references were updated.",
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "commit": { "$ref": "optimize.json#/definitions/commit" },
+    "repository": { "$ref": "optimize.json#/definitions/repository" },
+    "notes": {
+      "description": "On a dry run, what --apply would refuse, each a sentence.",
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "move": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "description": "Where the image is, relative to the project.", "type": "string" },
+        "to": { "description": "Where it goes.", "type": "string" }
+      }
+    },
+    "refused": {
+      "type": "object",
+      "required": ["from", "to", "code", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "code": {
+          "description": "Why: the destination is outside the project (outside-project), the move changes how the file is reached, between the bundled source and a folder the site is served from, or out of an alias's reach (crosses-serving-boundary), a path built at runtime also matches other images (binds-a-pattern), a file is already there (destination-occupied), two moves go to one place (destination-claimed-twice), one image is moved twice (source-claimed-twice), a rewritten reference would reach another file or none (rewrite-would-miss), a reference left as written would load the moved file instead of what it loads today (redirects-a-reference), or the path names no image (not-an-asset).",
+          "enum": [
+            "outside-project",
+            "crosses-serving-boundary",
+            "binds-a-pattern",
+            "destination-occupied",
+            "destination-claimed-twice",
+            "source-claimed-twice",
+            "rewrite-would-miss",
+            "redirects-a-reference",
+            "not-an-asset"
+          ]
+        },
+        "reason": { "description": "What is in the way, as a sentence.", "type": "string" }
+      }
+    },
+    "declined": {
+      "type": "object",
+      "required": ["file", "line", "where", "text", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "line": { "type": ["integer", "null"], "minimum": 1 },
+        "where": { "description": "file:line, or the file alone.", "type": "string" },
+        "text": { "description": "The path as written.", "type": "string" },
+        "why": { "type": "string" }
+      }
+    },
+    "unfollowed": {
+      "type": "object",
+      "required": ["from", "file", "line", "text", "reason", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "description": "The old path of the image the line names.", "type": "string" },
+        "file": { "description": "The file that holds it.", "type": "string" },
+        "line": { "description": "The line, counted from 1.", "type": "integer", "minimum": 1 },
+        "text": {
+          "description": "The path as the line writes it, such as a whole address.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why Upfly does not follow it, as in refs.json's unfollowed.",
+          "enum": [
+            "full-address",
+            "built-at-runtime",
+            "data-or-props",
+            "unread-file-type",
+            "comment",
+            "other"
+          ]
+        },
+        "why": { "description": "The reason, as a sentence.", "type": "string" },
+        "host": { "description": "The host, for a full address.", "type": "string" }
+      }
+    }
+  }
+}

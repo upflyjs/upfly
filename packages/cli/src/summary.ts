@@ -16,7 +16,13 @@ import type {
   Report,
   ServingRoots,
 } from 'upfly-core';
-import { type AssetProbe, type Graph, formatBytes, servingRootOf } from 'upfly-core/internal';
+import {
+  type AssetProbe,
+  type Graph,
+  type MovePlan,
+  formatBytes,
+  servingRootOf,
+} from 'upfly-core/internal';
 import type { Savings } from './audit.js';
 import { type GitState, insideRepository } from './git.js';
 import {
@@ -864,6 +870,166 @@ function setLines(set: DedupeSet): string[] {
   return lines;
 }
 
+/** What a `move` run planned or did, and what the summary needs to say it. */
+export interface MoveFacts {
+  readonly plan: MovePlan;
+  readonly apply: boolean;
+  readonly manifest: Manifest | null;
+  readonly commit: string | null;
+  readonly git: GitState;
+  readonly notes: readonly string[];
+  readonly file: ReportFile;
+  readonly next: NextStep | null;
+}
+
+/** The summary of a `move` run, dry or applied. */
+export function moveSummary(facts: MoveFacts): Summary {
+  const { plan, apply } = facts;
+  const references = plan.rewrites.reduce((sum, rewrite) => sum + rewrite.edits.length, 0);
+  const [only] = plan.moves;
+  const rows: Row[] = [
+    {
+      label: apply ? 'Moved' : 'Move',
+      value:
+        only === undefined
+          ? ['nothing: every move was refused']
+          : plan.moves.length === 1
+            ? [`${only.from} to ${only.to}`]
+            : [count(plan.moves.length, 'image')],
+      key: 'move',
+      ...(only === undefined
+        ? {}
+        : {
+            list: {
+              intro: 'Each image, and where it goes. No image is deleted.',
+              items: plan.moves.map((move) => `${move.from}  to ${move.to}`),
+            },
+          }),
+    },
+  ];
+  if (only !== undefined) {
+    rows.push({
+      label: apply ? 'Updated' : 'Update',
+      value:
+        references === 0
+          ? ['no reference']
+          : [count(references, 'reference'), ` in ${count(plan.rewrites.length, 'file')}`],
+      key: 'update',
+      ...(references === 0
+        ? {}
+        : {
+            list: {
+              intro: 'In each file, the references to a moved image name its new place.',
+              items: plan.rewrites.map(
+                (rewrite) => `${rewrite.file}  ${count(rewrite.edits.length, 'reference')}`,
+              ),
+            },
+          }),
+    });
+  }
+  if (plan.declined.length > 0) {
+    rows.push({
+      label: 'Cannot follow',
+      value: [count(plan.declined.length, 'reference'), ', which breaks unless changed by hand'],
+      key: 'leave',
+      list: {
+        intro:
+          'Each of these references names a moved image and stays as written, for the reason given, so it no longer leads to the image. Change each by hand.',
+        items: plan.declined.map((stay) => `${stay.where}  ${stay.text}  ${stay.why}`),
+      },
+    });
+  }
+  if (plan.unfollowed.length > 0) {
+    const one = plan.unfollowed.length === 1;
+    rows.push({
+      label: 'Not followed',
+      value: [count(plan.unfollowed.length, 'line'), ` still name${one ? 's' : ''} an old path`],
+      details: [
+        `Upfly leaves ${one ? 'it' : 'them'} as written; change by hand what should follow`,
+      ],
+      key: 'unfollowed',
+      list: {
+        intro:
+          'Each of these lines names a moved image by its old path, in a form Upfly does not follow, and stays as written. A full address on the site itself, or a path built when the code runs, may need the new place.',
+        items: plan.unfollowed.map(
+          (line) => `${line.file}:${line.line}  ${line.text}  ${line.why}`,
+        ),
+      },
+    });
+  }
+  if (plan.refused.length > 0) {
+    rows.push({
+      label: 'Refused',
+      value: [count(plan.refused.length, 'move')],
+      key: 'refused',
+      list: {
+        intro: 'Each move Upfly will not make, and why. Nothing of it is written.',
+        items: plan.refused.map((refusal) => `${refusal.from}  ${refusal.reason}`),
+      },
+    });
+  }
+
+  return {
+    command: 'move',
+    mode: apply ? 'applied' : 'dry run',
+    sections: [
+      rows,
+      noteRows(facts.notes, facts.git),
+      [
+        ...moveRunRows(facts),
+        ...repositoryRows(facts),
+        reportRow('Full plan', facts.file),
+        ...nextRows(facts.next),
+      ],
+    ],
+    closing: moveClosing(facts, references),
+  };
+}
+
+/** The run's id and what it moved and changed, and its commit. */
+function moveRunRows(facts: MoveFacts): Row[] {
+  if (!facts.apply) return [];
+  if (facts.manifest === null) {
+    return [{ label: 'Run', value: ['nothing written: the plan has nothing to do'] }];
+  }
+  const moved = facts.manifest.operations.filter((operation) => operation.kind === 'move');
+  const changed = facts.manifest.operations.filter((operation) => operation.kind === 'edit');
+  const rows: Row[] = [
+    {
+      label: 'Run',
+      value: [
+        `${facts.manifest.runId}: `,
+        `${count(moved.length, 'image')} moved, ${count(changed.length, 'file')} changed`,
+      ],
+    },
+  ];
+  if (facts.commit !== null && facts.git.kind === 'repository') {
+    rows.push({
+      label: 'Commit',
+      value: [facts.commit.slice(0, 12), ', exactly the files the run wrote'],
+    });
+  }
+  return rows;
+}
+
+/** The sentence that ends a `move` run. */
+function moveClosing(facts: MoveFacts, references: number): string {
+  const { plan } = facts;
+  const images = count(plan.moves.length, 'image');
+  const updated = `${count(references, 'reference')} in ${count(plan.rewrites.length, 'file')}`;
+  const left =
+    plan.unfollowed.length + plan.declined.length === 0
+      ? ''
+      : ` ${count(plan.unfollowed.length + plan.declined.length, 'line')} still name an old path and stay as written.`;
+  if (!facts.apply) {
+    return plan.moves.length === 0
+      ? 'Dry run: no project file was changed, and there is nothing to move.'
+      : `Dry run: no project file was changed. With --apply, ${images} would move and ${updated} would name the new place.${left}`;
+  }
+  if (facts.manifest === null) return 'Nothing was written: the plan has nothing to do.';
+  return `Upfly moved ${images} and updated ${updated}. No image was deleted.${left}`;
+}
+
 function reportRow(label: string, file: ReportFile): Row {
   if ('written' in file) return { label, value: [file.written], terminalOnly: true };
   return {
@@ -897,13 +1063,16 @@ function nextRows(next: NextStep | null): Row[] {
  * @param flags the flags that shaped the plan, to repeat with `--apply`
  * @param git what git said about the folder
  * @param unfinished whether an earlier run stopped part way
+ * @param operands what the command acts on, written before the folder, such as `move`'s two
+ * paths
  */
 export function nextAfterPlan(
-  command: 'optimize' | 'dedupe',
+  command: 'optimize' | 'dedupe' | 'move',
   dir: string,
   flags: readonly string[],
   git: GitState,
   unfinished: boolean,
+  operands: readonly string[] = [],
 ): NextStep {
   const folder = dir === '.' ? [] : [dir];
   if (unfinished) {
@@ -912,7 +1081,7 @@ export function nextAfterPlan(
       text: 'upfly undo, to finish the earlier run first',
     };
   }
-  const run = ['upfly', command, ...folder, ...flags, '--apply'];
+  const run = ['upfly', command, ...operands, ...folder, ...flags, '--apply'];
   if (git.kind !== 'repository' || !git.tracked) {
     return {
       words: [...run, '--allow-dirty'],

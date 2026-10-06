@@ -63,6 +63,25 @@ Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
 `--keep-originals` (keeping each original beside its converted file), and `--format avif`.
 Never edit `.upfly/`: it is the record `upfly undo` follows.
 
+## Moving or renaming an image
+
+Use `npx upfly move <from> <to>` rather than moving the file yourself: it moves an image,
+or each image in a folder, and points every reference Upfly can rewrite at the new place,
+in the form it was written. A destination that is a folder, or ends in a slash, takes the
+image in under its own name. It changes no project file unless run with `--apply`; read
+the plan first, which `--json` holds:
+
+- `plan.refused`: each move Upfly will not make, with its reason, such as a destination
+  that already holds a file. When every move is refused it exits 3, `reason` `MOVE_REFUSED`.
+- `plan.declined`: references to the image that cannot follow it, each with `why`. The
+  image still moves, so each of these breaks unless changed by hand.
+- `plan.unfollowed`: every other line that names the old path, such as a full address or
+  a comment, each with `reason` and `why`. Upfly leaves them as written.
+
+Show the user those lists, and only with their yes run
+`npx upfly move <from> <to> --apply --commit`. Then run the project's build and
+`npx upfly check`; `npx upfly undo` puts every file back. It deletes no image.
+
 ## Is it safe to delete an image?
 
 Run `npx upfly refs <image> --json` and read the verdict.
@@ -120,6 +139,8 @@ often a `reason` to branch on:
 - `TRANSACTION_LOCKED`: another run is in progress. Wait for it.
 - `TRANSACTION_FOREIGN_CHANGE`: a file changed after Upfly read it, so Upfly will not
   touch it. Tell the user; after a committed run, `git revert` is the other way back.
+- `MOVE_REFUSED`: `move` refused every move it was asked for; the message names what is in
+  the way. Tell the user.
 - `CONFIG_EXISTS`: `init` found a config file. Edit that file instead.
 - `V2_EXTENSION_CONFIG`: `upfly.config.json` belongs to the Upfly VS Code extension (v2).
   Leave it alone; this CLI reads `upfly.config.ts` instead, or a JSON config that carries
@@ -131,7 +152,7 @@ With `--json`, stdout carries one JSON object per line and nothing else: progres
 then the result, whose `type` is `result`, or an error line, whose `type` is `error`.
 The package ships a JSON Schema for each, in `node_modules/upfly/schema/`: one per
 command's result (`audit.json`, `optimize.json`, `undo.json`, `check.json`, `refs.json`,
-`dedupe.json`, `init.json`), `report.json` for the report inside audit's and optimize's
+`dedupe.json`, `move.json`, `init.json`), `report.json` for the report inside audit's and optimize's
 result, `events.json` for every other line, and `config.json` for `upfly.config.json`.
 
 ## In continuous integration

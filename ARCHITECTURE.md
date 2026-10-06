@@ -2198,6 +2198,14 @@ Some references to a moved asset cannot be repointed: a template, a reference a 
 editing, or one whose new spelling cannot be worked out. They do not stop the move. Each is listed in
 `declined`, because it will break.
 
+`upfly move` is `moveProject` (`move-project.ts`) over this plan. A folder named as the source is
+every image under it, each a move to the same place under the destination, which `planRelocation`
+takes as a list like any other. After the plan, every other line that still names a moved image's
+old path is listed with why Upfly does not follow it ("Every line that names an image" below),
+from a search that reads the files the run excluded too. The moves and the edits go through
+`writeRewrites`, one transaction and one manifest, which records each declined reference and each
+of those lines, so `revert` puts every file back. Nothing is deleted: each image moves.
+
 ### Pointing identical copies at one file
 
 `dedupeProject` keeps one copy of each set of byte-identical images (the audit's `duplicate`) and

@@ -656,6 +656,11 @@ async function editOperations(
 
 /** What `writeRewrites` needs: the edits, the disk, and the run's identity. */
 export interface WriteRewritesInput {
+  /**
+   * Files to move, POSIX paths relative to the project, before the edits that name them at
+   * their new place. Each is checked against the bytes on disk as the run starts.
+   */
+  readonly moves?: readonly { readonly from: string; readonly to: string }[];
   readonly rewrites: readonly PlannedRewrite[];
   readonly store: FileStore;
   readonly runId: string;
@@ -666,13 +671,15 @@ export interface WriteRewritesInput {
 }
 
 /**
- * Writes a plan that only edits references, such as pointing identical copies at one file,
- * through the same transaction, lock and manifest as `optimize`, so `revert` undoes it the
- * same way. Each file is checked against the text the scan read before anything is written.
+ * Writes a plan that moves files and edits references, such as pointing identical copies at
+ * one file or moving an image, through the same transaction, lock and manifest as
+ * `optimize`, so `revert` undoes it the same way. Each file is checked against the text the
+ * scan read before anything is written.
  *
  * @returns the manifest the run left
- * @throws {UpflyError} `TRANSACTION_FOREIGN_CHANGE` when a file changed since the scan,
- * `TRANSACTION_LOCKED` while another run holds the project, and the transaction's other codes
+ * @throws {UpflyError} `TRANSACTION_FOREIGN_CHANGE` when a file changed since the scan or a
+ * file to move is gone, `TRANSACTION_LOCKED` while another run holds the project, and the
+ * transaction's other codes
  */
 export async function writeRewrites(input: WriteRewritesInput): Promise<Manifest> {
   const runDir = `.upfly/runs/${input.runId}`;
@@ -684,7 +691,10 @@ export async function writeRewrites(input: WriteRewritesInput): Promise<Manifest
     ...input.lock,
   });
   try {
-    const operations = await editOperations(input.rewrites, input.store);
+    const operations: PlannedOperation[] = [
+      ...(await moveOperations(input.moves ?? [], input.store)),
+      ...(await editOperations(input.rewrites, input.store)),
+    ];
     await prepare(operations, input.store, runDir);
     return await commit(
       operations,
@@ -695,6 +705,30 @@ export async function writeRewrites(input: WriteRewritesInput): Promise<Manifest
   } finally {
     await held.release();
   }
+}
+
+/**
+ * Each move as the transaction carries it out, with the hash of the bytes it moves, which the
+ * transaction checks again before the first write.
+ *
+ * @throws {UpflyError} `TRANSACTION_FOREIGN_CHANGE` when a file to move is no longer there
+ */
+async function moveOperations(
+  moves: readonly { readonly from: string; readonly to: string }[],
+  store: FileStore,
+): Promise<PlannedOperation[]> {
+  const operations: PlannedOperation[] = [];
+  for (const move of moves) {
+    const hash = await store.hash(move.from);
+    if (hash === null) {
+      throw new UpflyError(
+        'TRANSACTION_FOREIGN_CHANGE',
+        `${move.from} is no longer where Upfly read it, so nothing was moved and no file in the project was changed. Run Upfly again to plan from the project as it is now.`,
+      );
+    }
+    operations.push({ kind: 'move', from: move.from, to: move.to, hash });
+  }
+  return operations;
 }
 
 /**

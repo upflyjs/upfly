@@ -1,6 +1,6 @@
 ---
 name: upfly
-description: Convert a project's images to WebP or AVIF and rewrite the references to them without breaking the site; find where an image is used; tell whether an image is safe to delete; find broken image paths and identical copies. Use when a task touches the project's image files, such as optimizing or converting images, or finding unused, missing or duplicate images.
+description: Convert a project's images to WebP or AVIF and rewrite the references to them without breaking the site; move or rename an image with its references updated; find every line that names an image; tell whether an image is safe to delete; find broken image paths and identical copies. Use when a task touches the project's image files, such as optimizing, converting, moving or renaming images, or finding unused, missing or duplicate images.
 ---
 
 # Upfly
@@ -45,6 +45,14 @@ Upfly never deletes an image that nothing uses; deleting one is the user's decis
 5. If anything is wrong: `npx upfly undo` puts every file back.
 
 Do not add `--allow-dirty` or `--keep-originals` unless the user asks for it.
+
+## Moving or renaming an image
+
+Use `npx upfly move <from> <to>` rather than moving the file yourself: it updates the
+references too. Without `--apply` it only shows the plan. In its `--json`, read
+`plan.refused`, `plan.declined` (references that will break) and `plan.unfollowed` (lines
+it leaves as written), show them to the user, and only with their yes run
+`npx upfly move <from> <to> --apply --commit`, then the build and `npx upfly check`.
 
 ## When Upfly stops
 

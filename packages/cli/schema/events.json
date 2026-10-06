@@ -10,7 +10,7 @@
   "definitions": {
     "command": {
       "type": "string",
-      "enum": ["audit", "optimize", "undo", "check", "init", "refs", "dedupe"]
+      "enum": ["audit", "optimize", "undo", "check", "init", "refs", "dedupe", "move"]
     },
     "count": { "type": "integer", "minimum": 0 },
     "progress": {

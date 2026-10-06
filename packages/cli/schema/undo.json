@@ -15,7 +15,7 @@
         { "type": "null" },
         {
           "type": "object",
-          "required": ["id", "startedAt", "restored", "reverted", "removed"],
+          "required": ["id", "startedAt", "restored", "reverted", "removed", "moved"],
           "additionalProperties": false,
           "properties": {
             "id": { "description": "The run's id.", "type": "string" },
@@ -34,6 +34,19 @@
               "description": "Files the run had created, gone again.",
               "type": "array",
               "items": { "type": "string" }
+            },
+            "moved": {
+              "description": "Images the run had moved, back where they were: from is where each is again, to where the run had put it.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["from", "to"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": { "type": "string" },
+                  "to": { "type": "string" }
+                }
+              }
             }
           }
         }

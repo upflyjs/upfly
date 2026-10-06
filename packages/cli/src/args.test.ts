@@ -153,6 +153,29 @@ describe('parseCommandLine', () => {
     });
   });
 
+  it('reads a move as the path to move, where it goes, then the project', () => {
+    expect(
+      parseCommandLine(['move', 'public/a.png', 'public/img/a.png', 'site', '--apply', '--commit']),
+    ).toEqual({
+      kind: 'run',
+      options: {
+        command: 'move',
+        from: 'public/a.png',
+        to: 'public/img/a.png',
+        dir: 'site',
+        json: false,
+        noColor: false,
+        full: false,
+        show: null,
+        apply: true,
+        commit: true,
+        allowDirty: false,
+        publicDirs: null,
+        exclude: [],
+      },
+    });
+  });
+
   it('runs an undo, which takes only a directory and the output flags', () => {
     expect(parseCommandLine(['undo', 'site', '--json'])).toEqual({
       kind: 'run',
@@ -221,6 +244,17 @@ describe('parseCommandLine', () => {
       '--full and --json cannot be used together: --full prints the full text, and --json prints JSON instead',
     ],
     [['check', '--full'], 'unknown option `--full`'],
+    [
+      ['move', 'a.png'],
+      'move needs the image or folder to move and where it goes, such as `upfly move public/hero.png public/img/hero.png`',
+    ],
+    [['move', 'a.png', 'b.png', 'site', 'extra'], 'expected one directory, got 2: site extra'],
+    [['move', 'a.png', 'b.png', '--commit'], '--commit commits what --apply writes; add --apply'],
+    [
+      ['move', 'a.png', 'b.png', '--show', 'sets'],
+      '--show takes one of move, update, leave, unfollowed or refused, got `sets`',
+    ],
+    [['move', 'a.png', 'b.png', '--keep', 'a.png'], 'unknown option `--keep`'],
     [['undo', '--apply'], 'unknown option `--apply`'],
     [['undo', 'a', 'b'], 'expected one directory, got 2: a b'],
   ])('rejects %j as a usage error', (argv, message) => {

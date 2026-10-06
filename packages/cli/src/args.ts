@@ -7,7 +7,15 @@
 import { parseArgs } from 'node:util';
 import { normaliseServedDir } from './config.js';
 
-export type CommandName = 'audit' | 'optimize' | 'undo' | 'check' | 'init' | 'refs' | 'dedupe';
+export type CommandName =
+  | 'audit'
+  | 'optimize'
+  | 'undo'
+  | 'check'
+  | 'init'
+  | 'refs'
+  | 'dedupe'
+  | 'move';
 
 export interface CommonOptions {
   /** The project directory, as given; the current directory when none is. */
@@ -105,6 +113,24 @@ export interface RefsOptions extends CommonOptions, ScopeOptions {
   readonly image: string;
 }
 
+export interface MoveOptions extends CommonOptions, ScopeOptions {
+  readonly command: 'move';
+  /** The image or folder to move, as the user wrote it: resolved from the current folder. */
+  readonly from: string;
+  /** Where it goes, as the user wrote it; a folder, or a path ending in a slash, takes it in. */
+  readonly to: string;
+  /** `--full`: print the full text rather than the summary. */
+  readonly full: boolean;
+  /** `--show <row>`: print that row of the summary with its complete list, or null. */
+  readonly show: string | null;
+  /** `--apply`: write the plan. Without it the run only reports what it would do. */
+  readonly apply: boolean;
+  /** `--commit`: commit the files the run wrote, and nothing else, as one commit. */
+  readonly commit: boolean;
+  /** `--allow-dirty`: apply over uncommitted changes, or where git cannot help. */
+  readonly allowDirty: boolean;
+}
+
 export type CommandOptions =
   | AuditOptions
   | OptimizeOptions
@@ -112,7 +138,8 @@ export type CommandOptions =
   | CheckOptions
   | InitOptions
   | RefsOptions
-  | DedupeOptions;
+  | DedupeOptions
+  | MoveOptions;
 
 export type Parsed =
   | { readonly kind: 'run'; readonly options: CommandOptions }
@@ -131,10 +158,13 @@ export type Parsed =
 export const DEFAULT_MAX_ENCODES = 100;
 
 /** The rows `--show` prints, for each command that has a summary, as its rows are named. */
-export const SHOWN_ROWS: Readonly<Record<'audit' | 'optimize' | 'dedupe', readonly string[]>> = {
+export const SHOWN_ROWS: Readonly<
+  Record<'audit' | 'optimize' | 'dedupe' | 'move', readonly string[]>
+> = {
   audit: ['references', 'savings', 'broken', 'unused', 'oversized', 'copies', 'skipped'],
   optimize: ['convert', 'update', 'leave'],
   dedupe: ['sets', 'update', 'leave', 'unused'],
+  move: ['move', 'update', 'leave', 'unfollowed', 'refused'],
 };
 
 const COMMANDS: readonly CommandName[] = [
@@ -145,6 +175,7 @@ const COMMANDS: readonly CommandName[] = [
   'init',
   'refs',
   'dedupe',
+  'move',
 ];
 
 const COMMON = {
@@ -209,6 +240,17 @@ const DEDUPE = {
   show: { type: 'string' },
 } as const;
 
+const MOVE = {
+  ...COMMON,
+  ...SCOPE,
+  apply: { type: 'boolean' },
+  'dry-run': { type: 'boolean' },
+  commit: { type: 'boolean' },
+  'allow-dirty': { type: 'boolean' },
+  full: { type: 'boolean' },
+  show: { type: 'string' },
+} as const;
+
 /**
  * Parses `argv`, the arguments after `upfly`.
  *
@@ -235,6 +277,7 @@ export function parseCommandLine(argv: readonly string[]): Parsed {
   if (command === 'check') return parseCheck(rest);
   if (command === 'refs') return parseRefs(rest);
   if (command === 'dedupe') return parseDedupe(rest);
+  if (command === 'move') return parseMove(rest);
   return parseCommonOnly(command, rest);
 }
 
@@ -281,6 +324,61 @@ function parseDedupe(args: readonly string[]): Parsed {
 
 function parseDedupeArgs(args: readonly string[]) {
   return parseArgs({ args: [...args], options: DEDUPE, allowPositionals: true, strict: true });
+}
+
+function parseMove(args: readonly string[]): Parsed {
+  const command = 'move';
+  let parsed: ReturnType<typeof parseMoveArgs>;
+  try {
+    parsed = parseMoveArgs(args);
+  } catch (error) {
+    return { kind: 'usage-error', command, message: plainParseError(error) };
+  }
+  const { values, positionals } = parsed;
+  if (values.help === true) return { kind: 'help', command };
+  const [from, to, ...rest] = positionals;
+  if (from === undefined || to === undefined) {
+    return {
+      kind: 'usage-error',
+      command,
+      message:
+        'move needs the image or folder to move and where it goes, such as `upfly move public/hero.png public/img/hero.png`',
+    };
+  }
+  const dir = directoryOf(rest);
+  if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
+  const scope = scopeOf(values);
+  if (typeof scope === 'string') return { kind: 'usage-error', command, message: scope };
+  const apply = values.apply === true;
+  const commit = values.commit === true;
+  const allowDirty = values['allow-dirty'] === true;
+  const conflict =
+    dryRunConflict(values['dry-run'], apply) ??
+    writeFlagConflict(apply, commit, allowDirty) ??
+    fullConflict(values.full, values.json) ??
+    showConflict(command, values.show, values.full, values.json);
+  if (conflict !== null) return { kind: 'usage-error', command, message: conflict };
+  return {
+    kind: 'run',
+    options: {
+      command,
+      from,
+      to,
+      dir: dir.value,
+      json: values.json === true,
+      noColor: values['no-color'] === true,
+      full: values.full === true,
+      show: values.show ?? null,
+      apply,
+      commit,
+      allowDirty,
+      ...scope,
+    },
+  };
+}
+
+function parseMoveArgs(args: readonly string[]) {
+  return parseArgs({ args: [...args], options: MOVE, allowPositionals: true, strict: true });
 }
 
 function parseRefs(args: readonly string[]): Parsed {

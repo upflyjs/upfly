@@ -41,6 +41,8 @@ export interface Undone {
   readonly reverted: string[];
   /** Files the run had created, gone again. */
   readonly removed: string[];
+  /** Images the run had moved, back at `from` again. */
+  readonly moved: { readonly from: string; readonly to: string }[];
 }
 
 /**
@@ -111,16 +113,14 @@ function undoneFrom(manifest: Manifest, states: readonly OperationState[]): Undo
     restored: [],
     reverted: [],
     removed: [],
+    moved: [],
   };
   for (const { operation, status } of states) {
     if (status === 'not-applied') continue;
     if (operation.kind === 'delete') undone.restored.push(operation.path);
     else if (operation.kind === 'edit') undone.reverted.push(operation.path);
     else if (operation.kind === 'create') undone.removed.push(operation.path);
-    else {
-      undone.restored.push(operation.from);
-      undone.removed.push(operation.to);
-    }
+    else undone.moved.push({ from: operation.from, to: operation.to });
   }
   return undone;
 }
@@ -134,11 +134,32 @@ function write(options: UndoOptions, io: Io, undone: Undone, commit: string | nu
   const lines = [
     headline(stylesFor(io.stdout, io.env, options), 'undo'),
     '',
-    `Undid run ${undone.id}, started ${undone.startedAt}: ${count(undone.restored.length, 'original')} restored, ${count(undone.reverted.length, 'file')} with references put back, ${count(undone.removed.length, 'converted file')} removed.`,
+    `Undid run ${undone.id}, started ${undone.startedAt}: ${whatWasUndone(undone)}.`,
     'Every file that run changed is as it was before it.',
     ...notes,
   ];
   io.stdout.write(spaced(lines));
+}
+
+/**
+ * What undo put back, by kind. A run that moved images restored no original and removed no
+ * converted file, so those counts are said only when one of them is not zero.
+ */
+function whatWasUndone(undone: Undone): string {
+  const moved = undone.moved.length;
+  const said = (n: number) => moved === 0 || n > 0;
+  return [
+    ...(said(undone.restored.length)
+      ? [`${count(undone.restored.length, 'original')} restored`]
+      : []),
+    `${count(undone.reverted.length, 'file')} with references put back`,
+    ...(said(undone.removed.length)
+      ? [`${count(undone.removed.length, 'converted file')} removed`]
+      : []),
+    ...(moved === 0
+      ? []
+      : [`${count(moved, 'image')} moved back where ${moved === 1 ? 'it was' : 'they were'}`]),
+  ].join(', ');
 }
 
 /** What a user holds after undoing a run that `--commit` had committed. */

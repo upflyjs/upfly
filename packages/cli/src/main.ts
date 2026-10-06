@@ -7,6 +7,7 @@ import { runDedupe } from './dedupe.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { helpText } from './help.js';
 import { runInit } from './init.js';
+import { runMove } from './move.js';
 import { runOptimize } from './optimize.js';
 import { type Io, emit, stylesFor } from './output.js';
 import { runRefs } from './refs.js';
@@ -85,5 +86,7 @@ function run(options: CommandOptions, io: Io): Promise<ExitCode> {
       return runRefs(options, io);
     case 'dedupe':
       return runDedupe(options, io);
+    case 'move':
+      return runMove(options, io);
   }
 }

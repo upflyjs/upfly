@@ -4,7 +4,7 @@ import { helpText } from './help.js';
 describe('the help text', () => {
   // Upfly reads the file types its adapters claim and names the files it could not read, so
   // a promise of every image and every reference is false for, say, a Vue or Svelte file.
-  it.each([null, 'audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe'] as const)(
+  it.each([null, 'audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe', 'move'] as const)(
     'promises nothing about files Upfly cannot read (%s)',
     (command) => {
       const text = helpText(command);
@@ -15,7 +15,7 @@ describe('the help text', () => {
 
   // Colour is the default and turns itself off where it cannot show, so a flag for it would
   // read as noise. `--no-color` still works for whoever knows it.
-  it.each([null, 'audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe'] as const)(
+  it.each([null, 'audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe', 'move'] as const)(
     'does not offer --no-color (%s)',
     (command) => {
       expect(helpText(command)).not.toMatch(/no-color|NO_COLOR/);

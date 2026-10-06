@@ -1,5 +1,5 @@
 /**
- * The report file each of `audit`, `optimize` and `dedupe` writes in Upfly's own folder, named
+ * The report file each of `audit`, `optimize`, `dedupe` and `move` writes in Upfly's own folder, named
  * after the command, so the terminal can show a summary. The folder's `.gitignore` is written
  * before anything else in it, so a report never shows as a change in git and never stops a
  * later `optimize --apply` as one.
@@ -12,17 +12,18 @@ import {
   type AuditOptions,
   DEFAULT_MAX_ENCODES,
   type DedupeOptions,
+  type MoveOptions,
   type OptimizeOptions,
 } from './args.js';
 import { type Summary, renderSection, renderSummary, spaced } from './layout.js';
 import { type Io, stylesFor } from './output.js';
 
 /** A command that writes a report file of its own. */
-export type ReportCommand = 'audit' | 'optimize' | 'dedupe';
+export type ReportCommand = 'audit' | 'optimize' | 'dedupe' | 'move';
 
 /**
  * Where a command's report file is kept, relative to the project: `.upfly/audit.txt`,
- * `.upfly/optimize.txt` or `.upfly/dedupe.txt`.
+ * `.upfly/optimize.txt`, `.upfly/dedupe.txt` or `.upfly/move.txt`.
  */
 export function reportPath(command: ReportCommand): string {
   return `${UPFLY_DIRECTORY}/${command}.txt`;
@@ -95,7 +96,9 @@ export function localTime(date: Date): string {
  * The options a run was given, as they would be typed after the folder: what the report
  * file's first lines name, so a reader can run the same command again.
  */
-export function typedOptions(options: AuditOptions | OptimizeOptions | DedupeOptions): string[] {
+export function typedOptions(
+  options: AuditOptions | OptimizeOptions | DedupeOptions | MoveOptions,
+): string[] {
   const scope = [
     ...(options.publicDirs ?? []).flatMap((dir) => ['--public', dir === '' ? '.' : dir]),
     ...options.exclude.flatMap((pattern) => ['--exclude', pattern]),
@@ -120,6 +123,7 @@ export function typedOptions(options: AuditOptions | OptimizeOptions | DedupeOpt
   if (options.command === 'dedupe') {
     return [...scope, ...options.keep.flatMap((path) => ['--keep', path]), ...writes];
   }
+  if (options.command === 'move') return [options.from, options.to, ...scope, ...writes];
   return [
     ...scope,
     ...flags([
@@ -151,7 +155,7 @@ function listFlags(options: AuditOptions | OptimizeOptions): (readonly [boolean,
  */
 export function printRun(
   io: Io,
-  options: AuditOptions | OptimizeOptions | DedupeOptions,
+  options: AuditOptions | OptimizeOptions | DedupeOptions | MoveOptions,
   summary: Summary,
   text: string,
   file: ReportFile,

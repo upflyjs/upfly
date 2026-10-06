@@ -102,6 +102,8 @@ export interface RelocationPlan {
    * here rather than left to be found.
    */
   readonly declined: readonly Declined[];
+  /** The reference each `declined` entry is about, in the same order, so a caller can cite it. */
+  readonly declinedReferences: readonly Reference[];
 }
 
 export interface RelocateInput {
@@ -178,15 +180,19 @@ export function planRelocation(input: RelocateInput): RelocationPlan {
     astray = astrayMoves(input, accepted, repointing.rewritten, onDisk);
   }
 
+  const declined = repointing.declined.sort(
+    (a, b) =>
+      compareStrings(a.declined.path, b.declined.path) ||
+      compareStrings(a.declined.reason, b.declined.reason),
+  );
   return {
     moves: [...accepted.values()],
     rewrites: [...repointing.edits.entries()]
       .map(([file, collected]) => plannedRewrite(file, collected, input.graph))
       .sort((a, b) => compareStrings(a.file, b.file)),
     refused: refused.sort((a, b) => compareStrings(a.from, b.from) || compareStrings(a.to, b.to)),
-    declined: repointing.declined.sort(
-      (a, b) => compareStrings(a.path, b.path) || compareStrings(a.reason, b.reason),
-    ),
+    declined: declined.map((entry) => entry.declined),
+    declinedReferences: declined.map((entry) => entry.reference),
   };
 }
 
@@ -200,14 +206,14 @@ interface Rewritten {
 interface Repointing {
   readonly edits: ReadonlyMap<string, EditsInFile>;
   readonly rewritten: ReadonlyMap<Reference, Rewritten>;
-  readonly declined: Declined[];
+  readonly declined: { readonly declined: Declined; readonly reference: Reference }[];
 }
 
 /** Repoint every reference to a moved file, or record why it cannot be repointed. */
 function repointAll(input: RelocateInput, accepted: ReadonlyMap<string, Move>): Repointing {
   const edits = new Map<string, EditsInFile>();
   const rewritten = new Map<Reference, Rewritten>();
-  const declined: Declined[] = [];
+  const declined: Repointing['declined'] = [];
   for (const reference of input.graph.references) {
     collectRepoint(reference, accepted, input, { edits, rewritten, declined });
   }
@@ -647,10 +653,11 @@ function collectRepoint(
   into: {
     edits: Map<string, EditsInFile>;
     rewritten: Map<Reference, Rewritten>;
-    declined: Declined[];
+    declined: Repointing['declined'];
   },
 ): void {
-  const { edits, rewritten, declined } = into;
+  const { edits, rewritten } = into;
+  const decline = (entry: Declined) => into.declined.push({ declined: entry, reference });
   const root = input.graph.root;
   const file = toPosix(relativePath(root, reference.file));
 
@@ -663,7 +670,7 @@ function collectRepoint(
   // here means the pattern binds exactly the one asset that moved. Its text is still a
   // template rather than a path, so it cannot be repointed by replacing text.
   if (reference.resolution === 'resolved-pattern') {
-    declined.push({
+    decline({
       path: file,
       line: null,
       reason: `${patternCannotMove(reference)} after ${moved.join(', ')} moved`,
@@ -673,7 +680,7 @@ function collectRepoint(
 
   const refusal = rewriteRefusal(reference, input);
   if (refusal !== null) {
-    declined.push({
+    decline({
       path: file,
       line: null,
       reason: `${refusal}, so ${moved.join(', ')} moved without this reference following it`,
@@ -686,7 +693,7 @@ function collectRepoint(
 
   const replacement = repointed(reference, move, input);
   if (replacement === null) {
-    declined.push({
+    decline({
       path: file,
       line: null,
       reason: `Upfly could not work out how to spell ${move.to} from this reference, so ${move.from} moved without it following`,

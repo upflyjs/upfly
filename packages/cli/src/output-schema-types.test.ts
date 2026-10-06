@@ -31,6 +31,7 @@ import {
   type SkippedItem,
 } from 'upfly-core';
 import type { DedupeCopy, DedupePlan, DedupeSet, KeptBecause, StayingReference } from 'upfly-core';
+import type { Move, MovePlan, RefusalCode, RefusedMove } from 'upfly-core/internal';
 import type {
   Mention,
   ProbeDiagnostic,
@@ -43,6 +44,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import type { TooLargeFinding } from './check.js';
 import type { Reason } from './init.js';
+import type { MoveRun, UnfollowedOldPath } from './move.js';
 import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
 import type { Undone } from './undo.js';
 
@@ -670,6 +672,72 @@ describe('the command schemas and the types each command prints agree', () => {
     );
   });
 
+  it('move: the plan, the run, and each list', () => {
+    const m = 'move.json';
+    expectFields(
+      at(m, '/properties/plan'),
+      fields<MovePlan>({
+        moves: 'required',
+        rewrites: 'required',
+        refused: 'required',
+        declined: 'required',
+        unfollowed: 'required',
+      }),
+    );
+    expectFields(at(m, '/definitions/move'), fields<Move>({ from: 'required', to: 'required' }));
+    expectFields(
+      at(m, '/definitions/refused'),
+      fields<RefusedMove>({
+        from: 'required',
+        to: 'required',
+        code: 'required',
+        reason: 'required',
+      }),
+    );
+    expect(enumOf(at(m, '/definitions/refused/properties/code'))).toEqual(
+      members<RefusalCode>({
+        'outside-project': true,
+        'crosses-serving-boundary': true,
+        'binds-a-pattern': true,
+        'destination-occupied': true,
+        'destination-claimed-twice': true,
+        'source-claimed-twice': true,
+        'rewrite-would-miss': true,
+        'redirects-a-reference': true,
+        'not-an-asset': true,
+      }),
+    );
+    expectFields(
+      at(m, '/definitions/declined'),
+      fields<StayingReference>({
+        file: 'required',
+        line: 'required',
+        where: 'required',
+        text: 'required',
+        why: 'required',
+      }),
+    );
+    expectFields(
+      at(m, '/definitions/unfollowed'),
+      fields<UnfollowedOldPath>({
+        from: 'required',
+        file: 'required',
+        line: 'required',
+        text: 'required',
+        reason: 'required',
+        why: 'required',
+        host: 'optional',
+      }),
+    );
+    expect(enumOf(at(m, '/definitions/unfollowed/properties/reason'))).toEqual(
+      enumOf(at('refs.json', '/properties/unfollowed/items/properties/reason')),
+    );
+    expectFields(
+      at(m, '/properties/run'),
+      fields<MoveRun>({ id: 'required', moved: 'required', changed: 'required' }),
+    );
+  });
+
   it('undo, check, refs and init', () => {
     expectFields(
       at('undo.json', '/properties/undone'),
@@ -679,6 +747,7 @@ describe('the command schemas and the types each command prints agree', () => {
         restored: 'required',
         reverted: 'required',
         removed: 'required',
+        moved: 'required',
       }),
     );
     expectFields(
