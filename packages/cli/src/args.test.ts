@@ -179,7 +179,7 @@ describe('parseCommandLine', () => {
       '--public takes a folder inside the project, such as `public`, or `.` for the project root; got `../site`',
     ],
     [['audity'], 'unknown command `audity`'],
-    [['--json'], '--json needs a command before it, such as `upfly audit --json`'],
+    [['--json'], '--json needs a command before it, such as `npx upfly audit --json`'],
     [['optimize', '--commit'], '--commit commits what --apply writes; add --apply'],
     [['optimize', '--allow-dirty'], '--allow-dirty only changes what --apply does; add --apply'],
     [

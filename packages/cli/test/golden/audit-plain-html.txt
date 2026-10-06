@@ -7,8 +7,8 @@ Options: none
   References   10 of 11 resolved, from 3 source files
   Savings      93.1 KB as WebP at quality 80, across 5 images
 
-    upfly optimize would convert each of these images and move every reference
-    it can rewrite to the new file.
+    npx upfly optimize would convert each of these images and move every
+    reference it can rewrite to the new file.
       images/hero.jpg → images/hero.webp  12.6 KB → 10.6 KB
       images/hero@2x.jpg → images/hero@2x.webp  44.2 KB → 36.5 KB
       images/inline.png → images/inline.webp  71.7 KB → 8 KB
@@ -16,11 +16,11 @@ Options: none
       images/texture.png → images/texture.webp  14.4 KB → 1.1 KB
 
   Broken       1 reference names an image that does not exist
-                 upfly check lists each with its file and line
+                 npx upfly check lists each with its file and line
 
     Each of these names an image that does not exist, at the file and line
-    given: fix the path, or put the image back. upfly check fails while any is
-    left.
+    given: fix the path, or put the image back. npx upfly check fails while any
+    is left.
       about.html:10  images/missing-on-purpose.png
 
   Unused       1 image, 70 B
@@ -37,10 +37,11 @@ Options: none
         named in index.html:17: removed.png
 
   Copies       1 set of identical images, 280 B recoverable
-                 upfly dedupe points each set's references at one copy
+                 npx upfly dedupe points each set's references at one copy
 
-    The files in each set hold the same bytes. upfly dedupe keeps one copy of
-    each set and points the references to the others at it; it deletes nothing.
+    The files in each set hold the same bytes. npx upfly dedupe keeps one copy
+    of each set and points the references to the others at it; it deletes
+    nothing.
       70 B each, 280 B recoverable by keeping one:
         images/badge.png
         images/badge@2x.png
@@ -50,9 +51,9 @@ Options: none
 
   Skipped      nothing
 
-  Next         upfly optimize
+  Next         npx upfly optimize
 
-  upfly optimize would convert 5 images and save 93.1 KB.
+  npx upfly optimize would convert 5 images and save 93.1 KB.
 
 What Upfly could not check
 

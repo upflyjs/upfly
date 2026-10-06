@@ -7,6 +7,7 @@ import { runDedupe } from './dedupe.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { helpText } from './help.js';
 import { runInit } from './init.js';
+import { upflyCommand } from './invocation.js';
 import { runOptimize } from './optimize.js';
 import { type Io, emit, stylesFor } from './output.js';
 import { runRefs } from './refs.js';
@@ -21,7 +22,8 @@ import { version } from './version.js';
  * @returns the process exit code
  */
 export async function main(argv: readonly string[], io: Io): Promise<ExitCode> {
-  const parsed = parseCommandLine(argv);
+  const upfly = upflyCommand(io.env, io.script);
+  const parsed = parseCommandLine(argv, upfly);
   const json = argv.includes('--json');
 
   if (parsed.kind === 'version') {
@@ -45,7 +47,7 @@ export async function main(argv: readonly string[], io: Io): Promise<ExitCode> {
         json,
         noColor: argv.includes('--no-color'),
       });
-      const help = parsed.command === null ? 'upfly --help' : `upfly ${parsed.command} --help`;
+      const help = `${upfly}${parsed.command === null ? '' : ` ${parsed.command}`} --help`;
       io.stderr.write(`${red('upfly:')} ${parsed.message}\nSee \`${help}\`.\n`);
     }
     return EXIT_CODES.USAGE;

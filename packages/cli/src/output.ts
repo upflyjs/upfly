@@ -13,6 +13,11 @@ export interface Io {
   readonly stdout: Output;
   readonly stderr: Output;
   readonly env: Readonly<Record<string, string | undefined>>;
+  /**
+   * The path this run was started as, `process.argv[1]`, from which `upflyCommand` tells how
+   * the commands it prints are typed. Absent when unknown.
+   */
+  readonly script?: string;
 }
 
 export interface Output {

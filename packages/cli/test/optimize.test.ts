@@ -361,13 +361,13 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
 
     expect(human.status).toBe(3);
     expect(human.stderr).toContain(
-      'Only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there. Upfly rewrites nothing while so few resolve. `upfly check` lists the 10 references with the file and line of each.',
+      'Only 2 of 12 root-relative references resolved in public, named as the folder the site is served from; if it is, the other 10 name no file there. Upfly rewrites nothing while so few resolve. `npx upfly check` lists the 10 references with the file and line of each.',
     );
     expect(human.stderr).not.toMatch(/--public|publicDirs/);
     expect(run.status).toBe(3);
     expect(result(run.stdout)).toMatchObject({
       reason: 'SERVING_ROOT_UNKNOWN',
-      message: expect.stringContaining('`upfly check` lists the 10 references'),
+      message: expect.stringContaining('`npx upfly check` lists the 10 references'),
     });
   });
 
@@ -387,7 +387,7 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
     // The run prints no report, so the refusal says where the references it set aside are.
     expect(result(run.stdout)).toMatchObject({
       message: expect.stringContaining(
-        '`upfly audit` lists the 10 references that did not resolve',
+        '`npx upfly audit` lists the 10 references that did not resolve',
       ),
     });
   });

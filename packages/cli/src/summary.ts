@@ -28,6 +28,7 @@ import {
 } from 'upfly-core/internal';
 import type { Savings } from './audit.js';
 import { type GitState, insideRepository } from './git.js';
+import type { UpflyCommand } from './invocation.js';
 import {
   type Row,
   type RowList,
@@ -62,6 +63,7 @@ export function auditSummary(
   savings: Savings | null,
   file: ReportFile,
   next: NextStep | null,
+  upfly: UpflyCommand,
 ): Summary {
   const { summary } = report;
   const references =
@@ -80,16 +82,16 @@ export function auditSummary(
           value: [count(summary.assets, 'image'), `, ${formatBytes(summary.assetBytes)}`],
         },
         { label: 'References', value: references, key: 'references', ...unfollowed(report) },
-        savingsRow(report, savings),
-        brokenRow(report),
+        savingsRow(report, savings, upfly),
+        brokenRow(report, upfly),
         unusedRow(report, file),
         ...oversizedRows(report),
-        copiesRow(report),
+        copiesRow(report, upfly),
         skippedRow(report),
       ],
       [reportRow('Full report', file), ...nextRows(next)],
     ],
-    closing: auditClosing(report, savings),
+    closing: auditClosing(report, savings, upfly),
     caveats: engineCaveats(report),
   };
 }
@@ -108,17 +110,17 @@ function unfollowed(report: Report): { list?: RowList } {
 }
 
 /** The sentence that ends an audit: what `optimize` would do, with the savings figure. */
-function auditClosing(report: Report, savings: Savings | null): string {
+function auditClosing(report: Report, savings: Savings | null, upfly: UpflyCommand): string {
   if (!report.summary.probed) return 'No image was measured, so this run states no savings.';
   if (savings === null) {
     return report.coverage.servingRoots.declared
-      ? 'upfly optimize plans nothing while so few references resolve where the site is served from; Broken lists the rest.'
-      : 'upfly optimize plans nothing until it knows the folder the site is served from.';
+      ? `${upfly} optimize plans nothing while so few references resolve where the site is served from; Broken lists the rest.`
+      : `${upfly} optimize plans nothing until it knows the folder the site is served from.`;
   }
   const n = savings.conversions.length;
-  if (n === 0) return 'upfly optimize would convert no image.';
+  if (n === 0) return `${upfly} optimize would convert no image.`;
   const least = savings.unmeasured === 0 ? '' : 'at least ';
-  return `upfly optimize would convert ${least}${count(n, 'image')} and save ${least}${formatBytes(savings.savedBytes)}.`;
+  return `${upfly} optimize would convert ${least}${count(n, 'image')} and save ${least}${formatBytes(savings.savedBytes)}.`;
 }
 
 /**
@@ -169,7 +171,7 @@ export function engineCaveats(report: Report): RowList[] {
  * an image it would not convert is never counted. Past the cap it is a part of the plan,
  * marked "at least", with the number of images left unmeasured.
  */
-function savingsRow(report: Report, savings: Savings | null): Row {
+function savingsRow(report: Report, savings: Savings | null, upfly: UpflyCommand): Row {
   const { summary } = report;
   const label = 'Savings';
   if (!summary.probed) return { label, value: ['not measured, as --no-probe asked'] };
@@ -212,7 +214,7 @@ function savingsRow(report: Report, savings: Savings | null): Row {
     details,
     key: 'savings',
     list: {
-      intro: `upfly optimize would convert each of these images and move every reference it can rewrite to the new file.${unmeasured === 0 ? '' : ` ${count(unmeasured, 'more image')} it may convert ${unmeasured === 1 ? 'was' : 'were'} not measured; --probe-all measures them.`}`,
+      intro: `${upfly} optimize would convert each of these images and move every reference it can rewrite to the new file.${unmeasured === 0 ? '' : ` ${count(unmeasured, 'more image')} it may convert ${unmeasured === 1 ? 'was' : 'were'} not measured; --probe-all measures them.`}`,
       items: conversions.map((conversion) => conversionLine(conversion, savings.sizes)),
     },
   };
@@ -237,11 +239,11 @@ function qualityPhrase(settings: readonly (number | 'lossless')[]): string {
   return quality === '' ? 'lossless' : `${quality}, or lossless`;
 }
 
-function brokenRow(report: Report): Row {
+function brokenRow(report: Report, upfly: UpflyCommand): Row {
   const label = 'Broken';
   const unknown = report.findings.find((finding) => finding.kind === 'serving-root-unknown');
   if (unknown?.kind === 'serving-root-unknown' && report.coverage.servingRoots.declared) {
-    return namedFolderBrokenRow(report, unknown);
+    return namedFolderBrokenRow(report, unknown, upfly);
   }
   if (unknown?.kind === 'serving-root-unknown') {
     return {
@@ -263,11 +265,10 @@ function brokenRow(report: Report): Row {
       count(broken, 'reference'),
       ` ${broken === 1 ? 'names' : 'name'} an image that does not exist`,
     ],
-    details: ['upfly check lists each with its file and line'],
+    details: [`${upfly} check lists each with its file and line`],
     key: 'broken',
     list: {
-      intro:
-        'Each of these names an image that does not exist, at the file and line given: fix the path, or put the image back. upfly check fails while any is left.',
+      intro: `Each of these names an image that does not exist, at the file and line given: fix the path, or put the image back. ${upfly} check fails while any is left.`,
       items: report.findings.flatMap((finding) =>
         finding.kind === 'broken' ? brokenItem(finding) : [],
       ),
@@ -280,7 +281,11 @@ function brokenRow(report: Report): Row {
  * resolved there: the folder is not asked for again, and each reference that did not resolve
  * is listed as naming no file there, beside any other broken one.
  */
-function namedFolderBrokenRow(report: Report, unknown: ServingRootUnknownFinding): Row {
+function namedFolderBrokenRow(
+  report: Report,
+  unknown: ServingRootUnknownFinding,
+  upfly: UpflyCommand,
+): Row {
   const said = fewResolvedIn(unknown, report.coverage.servingRoots.dirs);
   const entries = [
     ...unknown.suppressed,
@@ -293,10 +298,10 @@ function namedFolderBrokenRow(report: Report, unknown: ServingRootUnknownFinding
       count(entries.length, 'reference'),
       ` ${one ? 'names' : 'name'} an image that does not exist`,
     ],
-    details: [said, 'upfly check lists each with its file and line'],
+    details: [said, `${upfly} check lists each with its file and line`],
     key: 'broken',
     list: {
-      intro: `${said.charAt(0).toUpperCase()}${said.slice(1)}. Each of these names an image that does not exist, at the file and line given: fix the path, or put the image back. upfly check fails while any is left.`,
+      intro: `${said.charAt(0).toUpperCase()}${said.slice(1)}. Each of these names an image that does not exist, at the file and line given: fix the path, or put the image back. ${upfly} check fails while any is left.`,
       items: entries.flatMap(brokenItem),
     },
   };
@@ -348,7 +353,11 @@ function unusedRow(report: Report, file: ReportFile): Row {
         : [`and ${count(vectors.count, 'unreferenced SVG')}, counted, not listed`]),
       ...(kept.count === 0
         ? []
-        : [`${count(kept.count, 'original')} kept beside converted files are not counted`]),
+        : [
+            kept.count === 1
+              ? '1 original kept beside its converted file is not counted'
+              : `${kept.count} originals kept beside converted files are not counted`,
+          ]),
       ...(listed ? [`${listedIn(file)} lists them; Upfly never deletes one`] : []),
     ],
     key: 'unused',
@@ -410,18 +419,17 @@ function oversizedRows(report: Report): Row[] {
   ];
 }
 
-function copiesRow(report: Report): Row {
+function copiesRow(report: Report, upfly: UpflyCommand): Row {
   const sets = report.findings.filter((finding) => finding.kind === 'duplicate');
   if (sets.length === 0) return { label: 'Copies', value: ['none'], key: 'copies' };
   const wasted = sets.reduce((sum, finding) => sum + finding.wastedBytes, 0);
   return {
     label: 'Copies',
     value: [count(sets.length, 'set'), ` of identical images, ${formatBytes(wasted)} recoverable`],
-    details: ["upfly dedupe points each set's references at one copy"],
+    details: [`${upfly} dedupe points each set's references at one copy`],
     key: 'copies',
     list: {
-      intro:
-        'The files in each set hold the same bytes. upfly dedupe keeps one copy of each set and points the references to the others at it; it deletes nothing.',
+      intro: `The files in each set hold the same bytes. ${upfly} dedupe keeps one copy of each set and points the references to the others at it; it deletes nothing.`,
       items: sets.flatMap((finding) => [
         `${formatBytes(finding.bytes)} each, ${formatBytes(finding.wastedBytes)} recoverable by keeping one:`,
         ...finding.assets.map((asset) => `  ${asset}`),
@@ -491,6 +499,8 @@ export interface OptimizeFacts {
   readonly notes: readonly string[];
   readonly file: ReportFile;
   readonly next: NextStep | null;
+  /** How the commands it prints are typed. */
+  readonly upfly: UpflyCommand;
   /** The report of the same run, for the engine's caveats at the end of the file. */
   readonly report: Report;
   /** The folders the site is served from, where a link from outside may name an original. */
@@ -587,7 +597,7 @@ function optimizeClosing(facts: OptimizeFacts, saved: number): string {
   if (!facts.apply) {
     return facts.plan.conversions.length === 0
       ? 'Dry run: no project file was changed, and there is nothing to convert.'
-      : `Dry run: no project file was changed. With --apply, upfly optimize would convert ${converts} and save ${formatBytes(saved)}.`;
+      : `Dry run: no project file was changed. With --apply, ${facts.upfly} optimize would convert ${converts} and save ${formatBytes(saved)}.`;
   }
   if (facts.manifest === null) return 'Nothing was written: the plan has nothing to do.';
   return `Upfly converted ${converts} and saved ${formatBytes(saved)}.`;
@@ -661,7 +671,11 @@ function originalsDetails(
   ];
 }
 
-/** Every image that does not convert, counted by why. */
+/**
+ * Every image that does not convert, counted by why. An image nothing uses is counted in the
+ * words and the numbers of audit's Unused row, whatever else keeps it as it is, so the two
+ * commands never give two numbers for one idea.
+ */
 function leaveRow(facts: OptimizeFacts, sizes: ReadonlyMap<string, number>): Row {
   const converting = new Set(facts.plan.conversions.map((conversion) => conversion.asset));
   const declined = new Map<string, string>();
@@ -670,8 +684,9 @@ function leaveRow(facts: OptimizeFacts, sizes: ReadonlyMap<string, number>): Row
   }
   const probes = new Map((facts.probes ?? []).map((probe) => [probe.relative, probe]));
   const only = facts.only === null ? null : new Set(facts.only);
+  const unused = unusedGroups(facts.report);
 
-  const whyLeft = (path: string): { group: string; why: string } => {
+  const reasonLeft = (path: string): { group: string; why: string } => {
     const reason = declined.get(path);
     if (reason !== undefined) return { group: declineGroup(reason), why: reason };
     if (only !== null && !only.has(path)) {
@@ -682,6 +697,11 @@ function leaveRow(facts: OptimizeFacts, sizes: ReadonlyMap<string, number>): Row
       group: unmeasuredGroup(skip?.code ?? null, facts.format),
       why: skip?.reason ?? OTHER,
     };
+  };
+  const whyLeft = (path: string): { group: string; why: string } => {
+    const left = reasonLeft(path);
+    const group = unused.get(path);
+    return group === undefined ? left : { group, why: left.why };
   };
 
   const groups: string[] = [];
@@ -711,6 +731,22 @@ function leaveRow(facts: OptimizeFacts, sizes: ReadonlyMap<string, number>): Row
           },
         }),
   };
+}
+
+/**
+ * The images audit's Unused row counts, each with its group in the words of that row: unused,
+ * possibly unused, or an original kept beside its converted file.
+ */
+function unusedGroups(report: Report): ReadonlyMap<string, string> {
+  const groups = new Map<string, string>();
+  for (const finding of report.findings) {
+    if (finding.kind === 'dead') groups.set(finding.asset, 'unused');
+    if (finding.kind === 'possibly-dead') groups.set(finding.asset, 'possibly unused');
+  }
+  for (const original of report.keptOriginals.assets) {
+    groups.set(original.asset, 'kept beside its converted file');
+  }
+  return groups;
 }
 
 /** The applied run's record and commit, as rows. */
@@ -786,6 +822,8 @@ export interface DedupeFacts {
   readonly notes: readonly string[];
   readonly file: ReportFile;
   readonly next: NextStep | null;
+  /** How the commands it prints are typed. */
+  readonly upfly: UpflyCommand;
 }
 
 /** The summary of a `dedupe` run, dry or applied. */
@@ -858,12 +896,11 @@ export function dedupeSummary(facts: DedupeFacts): Summary {
         `, ${formatBytes(unused.reduce((sum, bytes) => sum + bytes, 0))}, with no reference left`,
       ],
       details: [
-        `Upfly never deletes ${one ? 'it' : 'them'}; upfly audit lists ${one ? 'it' : 'them'} as unused`,
+        `Upfly never deletes ${one ? 'it' : 'them'}; ${facts.upfly} audit lists ${one ? 'it' : 'them'} as unused`,
       ],
       key: 'unused',
       list: {
-        intro:
-          'No reference names these copies once the plan is written. upfly dedupe deletes none of them; upfly audit then lists each as unused, with its size.',
+        intro: `No reference names these copies once the plan is written. ${facts.upfly} dedupe deletes none of them; ${facts.upfly} audit then lists each as unused, with its size.`,
         items: plan.sets.flatMap((set) =>
           set.copies.filter((copy) => copy.unusedAfter).map((copy) => copy.path),
         ),
@@ -958,6 +995,7 @@ function nextRows(next: NextStep | null): Row[] {
  * @param flags the flags that shaped the plan, to repeat with `--apply`
  * @param git what git said about the folder
  * @param unfinished whether an earlier run stopped part way
+ * @param upfly how the commands printed are typed
  */
 export function nextAfterPlan(
   command: 'optimize' | 'dedupe',
@@ -965,15 +1003,16 @@ export function nextAfterPlan(
   flags: readonly string[],
   git: GitState,
   unfinished: boolean,
+  upfly: UpflyCommand,
 ): NextStep {
   const folder = dir === '.' ? [] : [dir];
   if (unfinished) {
     return {
-      words: ['upfly', 'undo', ...folder],
-      text: 'upfly undo, to finish the earlier run first',
+      words: [...upfly.split(' '), 'undo', ...folder],
+      text: `${upfly} undo, to finish the earlier run first`,
     };
   }
-  const run = ['upfly', command, ...folder, ...flags, '--apply'];
+  const run = [...upfly.split(' '), command, ...folder, ...flags, '--apply'];
   if (git.kind !== 'repository' || !git.tracked) {
     return {
       words: [...run, '--allow-dirty'],
@@ -990,13 +1029,14 @@ export function nextAfterPlan(
  * What to do after an applied run: check it, with the ways back.
  *
  * @param commit the run's commit, or null
+ * @param upfly how the commands printed are typed
  */
-export function nextAfterRun(commit: string | null): NextStep {
+export function nextAfterRun(commit: string | null, upfly: UpflyCommand): NextStep {
   return {
     words: null,
-    text: "run the project's build, if it has one, then upfly check",
+    text: `run the project's build, if it has one, then ${upfly} check`,
     details: [
-      'upfly undo puts every file back',
+      `${upfly} undo puts every file back`,
       ...(commit === null ? [] : [`git revert ${commit.slice(0, 12)} undoes the commit`]),
     ],
   };

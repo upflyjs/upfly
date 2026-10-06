@@ -31,6 +31,7 @@ function summaryWith(next: NextStep): string {
       notes: [],
       file: { written: '.upfly/report.txt' },
       next,
+      upfly: 'npx upfly',
     }),
     styles,
   );

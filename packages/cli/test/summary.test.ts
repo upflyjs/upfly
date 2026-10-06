@@ -59,13 +59,13 @@ const SUMMARIES = {
     '                 and 1 unreferenced SVG, counted, not listed',
     '                 .upfly/audit.txt lists them; Upfly never deletes one',
     '  Copies       1 set of identical images, 210 B recoverable',
-    "                 upfly dedupe points each set's references at one copy",
+    "                 npx upfly dedupe points each set's references at one copy",
     '  Skipped      nothing',
     '',
     '  Full report  .upfly/audit.txt',
-    '  Next         upfly optimize',
+    '  Next         npx upfly optimize',
     '',
-    '  upfly optimize would convert 5 images and save 75.5 KB.',
+    '  npx upfly optimize would convert 5 images and save 75.5 KB.',
     '',
     '',
   ],
@@ -77,18 +77,18 @@ const SUMMARIES = {
     '  References   10 of 11 resolved, from 3 source files',
     '  Savings      93.1 KB as WebP at quality 80, across 5 images',
     '  Broken       1 reference names an image that does not exist',
-    '                 upfly check lists each with its file and line',
+    '                 npx upfly check lists each with its file and line',
     '  Unused       1 image, 70 B',
     '                 1 possibly unused: its name appears in the project',
     '                 .upfly/audit.txt lists them; Upfly never deletes one',
     '  Copies       1 set of identical images, 280 B recoverable',
-    "                 upfly dedupe points each set's references at one copy",
+    "                 npx upfly dedupe points each set's references at one copy",
     '  Skipped      nothing',
     '',
     '  Full report  .upfly/audit.txt',
-    '  Next         upfly optimize',
+    '  Next         npx upfly optimize',
     '',
-    '  upfly optimize would convert 5 images and save 93.1 KB.',
+    '  npx upfly optimize would convert 5 images and save 93.1 KB.',
     '',
     '',
   ],
@@ -106,12 +106,12 @@ const SUMMARIES = {
     '                 3  would save too little',
     '                 2  SVG, which Upfly does not convert',
     '                 1  no reference would move to a new file',
-    '                 1  nothing links to it',
+    '                 1  unused',
     '',
     '  Full plan    .upfly/optimize.txt',
-    '  Next         upfly optimize --apply',
+    '  Next         npx upfly optimize --apply',
     '',
-    '  Dry run: no project file was changed. With --apply, upfly optimize would',
+    '  Dry run: no project file was changed. With --apply, npx upfly optimize would',
     '  convert 5 images and save 75.5 KB.',
     '',
     '',
@@ -125,13 +125,14 @@ const SUMMARIES = {
     '  Update       6 references in 2 files',
     '  Leave        6 images, 2.4 KB',
     '                 3  would save too little',
-    '                 2  nothing links to it',
     '                 1  no reference would move to a new file',
+    '                 1  possibly unused',
+    '                 1  unused',
     '',
     '  Full plan    .upfly/optimize.txt',
-    '  Next         upfly optimize --apply',
+    '  Next         npx upfly optimize --apply',
     '',
-    '  Dry run: no project file was changed. With --apply, upfly optimize would',
+    '  Dry run: no project file was changed. With --apply, npx upfly optimize would',
     '  convert 5 images and save 93.1 KB.',
     '',
     '',
@@ -145,7 +146,7 @@ const SUMMARIES = {
     '  Leave        2 references as written',
     '                 2  an import cannot reach a folder the site serves',
     '  Unused       1 copy, 70 B, with no reference left',
-    '                 Upfly never deletes it; upfly audit lists it as unused',
+    '                 Upfly never deletes it; npx upfly audit lists it as unused',
     '',
     '  Full plan    .upfly/dedupe.txt',
     '',
@@ -245,13 +246,14 @@ describe('the report file', () => {
         '  Updated      6 references in 2 files',
         '  Left alone   6 images, 2.4 KB',
         '                 3  would save too little',
-        '                 2  nothing links to it',
         '                 1  no reference would move to a new file',
+        '                 1  possibly unused',
+        '                 1  unused',
         '',
         '  Run          <run>: 5 files created, 2 changed, 0 removed',
         '  Full plan    .upfly/optimize.txt',
-        "  Next         run the project's build, if it has one, then upfly check",
-        '                 upfly undo puts every file back',
+        "  Next         run the project's build, if it has one, then npx upfly check",
+        '                 npx upfly undo puts every file back',
         '',
         '  Upfly converted 5 images and saved 93.1 KB.',
         '',
@@ -299,11 +301,11 @@ describe('the report file', () => {
       [
         '',
         '  Broken       1 reference names an image that does not exist',
-        '                 upfly check lists each with its file and line',
+        '                 npx upfly check lists each with its file and line',
         '',
         '    Each of these names an image that does not exist, at the file and line',
-        '    given: fix the path, or put the image back. upfly check fails while any is',
-        '    left.',
+        '    given: fix the path, or put the image back. npx upfly check fails while any',
+        '    is left.',
         '      about.html:10  images/missing-on-purpose.png',
         '',
         '',
@@ -347,10 +349,10 @@ describe('the next command', () => {
       '                 5 originals to remove, 150.1 KB, once their references move\n',
     );
     expect(replace.stdout).toContain(
-      '  Next         upfly optimize --replace --public . --apply --allow-dirty\n',
+      '  Next         npx upfly optimize --replace --public . --apply --allow-dirty\n',
     );
     expect(only.stdout).toContain(
-      '  Next         upfly optimize --only "*.png" --apply --allow-dirty\n',
+      '  Next         npx upfly optimize --only "*.png" --apply --allow-dirty\n',
     );
   });
 
@@ -370,7 +372,7 @@ describe('the next command', () => {
       ].join('\n'),
     );
     expect(result.stdout).toContain(
-      '  Next         name the folder the site serves: upfly audit --public <dir>\n',
+      '  Next         name the folder the site serves: npx upfly audit --public <dir>\n',
     );
   });
 
@@ -391,10 +393,10 @@ describe('the next command', () => {
         '                 only 2 of 12 root-relative references resolved in public, named',
         '                 as the folder the site is served from; if it is, the other 10',
         '                 name no file there',
-        '                 upfly check lists each with its file and line',
+        '                 npx upfly check lists each with its file and line',
       ].join('\n'),
     );
-    expect(human.stdout).toContain('  Next         upfly check --public public\n');
+    expect(human.stdout).toContain('  Next         npx upfly check --public public\n');
     expect(human.stdout).not.toMatch(/--public <dir>|is unknown|could not tell/);
     const report = (
       JSON.parse(json.stdout.trim().split('\n').at(-1) ?? '{}') as {
@@ -405,6 +407,52 @@ describe('the next command', () => {
     expect(report.findings).toContainEqual(
       expect.objectContaining({ kind: 'serving-root-unknown', linked: 2, checkable: 12 }),
     );
+  });
+
+  it('counts one original kept beside its converted file in the singular, and two in the plural', () => {
+    const said = [
+      '1 original kept beside its converted file is not counted',
+      '2 originals kept beside converted files are not counted',
+    ];
+    for (const [index, line] of said.entries()) {
+      const root = tempFolder(roots, 'upfly-kept-');
+      const names = Array.from({ length: index + 1 }, (_, n) => `photo-${n}`);
+      write(root, 'index.html', `${names.map((name) => `<img src="${name}.webp">`).join('\n')}\n`);
+      for (const name of names) {
+        write(root, `${name}.png`, 'the original, kept');
+        write(root, `${name}.webp`, 'its converted file, in use');
+      }
+
+      const result = upfly(['audit', '--no-probe'], { cwd: root });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain(`  ${line}\n`);
+    }
+  });
+
+  it('counts the images nothing uses as audit does, in its words, whatever their format', () => {
+    const root = tempFolder(roots, 'upfly-unused-');
+    const logo = readFileSync(join(FIXTURES, 'plain-html/images/logo.png'));
+    write(root, 'index.html', '<img src="photo.webp">\n');
+    write(root, 'notes.txt', 'maybe.png was the old banner\n');
+    write(root, 'photo.webp', 'the converted file, in use');
+    write(root, 'photo.png', logo);
+    write(root, 'unused.png', logo);
+    write(root, 'unused-too.webp', 'a WebP nothing uses');
+    write(root, 'maybe.png', logo);
+
+    const audit = upfly(['audit', '--public', '.'], { cwd: root });
+    const optimize = upfly(['optimize', '--public', '.'], { cwd: root });
+
+    expect(audit.status, audit.stderr).toBe(0);
+    expect(audit.stdout).toContain('  Unused       2 images, ');
+    expect(audit.stdout).toContain('1 possibly unused: its name appears in the project');
+    expect(audit.stdout).toContain('1 original kept beside its converted file is not counted');
+    expect(optimize.status, optimize.stderr).toBe(0);
+    expect(optimize.stdout).toContain('  2  unused\n');
+    expect(optimize.stdout).toContain('  1  possibly unused\n');
+    expect(optimize.stdout).toContain('  1  kept beside its converted file\n');
+    expect(optimize.stdout).not.toContain('nothing links to it');
   });
 
   it('says it in words when the command is too long to print whole', () => {

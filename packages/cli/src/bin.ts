@@ -6,4 +6,5 @@ process.exitCode = await main(process.argv.slice(2), {
   stdout: process.stdout,
   stderr: process.stderr,
   env: process.env,
+  ...(process.argv[1] === undefined ? {} : { script: process.argv[1] }),
 });

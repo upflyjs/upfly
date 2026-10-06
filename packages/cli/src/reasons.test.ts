@@ -17,8 +17,8 @@ describe('declineGroup', () => {
       ['images/badge.png', 'would save too little'],
       ['images/badge@2x.png', 'would save too little'],
       ['images/favicon.png', 'no reference would move to a new file'],
-      ['images/never-referenced.png', 'nothing links to it'],
-      ['images/removed.png', 'nothing links to it'],
+      ['images/never-referenced.png', 'no reference would move to a new file'],
+      ['images/removed.png', 'no reference would move to a new file'],
       ['images/team.jpg', 'would save too little'],
     ]);
   });
@@ -39,7 +39,7 @@ describe('declineGroup', () => {
       ],
       [
         'nothing Upfly can see links to it, so a new file would be used by nobody. Upfly converts an image only when a reference moves to the new file',
-        'nothing links to it',
+        'no reference would move to a new file',
       ],
       [
         'img/a.webp already exists, so converting it would replace a file rather than add one. Rename one of them and run again.',

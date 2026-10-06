@@ -23,7 +23,9 @@ export function formatName(format: EncodeFormat): string {
 const DECLINES: readonly (readonly [RegExp, string])[] = [
   [/^converting it would save /, 'would save too little'],
   [/ came out no smaller,/, 'no smaller when converted'],
-  [/^nothing (?:Upfly can see )?links to it/, 'nothing links to it'],
+  // Not "nothing links to it": an image audit calls unused is counted as unused before this,
+  // so what is left here is one no reference would move from, such as a framework's own file.
+  [/^nothing (?:Upfly can see )?links to it/, 'no reference would move to a new file'],
   [/ would replace a file rather than add one\./, 'its new name is taken by another file'],
   [/ could not be read to rule out a mention of it$/, 'a file that may name it could not be read'],
   [/ still names its path, in a file this run excluded$/, 'named in a file this run leaves out'],

@@ -100,7 +100,7 @@ describe('upfly', () => {
     const result = upfly(['audit', '--nope']);
     expect(result.status).toBe(2);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe('upfly: unknown option `--nope`\nSee `upfly audit --help`.\n');
+    expect(result.stderr).toBe('upfly: unknown option `--nope`\nSee `npx upfly audit --help`.\n');
   });
 });
 
@@ -152,7 +152,7 @@ describe('upfly audit', () => {
 
     expect(result.status).toBe(0);
     expect(result.stderr).toContain(
-      'The imaging and parsing libraries left 1 message of their own; `upfly audit --json` includes their text.',
+      'The imaging and parsing libraries left 1 message of their own; `npx upfly audit --json` includes their text.',
     );
   });
 

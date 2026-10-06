@@ -179,7 +179,7 @@ describe('upfly check', () => {
         '',
         'Passed: no reference names a missing image.',
         '',
-        '1 reference could not be checked, since Upfly cannot know which file it names; `upfly audit` lists it with the reason.',
+        '1 reference could not be checked, since Upfly cannot know which file it names; `npx upfly audit` lists it with the reason.',
         '',
       ].join('\n'),
     );
@@ -192,7 +192,7 @@ describe('upfly check', () => {
 
     expect(run.status).toBe(0);
     expect(run.stdout).toContain(
-      '1 file could not be parsed or read, so no reference in it was checked; `upfly audit` names it with the reason.',
+      '1 file could not be parsed or read, so no reference in it was checked; `npx upfly audit` names it with the reason.',
     );
   });
 
@@ -396,7 +396,7 @@ describe('upfly check --changed', () => {
 
     expect(run.status).toBe(2);
     expect(run.stderr).toContain(
-      '`img` is a folder: to check the uncommitted changes in it, put the folder before --changed, as in `upfly check img --changed`',
+      '`img` is a folder: to check the uncommitted changes in it, put the folder before --changed, as in `npx upfly check img --changed`',
     );
   });
 });
