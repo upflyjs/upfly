@@ -126,6 +126,18 @@ describe('a place inside a reference Upfly read', () => {
     });
   });
 
+  it('names no command in a reason, since only the CLI knows how its commands are typed', async () => {
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'index.html': '<!doctype html>\n<img src="/IMG/A.png" alt="">\n',
+    });
+
+    const lines = await linesFor(root, 'public/img/a.png');
+
+    expect(lines['index.html:2']?.why).toContain('letter case');
+    for (const line of Object.values(lines)) expect(line.why).not.toMatch(/\bupfly [a-z]/);
+  });
+
   it('leaves out a path into a folder the walk does not read, which names a file there', async () => {
     const root = await project({
       'public/img/a.png': 'IMAGE',

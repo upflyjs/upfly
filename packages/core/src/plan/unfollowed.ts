@@ -106,7 +106,7 @@ const IN_CODE_EXAMPLE = 'in a code example, which a page shows rather than loads
 const EXCLUDED_FILE =
   'in a file this run leaves out (.upflyignore, --exclude or the config file), read only to list it here';
 const OTHER_CASE =
-  'it names the image in other letter case, which Windows and macOS find and a Linux server does not; upfly check reports it';
+  'it names the image in other letter case, which Windows and macOS find and a Linux server does not; the check command reports it';
 const UNPLACED_ROOT =
   "a path from the site's root, which Upfly cannot follow while it cannot tell the folder the site is served from";
 const UNKNOWN_ALIAS = 'written through an alias that no configuration Upfly reads defines';
