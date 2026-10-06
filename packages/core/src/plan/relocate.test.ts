@@ -136,7 +136,27 @@ describe('relocate, on the real tree', () => {
       expect(plan.refused[0]?.reason).toContain('public/theme-light.png');
       expect(plan.refused[0]?.reason).toContain('public/theme-sepia.png');
       expect(plan.refused[0]?.reason).toContain('public/theme-not-an-image.png');
-      expect(plan.refused[0]?.reason).toContain('Move all 4, or none');
+      expect(plan.refused[0]?.reason).toContain('moving any of the 4 breaks it');
+    });
+
+    it('offers no move it would refuse: moving every file the pattern matches is refused too', async () => {
+      // Following a refusal's advice must not meet the same refusal. The pattern's text is
+      // the same whichever files move, so moving all of them breaks it as surely as one.
+      const theme = ['dark', 'light', 'sepia', 'not-an-image'];
+      const plan = await relocateFixture(
+        theme.map((name) => ({
+          from: `public/theme-${name}.png`,
+          to: `public/img/theme-${name}.png`,
+        })),
+      );
+
+      expect(plan.refused.map((refusal) => refusal.code)).toEqual(
+        theme.map(() => 'binds-a-pattern'),
+      );
+      for (const refusal of plan.refused) {
+        expect(refusal.reason).not.toMatch(/move all/i);
+        expect(refusal.reason).toContain('Change it by hand first');
+      }
     });
 
     it('refuses a destination outside the project', async () => {

@@ -543,7 +543,7 @@ function patternSiblings(relative: string, graph: Graph): string | null {
     const others = bound.filter((path) => path !== relative).sort(compareStrings);
     if (others.length === 0) continue;
 
-    return `Moving ${relative} alone would break \`${reference.rawPath}\`, which also matches ${others.join(', ')}. Move all ${bound.length}, or none.`;
+    return `Moving ${relative} would break \`${reference.rawPath}\`, which also matches ${others.join(', ')}: its text is built when the code runs, so Upfly cannot repoint it, and moving any of the ${bound.length} breaks it. Change it by hand first, or leave them where they are.`;
   }
   return null;
 }

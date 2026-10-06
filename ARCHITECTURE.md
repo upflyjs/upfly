@@ -2172,7 +2172,8 @@ inside one world proceeds.
 A template reference such as `` `./theme-${mode}.png` `` is one piece of text standing for every file
 it matches, so moving one of them breaks it for all of them. That move is refused as
 `binds-a-pattern`, naming the other files. Taking them along is not the fix: the user asked for one
-file. The remaining refusals guard the request itself: a source that is not an asset, a destination
+file, and the pattern's text stays as written whichever files move, so moving all of them is
+refused too. The refusal says what works: change the pattern by hand first. The remaining refusals guard the request itself: a source that is not an asset, a destination
 outside the project or already holding an asset, a destination claimed by two moves, and a source
 moved twice. Each path is read as it resolves before any of them, so `img/../../x.png` is outside
 the project and `img/./a.png` and `img/x/../a.png` are one destination. Both destination checks fold case on every platform, as the planner's collision check
