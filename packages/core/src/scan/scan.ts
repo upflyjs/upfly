@@ -9,6 +9,7 @@
  */
 
 import { UpflyError } from '../errors.js';
+import { mapInOrder } from '../map-in-order.js';
 import { imageFilenameCandidates } from '../paths.js';
 import type { Adapter, RawReference, SourceFile, UnscannedFile } from '../types.js';
 import { lineOf } from './citation.js';
@@ -93,7 +94,7 @@ export interface ScanOptions {
    * exists; the sweep narrows them later.
    */
   readonly assetBasenames?: ReadonlySet<string>;
-  /** Files read in parallel. Defaults to 16. */
+  /** Files read at once, the next starting as soon as any finishes. Defaults to 16. */
   readonly concurrency?: number;
   /**
    * Where a parser's own error text goes, if anywhere. The report does not need it; it
@@ -150,36 +151,31 @@ const SKIPPABLE_ADAPTER_ID_SET = new Set(['html', 'json', 'markdown']);
  */
 export async function scanSources(options: ScanOptions): Promise<ScanResult> {
   const byId = new Map(options.adapters.map((adapter) => [adapter.id, adapter]));
-  const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
 
   const references: RawReference[] = [];
   const unscanned: UnscannedFile[] = [];
   const mentions: ScannedMention[] = [];
   const texts: ScannedText[] = [];
-  const files = options.sourceFiles;
 
-  for (let index = 0; index < files.length; index += concurrency) {
-    const batch = files.slice(index, index + concurrency);
-    // `Promise.all` preserves input order, so the output does not depend on which read
-    // finished first, and the report is the same for the same input without a later sort.
-    const scanned = await Promise.all(
-      batch.map((file) =>
-        scanOne(file, adapterFor(file, byId), options.readFile, options.assetBasenames),
-      ),
-    );
+  // The results keep the source-file order, so the output does not depend on which read
+  // finished first, and the report is the same for the same input without a later sort.
+  const scanned = await mapInOrder(
+    options.sourceFiles,
+    options.concurrency ?? DEFAULT_CONCURRENCY,
+    (file) => scanOne(file, adapterFor(file, byId), options.readFile, options.assetBasenames),
+  );
 
-    for (const result of scanned) {
-      // Both, not either: a file that failed can still carry the references found
-      // before the failure.
-      references.push(...result.references);
-      if (result.failure !== null) unscanned.push(result.failure);
-      mentions.push(...result.mentions);
-      if (result.text !== null) texts.push(result.text);
-      // Emitted here rather than inside the concurrent map, so diagnostics arrive in
-      // source-file order. Nothing deterministic reads them, but debugging output that
-      // reorders between runs is harder to use.
-      if (result.diagnostic !== null) options.onDiagnostic?.(result.diagnostic);
-    }
+  for (const result of scanned) {
+    // Both, not either: a file that failed can still carry the references found
+    // before the failure.
+    references.push(...result.references);
+    if (result.failure !== null) unscanned.push(result.failure);
+    mentions.push(...result.mentions);
+    if (result.text !== null) texts.push(result.text);
+    // Emitted here rather than inside the concurrent map, so diagnostics arrive in
+    // source-file order. Nothing deterministic reads them, but debugging output that
+    // reorders between runs is harder to use.
+    if (result.diagnostic !== null) options.onDiagnostic?.(result.diagnostic);
   }
 
   return { references, unscanned, mentions, texts };

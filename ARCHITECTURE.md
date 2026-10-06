@@ -1410,11 +1410,12 @@ usually holds more files than everything else combined, and the only way to stay
 budget is to never descend into it at all. A glob has to consider each path in order to reject
 it; a walker drops the entire subtree on a single directory-name lookup.
 
-Directories are read a level at a time, up to sixteen in parallel, and the same bound applies to
-the `stat` of each image afterwards. The limit is there to avoid exhausting file descriptors, not
-to match CPU count, since this work is entirely IO-bound. A shared work queue would parallelise
-slightly better at the very top of the tree, but needs active-worker bookkeeping to stop workers
-exiting while a peer is still producing work, and this module is meant to stay readable.
+Directories are read a level at a time, up to sixteen at once, the next starting as soon as any
+finishes, and the same bound applies to the `stat` of each image afterwards. The limit is there to
+avoid exhausting file descriptors, not to match CPU count, since this work is entirely IO-bound. A
+shared work queue across levels would parallelise slightly better at the very top of the tree, but
+needs active-worker bookkeeping to stop workers exiting while a peer is still producing work, and
+this module is meant to stay readable.
 
 What it declines to do, it records. Symlinks and Windows junctions are not followed (a junction
 reports as a symlink to `lstat`, which is why the check comes first: following one can put the
@@ -2307,9 +2308,10 @@ reads are IO-bound and default to **16 at a time** (`scan.ts`), encodes are CPU-
 to **4** (`probe.ts`), a measured default: `os.cpus() - 1` was about 21% worse. One encode keeps
 about one core busy whatever libvips is allowed, so the parallelism is across images, and sharp's
 work runs on Node's thread pool, four threads unless `UV_THREADPOOL_SIZE` is set before Node starts
-(setting it from inside the program has no effect on Windows). The probe keeps its four full: the
-next image starts the moment any finishes (`mapInOrder`), since a group that waits for its slowest
-member leaves most of its slots idle while one large image encodes.
+(setting it from inside the program has no effect on Windows). Both bounds are kept full: the next
+file or image starts the moment any finishes (`mapInOrder`, used by the walk, the sizing, the scan
+and the probe), since a group that waits for its slowest member leaves most of its slots idle while
+one large image encodes.
 
 `bench/` is checked in and runs in CI against a fixed fixture, so a regression shows up as a
 number rather than a feeling. **Any performance claim in the README must come from a number `bench/`

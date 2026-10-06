@@ -15,6 +15,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, resolve as resolvePath } from 'node:path';
 import ignore, { type Ignore } from 'ignore';
 import { UpflyError } from '../errors.js';
+import { mapInOrder } from '../map-in-order.js';
 import { compareStrings, extensionOf, isImageExtension, relativePath } from '../paths.js';
 import type {
   Adapter,
@@ -114,7 +115,7 @@ export interface DiscoverOptions {
   readonly ignoreFile?: string;
   /** Extra gitignore-syntax patterns, applied as if appended to the ignore file. */
   readonly extraIgnores?: readonly string[];
-  /** Directories read, and images sized, in parallel. Defaults to 16. */
+  /** Directories read, and images sized, at once, the next as any finishes. Defaults to 16. */
   readonly concurrency?: number;
 }
 
@@ -418,27 +419,25 @@ interface WalkInput {
 }
 
 /**
- * Breadth-first, one level at a time, reading up to `concurrency` directories at once.
+ * Breadth-first, one level at a time, reading up to `concurrency` directories at once and
+ * starting the next as soon as any finishes.
  *
- * A shared work queue would parallelise slightly better near the top of the tree, but
- * needs bookkeeping so that no worker exits while another is still producing work.
- * Levels keep it simple: each goes out as batched `Promise.all`s, and the directories
- * found become the next level.
+ * A shared work queue across levels would parallelise slightly better near the top of the
+ * tree, but needs bookkeeping so that no worker exits while another is still producing
+ * work. Levels keep it simple: the directories found become the next level.
  */
 async function walk(input: WalkInput): Promise<void> {
   let level = [input.root];
 
   while (level.length > 0) {
     const nextLevel: string[] = [];
+    const reads = await mapInOrder(level, input.concurrency, (directory) =>
+      readDirectory(directory, input),
+    );
 
-    for (let index = 0; index < level.length; index += input.concurrency) {
-      const batch = level.slice(index, index + input.concurrency);
-      const reads = await Promise.all(batch.map((directory) => readDirectory(directory, input)));
-
-      for (const read of reads) {
-        for (const entry of read.entries) {
-          classifyEntry(entry, read, input, nextLevel);
-        }
+    for (const read of reads) {
+      for (const entry of read.entries) {
+        classifyEntry(entry, read, input, nextLevel);
       }
     }
 
@@ -567,7 +566,7 @@ function unclaimed(path: string, relative: string, extension: string): Unscanned
  * Attach a size to every image found.
  *
  * Kept out of the walk so that traversal stays about traversal. The cost is the
- * same either way: one `stat` per image, batched the same way.
+ * same either way: one `stat` per image, at most `concurrency` at once.
  */
 async function sizeAssets(
   candidates: readonly AssetCandidate[],
@@ -577,21 +576,16 @@ async function sizeAssets(
 ): Promise<Asset[]> {
   const assets: Asset[] = [];
 
-  for (let index = 0; index < candidates.length; index += concurrency) {
-    const batch = candidates.slice(index, index + concurrency);
-    const sized = await Promise.all(batch.map(sizeAsset));
-
-    for (const result of sized) {
-      if (result.asset !== null) {
-        assets.push(result.asset);
-      } else {
-        state.skipped.push({
-          path: result.candidate.path,
-          relative: relativePath(root, result.candidate.path),
-          reason: 'unreadable-file',
-          detail: result.detail,
-        });
-      }
+  for (const result of await mapInOrder(candidates, concurrency, sizeAsset)) {
+    if (result.asset !== null) {
+      assets.push(result.asset);
+    } else {
+      state.skipped.push({
+        path: result.candidate.path,
+        relative: relativePath(root, result.candidate.path),
+        reason: 'unreadable-file',
+        detail: result.detail,
+      });
     }
   }
 
