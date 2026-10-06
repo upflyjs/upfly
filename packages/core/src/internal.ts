@@ -55,4 +55,4 @@ export { newRunId } from './write/optimize.js';
 export { resolutionHealth } from './audit/resolution-health.js';
 export { shapeById } from './adapters/shapes.js';
 export { spell, spellingsOf } from './adapters/reference-path.js';
-export { existsAsSpelled } from './pipeline.js';
+export { existsAsSpelled, reportsMeasuring } from './pipeline.js';

@@ -300,6 +300,24 @@ describe('runPipeline', () => {
     ]);
   });
 
+  it('counts every image it measures, however many there are', async () => {
+    const files: Record<string, string> = {
+      'package.json': '{ "name": "site", "private": true }\n',
+    };
+    for (let index = 0; index < 25; index += 1) files[`img/${index}.png`] = 'not an image';
+    const events: PipelineProgress[] = [];
+    await runPipeline({
+      root: project(files),
+      servingRoots: servingRootsFor(),
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: { formats: [] },
+      onProgress: (event) => events.push(event),
+    });
+
+    const counts = events.flatMap((event) => (event.stage === 'measuring' ? [event.done] : []));
+    expect(counts).toEqual(Array.from({ length: 25 }, (_, index) => index + 1));
+  });
+
   it('reports the count at most once per twentieth of the images, and always the last', () => {
     const reported = (total: number) =>
       Array.from({ length: total }, (_, index) => index + 1).filter((done) =>

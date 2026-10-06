@@ -4,6 +4,7 @@
  * the report and stderr carries errors and, on a terminal, progress.
  */
 
+import { reportsMeasuring } from 'upfly-core/internal';
 import type { CommandName } from './args.js';
 import type { ExitCode } from './exit-codes.js';
 
@@ -176,7 +177,8 @@ export function stopWith(
 
 /**
  * Reports progress: a JSON line under `--json`, one overwritten line on a terminal, and
- * nothing when stderr is a file or a pipe.
+ * nothing when stderr is a file or a pipe. The terminal counts every image measured; the
+ * JSON lines keep the counts `reportsMeasuring` names, twenty for a big project.
  */
 export function progressReporter(
   io: Io,
@@ -187,6 +189,8 @@ export function progressReporter(
   return {
     update(event) {
       if (json) {
+        const measuring = event.stage === 'measuring';
+        if (measuring && !reportsMeasuring(Number(event.done), Number(event.total))) return;
         emit(io, { type: 'progress', command, ...event });
         return;
       }

@@ -103,17 +103,18 @@ export type PipelineProgress =
   | { readonly stage: 'scanned'; readonly references: number }
   | { readonly stage: 'resolved'; readonly linked: number }
   /**
-   * While images are measured: how many are done, of how many. Reported for every
-   * twentieth of the images and for the last, so a big project gives twenty lines.
+   * While images are measured: how many are done, of how many, as each image finishes. A
+   * caller that writes a line per event can keep the ones `reportsMeasuring` names, so a big
+   * project gives twenty lines.
    */
   | { readonly stage: 'measuring'; readonly done: number; readonly total: number }
   | { readonly stage: 'measured'; readonly images: number }
   | { readonly stage: 'audited'; readonly findings: number };
 
 /**
- * Whether to report the measuring count at `done` of `total`: when `done` enters a new
- * twentieth of `total`, and always at the last. A project of twenty images or fewer reports
- * each one. The same counts every run, whichever image finishes first.
+ * Whether a writer of lines reports the measuring count at `done` of `total`: when `done`
+ * enters a new twentieth of `total`, and always at the last. A project of twenty images or
+ * fewer reports each one. The same counts every run, whichever image finishes first.
  *
  * @param done how many images are measured, from 1
  * @param total how many there are
@@ -317,9 +318,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineOutput>
               ? {}
               : { encodeOnly: input.encodeOnly({ graph, servingRoots, builds, aliases }) }),
             onDiagnostic: (entry) => diagnostics.push(entry),
-            onMeasured: (done, total) => {
-              if (reportsMeasuring(done, total)) progress({ stage: 'measuring', done, total });
-            },
+            onMeasured: (done, total) => progress({ stage: 'measuring', done, total }),
           },
         );
   if (probes !== undefined) progress({ stage: 'measured', images: probes.length });
