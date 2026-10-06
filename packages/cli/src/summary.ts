@@ -1020,18 +1020,7 @@ export function moveSummary(facts: MoveFacts): Summary {
           }),
     });
   }
-  if (plan.declined.length > 0) {
-    rows.push({
-      label: 'Cannot follow',
-      value: [count(plan.declined.length, 'reference'), ', which breaks unless changed by hand'],
-      key: 'leave',
-      list: {
-        intro:
-          'Each of these references names a moved image and stays as written, for the reason given, so it no longer leads to the image. Change each by hand.',
-        items: plan.declined.map((stay) => `${stay.where}  ${stay.text}  ${stay.why}`),
-      },
-    });
-  }
+  if (plan.declined.length > 0) rows.push(declinedRow(plan.declined));
   if (plan.unfollowed.length > 0) {
     const one = plan.unfollowed.length === 1;
     rows.push({
@@ -1079,6 +1068,24 @@ export function moveSummary(facts: MoveFacts): Summary {
   };
 }
 
+/** The references to a moved image that cannot follow it, each to change by hand. */
+function declinedRow(declined: MovePlan['declined']): Row {
+  const one = declined.length === 1;
+  return {
+    label: 'Cannot follow',
+    value: [
+      count(declined.length, 'reference'),
+      `, which break${one ? 's' : ''} unless changed by hand`,
+    ],
+    key: 'leave',
+    list: {
+      intro:
+        'Each of these references names a moved image and stays as written, for the reason given, so it no longer leads to the image. Change each by hand.',
+      items: declined.map((stay) => `${stay.where}  ${stay.text}  ${stay.why}`),
+    },
+  };
+}
+
 /** The run's id and what it moved and changed, and its commit. */
 function moveRunRows(facts: MoveFacts): Row[] {
   if (!facts.apply) return [];
@@ -1110,10 +1117,12 @@ function moveClosing(facts: MoveFacts, references: number): string {
   const { plan } = facts;
   const images = count(plan.moves.length, 'image');
   const updated = `${count(references, 'reference')} in ${count(plan.rewrites.length, 'file')}`;
+  const lines = plan.unfollowed.length + plan.declined.length;
+  const one = lines === 1;
   const left =
-    plan.unfollowed.length + plan.declined.length === 0
+    lines === 0
       ? ''
-      : ` ${count(plan.unfollowed.length + plan.declined.length, 'line')} still name an old path and stay as written.`;
+      : ` ${count(lines, 'line')} still name${one ? 's' : ''} an old path and stay${one ? 's' : ''} as written.`;
   if (!facts.apply) {
     return plan.moves.length === 0
       ? 'Dry run: no project file was changed, and there is nothing to move.'
