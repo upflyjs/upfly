@@ -52,6 +52,46 @@ function fakeProbe(options: FakeOptions = {}): ImageProbe {
   };
 }
 
+/**
+ * A probe whose header reads wait until the test lets each image finish, so a test chooses
+ * the order images finish in and sees which have started. An image let finish before it has
+ * started finishes the moment it starts.
+ */
+function gatedProbe(): {
+  readonly probe: ImageProbe;
+  readonly started: string[];
+  finish(relative: string): void;
+} {
+  const started: string[] = [];
+  const waiting = new Map<string, () => void>();
+  const early = new Set<string>();
+  const header = { width: 1, height: 1, format: 'png', pages: 1 };
+  return {
+    probe: {
+      quality: DEFAULT_ENCODE_QUALITY,
+      encodeToFile: async () => 0,
+      encodedBytes: async () => 1,
+      metadata: (path) => {
+        const relative = path.slice('/repo/'.length);
+        started.push(relative);
+        if (early.has(relative)) return Promise.resolve(header);
+        return new Promise((resolve) => waiting.set(relative, () => resolve(header)));
+      },
+    },
+    started,
+    finish(relative) {
+      const release = waiting.get(relative);
+      if (release === undefined) early.add(relative);
+      else release();
+    },
+  };
+}
+
+/** Lets every callback of a settled promise run, so the images started after it are seen. */
+function settle(): Promise<void> {
+  return new Promise((done) => setImmediate(done));
+}
+
 describe('probeAssets', () => {
   it('reads dimensions for every asset', async () => {
     const results = await probeAssets([asset('a.png'), asset('b.png')], {
@@ -642,10 +682,163 @@ describe('probeAssets', () => {
       expect(results.every((result) => result.encoded.length === 0)).toBe(true);
       expect(results.every((result) => result.skipped[0]?.code === 'beyond-encode-cap')).toBe(true);
     });
+
+    it('encodes only the images encodeOnly names, and still reads every header', async () => {
+      const results = await probeAssets([asset('used.png', 100), asset('unused.png', 9000)], {
+        probe: fakeProbe(),
+        formats: ['webp'],
+        encodeOnly: new Set(['used.png']),
+      });
+
+      const [used, unused] = results;
+      expect(used?.encoded).toHaveLength(1);
+      expect(unused?.metadata).not.toBeNull();
+      expect(unused?.encoded).toEqual([]);
+      expect(unused?.skipped[0]).toMatchObject({ code: 'would-not-convert' });
+    });
+
+    it('caps among the images encodeOnly names, taking every one that shares a converted name', async () => {
+      const results = await probeAssets(
+        [
+          asset('a/hero.png', 9000),
+          asset('b/hero.jpg', 100),
+          asset('c.png', 5000),
+          asset('d.png', 99999),
+        ],
+        {
+          probe: fakeProbe(),
+          formats: ['webp'],
+          encodeOnly: new Set(['a/hero.png', 'b/hero.jpg', 'c.png']),
+          maxEncodedAssets: 1,
+        },
+      );
+
+      const codes = Object.fromEntries(
+        results.map((result) => [result.relative, result.skipped[0]?.code ?? 'encoded']),
+      );
+      expect(codes).toEqual({
+        'a/hero.png': 'encoded',
+        'b/hero.jpg': 'encoded',
+        'c.png': 'beyond-encode-cap',
+        'd.png': 'would-not-convert',
+      });
+    });
   });
 
-  describe('batching', () => {
-    it('keeps input order however the batches fall', async () => {
+  describe('how many images are measured at once', () => {
+    it('keeps four in progress whenever four remain, while a slow one runs throughout', async () => {
+      const { probe, started, finish } = gatedProbe();
+      const names = Array.from({ length: 10 }, (_, index) => `img${index}.png`);
+      const run = probeAssets(
+        names.map((name) => asset(name)),
+        { probe, formats: [] },
+      );
+
+      // Each step finishes the image started last, so `img0.png` is still running at the end.
+      const finished: string[] = [];
+      while (finished.length < names.length) {
+        await settle();
+        const inProgress = started.filter((name) => !finished.includes(name));
+        expect(inProgress).toHaveLength(Math.min(4, names.length - finished.length));
+        const last = inProgress.at(-1) ?? '';
+        finish(last);
+        finished.push(last);
+      }
+      await run;
+      expect(finished.at(-1)).toBe('img0.png');
+    });
+
+    it('returns the results in the input order, whichever image finished first', async () => {
+      const { probe, finish } = gatedProbe();
+      const names = ['a.png', 'b.png', 'c.png', 'd.png', 'e.png', 'f.png'];
+      const run = probeAssets(
+        names.map((name) => asset(name)),
+        { probe, formats: [] },
+      );
+
+      for (const name of [...names].reverse()) finish(name);
+
+      expect((await run).map((result) => result.relative)).toEqual(names);
+    });
+
+    it('counts each image as it finishes, one more each time, whichever image it was', async () => {
+      const { probe, finish } = gatedProbe();
+      const counts: (readonly [number, number])[] = [];
+      const run = probeAssets(
+        ['a.png', 'b.png', 'c.png', 'd.png', 'e.png'].map((name) => asset(name)),
+        { probe, formats: [], onMeasured: (done, total) => counts.push([done, total]) },
+      );
+
+      for (const name of ['e.png', 'c.png', 'b.png', 'd.png', 'a.png']) finish(name);
+      await run;
+
+      expect(counts).toEqual([
+        [1, 5],
+        [2, 5],
+        [3, 5],
+        [4, 5],
+        [5, 5],
+      ]);
+    });
+
+    it('rejects when the progress sink throws, and starts no image after that', async () => {
+      const { probe, started, finish } = gatedProbe();
+      const run = probeAssets(
+        ['a.png', 'b.png', 'c.png', 'd.png', 'e.png', 'f.png'].map((name) => asset(name)),
+        {
+          probe,
+          formats: [],
+          onMeasured: () => {
+            throw new Error('the sink failed');
+          },
+        },
+      );
+      const outcome = run.then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      finish('b.png');
+      await settle();
+      expect(started).toEqual(['a.png', 'b.png', 'c.png', 'd.png']);
+
+      for (const name of ['a.png', 'c.png', 'd.png']) finish(name);
+      expect(await outcome).toEqual(new Error('the sink failed'));
+      expect(started).toHaveLength(4);
+    });
+
+    it('rejects only once the images already in progress have finished', async () => {
+      const { probe, finish } = gatedProbe();
+      let settled = false;
+      const run = probeAssets(
+        ['a.png', 'b.png', 'c.png'].map((name) => asset(name)),
+        {
+          probe,
+          formats: [],
+          onMeasured: () => {
+            throw new Error('the sink failed');
+          },
+        },
+      );
+      const outcome = run
+        .then(
+          () => null,
+          (error: unknown) => error,
+        )
+        .finally(() => {
+          settled = true;
+        });
+
+      finish('a.png');
+      await settle();
+      expect(settled).toBe(false);
+
+      finish('b.png');
+      finish('c.png');
+      expect(await outcome).toEqual(new Error('the sink failed'));
+    });
+
+    it('keeps input order however the reads fall', async () => {
       const assets = Array.from({ length: 25 }, (_, index) =>
         asset(`img${String(index).padStart(2, '0')}.png`),
       );
@@ -691,8 +884,13 @@ describe('probeAssets', () => {
       expect(peak).toBeLessThanOrEqual(3);
     });
 
-    it('probes nothing without complaint', async () => {
-      expect(await probeAssets([], { probe: fakeProbe(), formats: ['webp'] })).toEqual([]);
+    it('probes nothing and counts nothing for an empty list', async () => {
+      const onMeasured = vi.fn();
+
+      expect(await probeAssets([], { probe: fakeProbe(), formats: ['webp'], onMeasured })).toEqual(
+        [],
+      );
+      expect(onMeasured).not.toHaveBeenCalled();
     });
   });
 });

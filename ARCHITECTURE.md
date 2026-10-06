@@ -2303,9 +2303,13 @@ That budget covers **discovery, parsing, resolution and graph building only**. P
 encoding are explicitly excluded and reported as a separate number: both are dominated by
 libvips, and optimising against a target that included them would mean tuning our code against
 somebody else's decode time. **They are bounded separately, because their profiles are opposite:**
-reads are IO-bound and default to **16 at a time** (`scan.ts`), encodes are CPU-bound with libvips
-already multithreading internally and default to **4** (`probe.ts`), a measured default:
-`os.cpus() - 1` was about 21% worse.
+reads are IO-bound and default to **16 at a time** (`scan.ts`), encodes are CPU-bound and default
+to **4** (`probe.ts`), a measured default: `os.cpus() - 1` was about 21% worse. One encode keeps
+about one core busy whatever libvips is allowed, so the parallelism is across images, and sharp's
+work runs on Node's thread pool, four threads unless `UV_THREADPOOL_SIZE` is set before Node starts
+(setting it from inside the program has no effect on Windows). The probe keeps its four full: the
+next image starts the moment any finishes (`mapInOrder`), since a group that waits for its slowest
+member leaves most of its slots idle while one large image encodes.
 
 `bench/` is checked in and runs in CI against a fixed fixture, so a regression shows up as a
 number rather than a feeling. **Any performance claim in the README must come from a number `bench/`
