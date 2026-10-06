@@ -12,7 +12,7 @@
  * See "Moving an asset" in ARCHITECTURE.md.
  */
 
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { spell, spellingsOf } from '../adapters/reference-path.js';
 import type { Graph } from '../graph/graph.js';
 import { compareStrings, extensionOf, relativePath, toPosix } from '../paths.js';
@@ -148,7 +148,13 @@ export function planRelocation(input: RelocateInput): RelocationPlan {
   const accepted = new Map<string, Move>();
   const claimed = new Map<string, string>();
 
-  for (const move of [...input.moves].sort((a, b) => compareStrings(a.from, b.from))) {
+  // Each path as it resolves, so `img/../../x.png` is judged as `../x.png` and two spellings
+  // of one place are one destination.
+  const requested = input.moves.map((move) => ({
+    from: posix.normalize(toPosix(move.from)),
+    to: posix.normalize(toPosix(move.to)),
+  }));
+  for (const move of requested.sort((a, b) => compareStrings(a.from, b.from))) {
     const refusal = refuse(move, input, assets, claimed, accepted, onDisk);
     if (refusal !== null) {
       refused.push(refusal);

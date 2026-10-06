@@ -2174,7 +2174,8 @@ it matches, so moving one of them breaks it for all of them. That move is refuse
 `binds-a-pattern`, naming the other files. Taking them along is not the fix: the user asked for one
 file. The remaining refusals guard the request itself: a source that is not an asset, a destination
 outside the project or already holding an asset, a destination claimed by two moves, and a source
-moved twice. Both destination checks fold case on every platform, as the planner's collision check
+moved twice. Each path is read as it resolves before any of them, so `img/../../x.png` is outside
+the project and `img/./a.png` and `img/x/../a.png` are one destination. Both destination checks fold case on every platform, as the planner's collision check
 and `prepare` do: `src/Logo.png` is `src/logo.png` on Windows and macOS, so a move there is refused
 while `src/logo.png` exists, unless that is the file being renamed.
 

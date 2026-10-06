@@ -145,6 +145,35 @@ describe('relocate, on the real tree', () => {
       expect(plan.refused.map((refusal) => refusal.code)).toEqual(['outside-project']);
     });
 
+    describe('judges a destination by where it leads, not how it is spelled', () => {
+      it('refuses one that climbs out of the project from a folder inside it', async () => {
+        const plan = await relocateFixture([
+          { from: 'public/banner.png', to: 'public/../../banner.png' },
+        ]);
+
+        expect(plan.refused.map((refusal) => refusal.code)).toEqual(['outside-project']);
+        expect(plan.moves).toEqual([]);
+      });
+
+      it('refuses one that climbs back onto a file that exists', async () => {
+        const plan = await relocateFixture([
+          { from: 'public/banner.png', to: 'public/img/../theme-dark.png' },
+        ]);
+
+        expect(plan.refused.map((refusal) => refusal.code)).toEqual(['destination-occupied']);
+      });
+
+      it('refuses two moves to one place written two ways, and moves to it by its plain path', async () => {
+        const plan = await relocateFixture([
+          { from: 'public/banner.png', to: 'public/img/./a.png' },
+          { from: 'public/theme-dark.png', to: 'public/img/x/../a.png' },
+        ]);
+
+        expect(plan.refused.map((refusal) => refusal.code)).toEqual(['destination-claimed-twice']);
+        expect(plan.moves).toEqual([{ from: 'public/banner.png', to: 'public/img/a.png' }]);
+      });
+    });
+
     it('refuses a move onto a file that already exists', async () => {
       const plan = await relocateFixture([
         { from: 'public/banner.png', to: 'public/theme-dark.png' },
