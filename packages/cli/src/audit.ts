@@ -213,7 +213,14 @@ function nextAfterAudit(
   savings: Savings | null,
 ): NextStep | null {
   const { findings } = report.summary;
-  // `optimize` refuses to plan until the folder is named, so that comes first.
+  // `optimize` refuses to plan until the folder is named, so that comes first; once it is
+  // named, until the references that name no file there are fixed, which `check` lists.
+  if (findings['serving-root-unknown'] > 0 && report.coverage.servingRoots.declared) {
+    return {
+      words: ['upfly', 'check', ...scopeWords(options)],
+      text: 'upfly check, with the same folder and options',
+    };
+  }
   if (findings['serving-root-unknown'] > 0) {
     return {
       words: null,

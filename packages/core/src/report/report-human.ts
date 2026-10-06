@@ -12,6 +12,7 @@
 
 import { staticExtensionOf } from '../adapters/reference-path.js';
 import type { Finding, OversizeDimension, SuppressedBroken } from '../audit/audit.js';
+import { fewResolvedIn } from '../audit/resolution-health.js';
 import type { MentionSource } from '../audit/sweep.js';
 import { formatBytes as bytes } from '../format.js';
 import { compareStrings, isImageExtension } from '../paths.js';
@@ -463,7 +464,7 @@ function findingsSection(report: Report): string[] {
       lines.push(`  ${headingFor(finding.kind, report)}`);
       previous = finding.kind;
     }
-    lines.push(...describe(finding));
+    lines.push(...describe(finding, report));
   }
 
   lines.push('');
@@ -624,7 +625,9 @@ function headingFor(kind: Finding['kind'], report: Report): string {
     case 'serving-root-unknown':
       // No count in the heading. There is exactly one of these, and "(1)" beside a
       // sentence about the whole run reads as though it were one of a list.
-      return 'Upfly could not work out where this project serves files from';
+      return report.coverage.servingRoots.declared
+        ? 'Few root-relative references resolved where the project says the site is served from'
+        : 'Upfly could not work out where this project serves files from';
     case 'broken':
       return `broken references (${total}): these point at nothing`;
     case 'dead':
@@ -649,9 +652,19 @@ function headingFor(kind: Finding['kind'], report: Report): string {
   }
 }
 
-function describe(finding: Finding): string[] {
+function describe(finding: Finding, report: Report): string[] {
   switch (finding.kind) {
-    case 'serving-root-unknown':
+    case 'serving-root-unknown': {
+      const { dirs, declared } = report.coverage.servingRoots;
+      // A folder the project named is not asked for again: what did not resolve there is
+      // listed as naming no file there.
+      if (declared) {
+        const said = fewResolvedIn(finding, dirs);
+        return [
+          `    ${said.charAt(0).toUpperCase()}${said.slice(1)}:`,
+          ...finding.suppressed.flatMap((entry) => brokenLines(entry, '      ')),
+        ];
+      }
       return [
         `    ${finding.linked} of ${finding.checkable} root-relative references resolved, so the rest cannot be judged`,
         `    ${finding.suppressedBroken} broken-reference findings are withheld: they are almost certainly this one problem`,
@@ -661,6 +674,7 @@ function describe(finding: Finding): string[] {
         '    the withheld references, which a run with that directory declared will check:',
         ...finding.suppressed.flatMap((entry) => brokenLines(entry, '      ')),
       ];
+    }
     case 'broken':
       return brokenLines(finding, '    ');
     case 'dead':

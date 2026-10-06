@@ -505,6 +505,18 @@ So two things happen below a floor:
    name from whichever directory the site serves, since the resolver had no serving root to glob
    the pattern against.
 
+**A folder the project named is never asked for again.** When `--public` or `publicDirs` named
+where the site is served from (`ServingRoots.declared`) and the floor is still crossed, the engine
+did not fail to work the folder out: it was told, and too little resolved there. The finding and
+the planner's refusal stand, since a run that resolved so little rewrites nothing and the folder may
+be wrong, and the assets the withheld references could name stay `possibly-dead`. What changes is
+what the run says: how many resolved in the folders named, and that if the site is served from
+there the rest name no file there (`fewResolvedIn`, one sentence for every place that says it).
+`upfly check` lists them as its findings, with that line, and fails with exit 1 rather than
+stopping; `upfly audit` lists them under Broken and points at `check`; `upfly optimize` still
+refuses, pointing at `check` rather than at `--public`. With no folder named, the refusal is as
+above.
+
 **The measure is deliberately narrow: root-relative references only, linked over linked-plus-broken.**
 Only those depend on a serving root. Root-relative is read from the path a reference's text proves
 (`provenPath`), in the measure, the withheld list, the audit's split and the pattern list alike, so

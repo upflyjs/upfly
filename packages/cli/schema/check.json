@@ -76,6 +76,29 @@
       "description": "Files that could not be parsed or read, so no reference in them was checked. Absent when there are none; upfly audit names them.",
       "type": "integer",
       "minimum": 1
+    },
+    "fewResolved": {
+      "description": "Present when the folders the site is served from were named, with --public or publicDirs, and under a quarter of the root-relative references resolved in them. If the site is served from there, the rest name no file there: each is among the findings. Without a named folder the check stops instead, with an error line (events.json).",
+      "type": "object",
+      "required": ["folders", "linked", "checkable"],
+      "additionalProperties": false,
+      "properties": {
+        "folders": {
+          "description": "The folders named, relative to the project, . being the project itself.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "linked": {
+          "description": "Root-relative references that resolved there.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "checkable": {
+          "description": "Root-relative references that could be checked: those that resolved and those that name no file.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
   "definitions": {

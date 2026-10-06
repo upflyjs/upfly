@@ -14,7 +14,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { splitPathSuffix } from '../adapters/reference-path.js';
 import { whyFormatKept } from '../adapters/shapes.js';
 import { whySavingTooSmall } from '../audit/audit.js';
-import { resolutionHealth } from '../audit/resolution-health.js';
+import { fewResolvedIn, resolutionHealth } from '../audit/resolution-health.js';
 import type { AssetNode, Graph } from '../graph/graph.js';
 import { compareStrings, extensionOf, relativePath, toPosix } from '../paths.js';
 import type { AssetProbe, EncodeFormat, EncodeSetting } from '../probe/probe.js';
@@ -296,6 +296,10 @@ export function planOptimization(input: PlanInput): OptimizationPlan {
   // broken, and the engine has no basis for believing either half.
   const health = resolutionHealth(input.graph);
   if (health.servingRootUnknown) {
+    // A folder the project named is not asked for again: the reason says what resolved there.
+    const reason = input.servingRoots.declared
+      ? `${capitalised(fewResolvedIn(health, input.servingRoots.dirs))}. Upfly rewrites nothing while so few resolve.`
+      : `Only ${health.linked} of ${health.checkable} root-relative references resolved, so Upfly cannot tell where this project serves files from. Declare the directory your site serves from and run again.`;
     return {
       conversions: [],
       rewrites: [],
@@ -303,7 +307,7 @@ export function planOptimization(input: PlanInput): OptimizationPlan {
       keptOriginals: [],
       refusal: {
         code: 'serving-root-unknown',
-        reason: `Only ${health.linked} of ${health.checkable} root-relative references resolved, so Upfly cannot tell where this project serves files from. Declare the directory your site serves from and run again.`,
+        reason,
         linked: health.linked,
         checkable: health.checkable,
       },
@@ -1477,6 +1481,11 @@ export function isUnderPublicDir(relative: string, publicDir: string | null): bo
   if (publicDir === '') return true;
   const prefix = publicDir.endsWith('/') ? publicDir : `${publicDir}/`;
   return relative === publicDir || relative.startsWith(prefix);
+}
+
+/** The text with its first letter in upper case, to start a sentence. */
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Swap the extension, preserving everything before it exactly as written. */

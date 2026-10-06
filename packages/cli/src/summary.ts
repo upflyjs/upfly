@@ -6,6 +6,7 @@
  */
 
 import type {
+  BrokenFinding,
   DedupePlan,
   DedupeSet,
   EncodeFormat,
@@ -14,9 +15,17 @@ import type {
   OptimizationPlan,
   PublicPolicy,
   Report,
+  ServingRootUnknownFinding,
   ServingRoots,
 } from 'upfly-core';
-import { type AssetProbe, type Graph, formatBytes, servingRootOf } from 'upfly-core/internal';
+import {
+  type AssetProbe,
+  type Graph,
+  compareStrings,
+  fewResolvedIn,
+  formatBytes,
+  servingRootOf,
+} from 'upfly-core/internal';
 import type { Savings } from './audit.js';
 import { type GitState, insideRepository } from './git.js';
 import {
@@ -89,7 +98,7 @@ export function auditSummary(
 function unfollowed(report: Report): { list?: RowList } {
   const entries = [...report.references.unsafe, ...report.references.leftOut];
   if (entries.length === 0) return {};
-  const broken = report.summary.findings.broken;
+  const broken = brokenListed(report);
   return {
     list: {
       intro: `Upfly could not follow these references to a file, so no run rewrites them; each says why.${broken === 0 ? '' : ` The ${count(broken, 'reference')} naming an image that does not exist ${broken === 1 ? 'is' : 'are'} under Broken.`}`,
@@ -102,7 +111,9 @@ function unfollowed(report: Report): { list?: RowList } {
 function auditClosing(report: Report, savings: Savings | null): string {
   if (!report.summary.probed) return 'No image was measured, so this run states no savings.';
   if (savings === null) {
-    return 'upfly optimize plans nothing until it knows the folder the site is served from.';
+    return report.coverage.servingRoots.declared
+      ? 'upfly optimize plans nothing while so few references resolve where the site is served from; Broken lists the rest.'
+      : 'upfly optimize plans nothing until it knows the folder the site is served from.';
   }
   const n = savings.conversions.length;
   if (n === 0) return 'upfly optimize would convert no image.';
@@ -163,7 +174,14 @@ function savingsRow(report: Report, savings: Savings | null): Row {
   const label = 'Savings';
   if (!summary.probed) return { label, value: ['not measured, as --no-probe asked'] };
   if (savings === null) {
-    return { label, value: ['not planned: where the site is served from is unknown'] };
+    return {
+      label,
+      value: [
+        report.coverage.servingRoots.declared
+          ? 'not planned: too few references resolve where the site is served from'
+          : 'not planned: where the site is served from is unknown',
+      ],
+    };
   }
   const { conversions, unmeasured } = savings;
   const details = [
@@ -222,6 +240,9 @@ function qualityPhrase(settings: readonly (number | 'lossless')[]): string {
 function brokenRow(report: Report): Row {
   const label = 'Broken';
   const unknown = report.findings.find((finding) => finding.kind === 'serving-root-unknown');
+  if (unknown?.kind === 'serving-root-unknown' && report.coverage.servingRoots.declared) {
+    return namedFolderBrokenRow(report, unknown);
+  }
   if (unknown?.kind === 'serving-root-unknown') {
     return {
       label,
@@ -252,6 +273,46 @@ function brokenRow(report: Report): Row {
       ),
     },
   };
+}
+
+/**
+ * The broken row of a run told where the site is served from, when too few references
+ * resolved there: the folder is not asked for again, and each reference that did not resolve
+ * is listed as naming no file there, beside any other broken one.
+ */
+function namedFolderBrokenRow(report: Report, unknown: ServingRootUnknownFinding): Row {
+  const said = fewResolvedIn(unknown, report.coverage.servingRoots.dirs);
+  const entries = [
+    ...unknown.suppressed,
+    ...report.findings.filter((finding): finding is BrokenFinding => finding.kind === 'broken'),
+  ].sort((a, b) => compareStrings(a.file, b.file) || compareStrings(a.rawPath, b.rawPath));
+  const one = entries.length === 1;
+  return {
+    label: 'Broken',
+    value: [
+      count(entries.length, 'reference'),
+      ` ${one ? 'names' : 'name'} an image that does not exist`,
+    ],
+    details: [said, 'upfly check lists each with its file and line'],
+    key: 'broken',
+    list: {
+      intro: `${said.charAt(0).toUpperCase()}${said.slice(1)}. Each of these names an image that does not exist, at the file and line given: fix the path, or put the image back. upfly check fails while any is left.`,
+      items: entries.flatMap(brokenItem),
+    },
+  };
+}
+
+/**
+ * How many references the Broken row lists as naming an image that does not exist: with the
+ * folder named, those that did not resolve there too.
+ */
+function brokenListed(report: Report): number {
+  const unknown = report.findings.find((finding) => finding.kind === 'serving-root-unknown');
+  const named =
+    unknown?.kind === 'serving-root-unknown' && report.coverage.servingRoots.declared
+      ? unknown.suppressedBroken
+      : 0;
+  return report.summary.findings.broken + named;
 }
 
 /** A broken reference where it is written, and its note under it. */

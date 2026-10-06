@@ -374,6 +374,39 @@ describe('the next command', () => {
     );
   });
 
+  it('lists what a named folder did not resolve under Broken, and points at check, not at --public', () => {
+    const root = tempFolder(roots, 'upfly-next-');
+    const tags = Array.from({ length: 12 }, (_, n) => `<img src="/img/photo-${n + 1}.png">`);
+    write(root, 'index.html', `${tags.join('\n')}\n`);
+    const logo = readFileSync(join(FIXTURES, 'plain-html/images/logo.png'));
+    for (const n of [1, 2]) write(root, `public/img/photo-${n}.png`, logo);
+
+    const human = upfly(['audit', '--public', 'public'], { cwd: root });
+    const json = upfly(['audit', '--public', 'public', '--json'], { cwd: root });
+
+    expect(human.status, human.stderr).toBe(0);
+    expect(human.stdout).toContain(
+      [
+        '  Broken       10 references name an image that does not exist',
+        '                 only 2 of 12 root-relative references resolved in public, named',
+        '                 as the folder the site is served from; if it is, the other 10',
+        '                 name no file there',
+        '                 upfly check lists each with its file and line',
+      ].join('\n'),
+    );
+    expect(human.stdout).toContain('  Next         upfly check --public public\n');
+    expect(human.stdout).not.toMatch(/--public <dir>|is unknown|could not tell/);
+    const report = (
+      JSON.parse(json.stdout.trim().split('\n').at(-1) ?? '{}') as {
+        report: { findings: unknown[]; coverage: { servingRoots: unknown } };
+      }
+    ).report;
+    expect(report.coverage.servingRoots).toEqual({ dirs: ['public'], declared: true });
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ kind: 'serving-root-unknown', linked: 2, checkable: 12 }),
+    );
+  });
+
   it('says it in words when the command is too long to print whole', () => {
     const root = copyFixture('plain-html', tempFolder(roots, 'upfly-next-'));
 

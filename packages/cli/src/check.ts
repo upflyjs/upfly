@@ -6,8 +6,14 @@
  */
 
 import { isAbsolute, resolve } from 'node:path';
-import { type BrokenFinding, type PipelineOutput, runPipeline, servingRootsFor } from 'upfly-core';
-import { formatBytes, relativePath } from 'upfly-core/internal';
+import {
+  type BrokenFinding,
+  type PipelineOutput,
+  type ServingRootUnknownFinding,
+  runPipeline,
+  servingRootsFor,
+} from 'upfly-core';
+import { compareStrings, fewResolvedIn, formatBytes, relativePath } from 'upfly-core/internal';
 import type { CheckOptions } from './args.js';
 import { isDirectory } from './audit.js';
 import { loadConfig } from './config.js';
@@ -42,7 +48,8 @@ interface ChangeScope {
  * @param options the parsed command line
  * @param io the streams and environment to use
  * @returns 0 when it passed, 1 when a finding failed it, 2 for a usage or configuration error,
- * 3 when it could not tell where the site is served from or the config is another tool's
+ * 3 when no folder was named and it could not tell where the site is served from, or the config
+ * is another tool's
  */
 export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode> {
   const root = resolve(options.dir);
@@ -76,8 +83,10 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
   });
   progress.clear();
 
-  const unknown = output.audit.findings.find((finding) => finding.kind === 'serving-root-unknown');
-  if (unknown !== undefined) {
+  const unknown = output.audit.findings.find(
+    (finding): finding is ServingRootUnknownFinding => finding.kind === 'serving-root-unknown',
+  );
+  if (unknown !== undefined && !output.servingRoots.declared) {
     return stopWith(
       io,
       options,
@@ -86,8 +95,19 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
       'SERVING_ROOT_UNKNOWN',
     );
   }
+  // Told where the site is served from, the check does not ask again: what did not resolve
+  // there is a finding, and one line says how little did.
+  const fewResolved =
+    unknown === undefined
+      ? null
+      : {
+          folders: output.servingRoots.dirs.map((dir) => (dir === '' ? '.' : dir)),
+          linked: unknown.linked,
+          checkable: unknown.checkable,
+          said: fewResolvedIn(unknown, output.servingRoots.dirs),
+        };
 
-  const verdict = judge(output, settings.check?.maxImageBytes ?? null, scope);
+  const verdict = judge(output, settings.check?.maxImageBytes ?? null, scope, unknown);
   const exitCode = verdict.findings.length === 0 ? EXIT_CODES.OK : EXIT_CODES.FINDINGS;
   if (options.json) {
     for (const diagnostic of output.scanDiagnostics) {
@@ -105,11 +125,19 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
       unusedOverLimit: verdict.unusedOverLimit,
       unchecked: verdict.unchecked,
       ...(verdict.unread === 0 ? {} : { unread: verdict.unread }),
+      ...(fewResolved === null
+        ? {}
+        : {
+            fewResolved: {
+              folders: fewResolved.folders,
+              linked: fewResolved.linked,
+              checkable: fewResolved.checkable,
+            },
+          }),
     });
   } else {
-    io.stdout.write(
-      spaced(render(verdict, scope, stylesFor(io.stdout, io.env, options)).split('\n')),
-    );
+    const styles = stylesFor(io.stdout, io.env, options);
+    io.stdout.write(spaced(render(verdict, scope, styles, fewResolved?.said ?? null).split('\n')));
   }
   return exitCode;
 }
@@ -152,13 +180,22 @@ interface Verdict {
   readonly unread: number;
 }
 
-function judge(output: PipelineOutput, limit: number | null, scope: ChangeScope | null): Verdict {
+function judge(
+  output: PipelineOutput,
+  limit: number | null,
+  scope: ChangeScope | null,
+  unknown: ServingRootUnknownFinding | undefined,
+): Verdict {
   const { root } = output.graph;
   const inScope = (path: string): boolean => scope === null || scope.paths.has(path);
 
-  const broken = output.audit.findings.filter(
-    (finding): finding is BrokenFinding => finding.kind === 'broken',
-  );
+  // The references a named folder did not resolve join the rest, in the audit's own order.
+  const broken = [
+    ...output.audit.findings.filter(
+      (finding): finding is BrokenFinding => finding.kind === 'broken',
+    ),
+    ...(unknown?.suppressed ?? []).map((entry): BrokenFinding => ({ kind: 'broken', ...entry })),
+  ].sort((a, b) => compareStrings(a.file, b.file) || compareStrings(a.rawPath, b.rawPath));
   const overLimit =
     limit === null ? [] : output.graph.assets.filter(({ asset }) => asset.bytes > limit);
   const tooLarge = overLimit
@@ -198,17 +235,26 @@ function judge(output: PipelineOutput, limit: number | null, scope: ChangeScope 
 }
 
 /**
- * The verdict as text: the headline, the line that says whether it passed, then the
- * findings. In a terminal the verdict's first word is a label, in red when it failed.
+ * The verdict as text: the headline, the line that says whether it passed with how little
+ * resolved under it when that was too little in a folder that was named, then the findings.
+ * In a terminal the verdict's first word is a label, in red when it failed.
  */
-function render(verdict: Verdict, scope: ChangeScope | null, styles: Styles): string {
+function render(
+  verdict: Verdict,
+  scope: ChangeScope | null,
+  styles: Styles,
+  fewResolved: string | null,
+): string {
   const broken = verdict.findings.filter((f): f is BrokenFinding => f.kind === 'broken');
   const tooLarge = verdict.findings.filter((f): f is TooLargeFinding => f.kind === 'too-large');
   const said = verdictLine(broken.length, tooLarge.length, verdict.limit);
   const [word = '', ...rest] = said.split(' ');
+  const line = [verdict.findings.length === 0 ? styles.accent(word) : styles.red(word), ...rest];
   const sections = [
     headline(styles, 'check'),
-    [verdict.findings.length === 0 ? styles.accent(word) : styles.red(word), ...rest].join(' '),
+    fewResolved === null
+      ? line.join(' ')
+      : `${line.join(' ')}\n${fewResolved.charAt(0).toUpperCase()}${fewResolved.slice(1)}.`,
   ];
 
   if (broken.length > 0) {

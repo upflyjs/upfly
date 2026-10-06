@@ -170,6 +170,22 @@ describe('buildReport', () => {
     ).toMatchSnapshot();
   });
 
+  it('eleventy, with a named folder that resolves too little: lists what names no file there', async () => {
+    const report = await reportFor('eleventy', false, false, { dirs: ['nowhere'], declared: true });
+    const rendered = renderReport(report);
+    const diagnosis = report.findings.find((finding) => finding.kind === 'serving-root-unknown');
+    if (diagnosis?.kind !== 'serving-root-unknown') throw new Error('no diagnosis');
+
+    expect(rendered).toContain(
+      'Few root-relative references resolved where the project says the site is served from',
+    );
+    expect(rendered).toContain(
+      `None of the ${diagnosis.checkable} root-relative references resolved in nowhere, named as the folder the site is served from; if it is, all ${diagnosis.checkable} name no file there:`,
+    );
+    for (const entry of diagnosis.suppressed) expect(rendered).toContain(entry.rawPath);
+    expect(rendered).not.toMatch(/declare|could not work out|publicDirs/i);
+  });
+
   describe('no absolute path leaks', () => {
     it.each(NAMES)('%s: the serialised report never contains the root', async (name) => {
       // Half the data upstream carries an absolute `path` beside its `relative`, so

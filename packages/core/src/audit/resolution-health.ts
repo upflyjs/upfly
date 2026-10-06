@@ -4,6 +4,8 @@
  * references are broken but that the engine could not work out where the project serves
  * files from. Only root-relative references depend on a serving root, so only they are
  * counted, and a project whose relative imports are genuinely broken keeps its findings.
+ * A run told where the site is served from still stops short of rewriting, but says what
+ * resolved there rather than asking for the folder again (`fewResolvedIn`).
  * See "When the serving root cannot be found at all" in ARCHITECTURE.md.
  */
 
@@ -79,6 +81,42 @@ export function resolutionHealth(graph: Graph): ResolutionHealth {
     rate,
     servingRootUnknown: checkable >= MINIMUM_ROOT_RELATIVE && rate < RESOLUTION_FLOOR,
   };
+}
+
+/**
+ * What a run says when it was told where the site is served from and too few root-relative
+ * references resolved there: how many did, and that the rest name no file there if that is
+ * the right folder. It never asks for the folder, which was named. Lower case and without a
+ * full stop, so a caller can start a sentence with it or end one on it.
+ *
+ * @param health how many resolved, of how many could be checked
+ * @param dirs the folders named, relative to the project root, `''` being the root itself
+ * @example
+ * fewResolvedIn({ linked: 2, checkable: 12 }, ['public']);
+ * // 'only 2 of 12 root-relative references resolved in public, named as the folder the
+ * // site is served from; if it is, the other 10 name no file there'
+ */
+export function fewResolvedIn(
+  health: Pick<ResolutionHealth, 'linked' | 'checkable'>,
+  dirs: readonly string[],
+): string {
+  const resolved =
+    health.linked === 0
+      ? `none of the ${health.checkable}`
+      : `only ${health.linked} of ${health.checkable}`;
+  // An empty list is a statement too: nothing is served by path from the project's folders.
+  if (dirs.length === 0) {
+    return `${resolved} root-relative references resolved, and no folder was named as the one the site is served from`;
+  }
+  const names = dirs.map((dir) => (dir === '' ? 'the project root' : dir));
+  const last = names.at(-1);
+  const folders = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${last}` : last;
+  const rest =
+    health.linked === 0
+      ? `all ${health.checkable}`
+      : `the other ${health.checkable - health.linked}`;
+  const one = names.length === 1;
+  return `${resolved} root-relative references resolved in ${folders}, named as the ${one ? 'folder' : 'folders'} the site is served from; if ${one ? 'it is' : 'they are'}, ${rest} name no file there`;
 }
 
 /**
