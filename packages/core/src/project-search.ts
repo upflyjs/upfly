@@ -10,7 +10,14 @@ import { listExcludedFiles } from './discover/discover.js';
 import { isBinaryExtension } from './graph/unscanned.js';
 import { extensionOf } from './paths.js';
 import type { PipelineOutput } from './pipeline.js';
-import { type UnfollowedResult, findUnfollowedLines } from './plan/unfollowed.js';
+import type { Unsearchable } from './plan/old-path-search.js';
+import {
+  type FolderLinesInput,
+  type UnfollowedLine,
+  type UnfollowedResult,
+  findUnfollowedLines,
+  linesNamingFolders,
+} from './plan/unfollowed.js';
 import type { DiscoveryResult } from './types.js';
 
 /** What a text search reads, from one walk. */
@@ -60,6 +67,35 @@ export async function searchScope(
  * @param images the images, POSIX-relative to the project
  * @returns the lines, and what the search could not read
  */
+/**
+ * Every line of the project that names one of the moved folders itself, over the same files
+ * as `unfollowedLines`, less the lines a move already rewrites or lists.
+ *
+ * @param pipeline the project as `runPipeline` read it
+ * @param folders the folders being moved, POSIX-relative to the project
+ * @param covered the lines the move already lists, and where its edits sit
+ */
+export async function folderLines(
+  pipeline: PipelineOutput,
+  folders: readonly string[],
+  covered: Pick<FolderLinesInput, 'listed' | 'rewritten'>,
+): Promise<{
+  readonly lines: readonly UnfollowedLine[];
+  readonly unsearchable: readonly Unsearchable[];
+}> {
+  if (folders.length === 0) return { lines: [], unsearchable: [] };
+  const scope = await searchScope(pipeline.discovery, true);
+  const root = pipeline.graph.root;
+  return await linesNamingFolders({
+    folders,
+    files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
+    readFile: (relative) => readFile(join(root, relative), 'utf8'),
+    servingRoots: pipeline.servingRoots,
+    listed: covered.listed,
+    rewritten: covered.rewritten,
+  });
+}
+
 export async function unfollowedLines(
   pipeline: PipelineOutput,
   images: readonly string[],

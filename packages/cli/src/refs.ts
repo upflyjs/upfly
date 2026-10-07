@@ -60,6 +60,11 @@ export interface UnfollowedAnswer {
   readonly reason: UnfollowedReason;
   /** Why Upfly does not follow it. */
   readonly why: string;
+  /**
+   * Whether a page can still load the image through this line, so converting or moving the
+   * image breaks it unless somebody changes it by hand.
+   */
+  readonly loads: boolean;
   /** The host, for a full address. */
   readonly host?: string;
 }
@@ -173,6 +178,7 @@ function unfollowedAnswer(line: UnfollowedLine): UnfollowedAnswer {
     text: line.text,
     reason: line.reason,
     why: line.why,
+    loads: line.loads,
     ...(line.host === undefined ? {} : { host: line.host }),
   };
 }

@@ -81,8 +81,14 @@ function movePlan(unfollowed: number, declined: number): MovePlan {
       text: 'https://example.com/hero.png',
       reason: 'full-address' as const,
       why: "a full address, which Upfly never rewrites: it cannot tell which host is the site's own",
+      loads: true,
     })),
   };
+}
+
+function rowDetails(plan: MovePlan, label: string): readonly string[] | undefined {
+  const rows = moveRuns(plan).sections.flat();
+  return rows.find((row) => row.label === label)?.details;
 }
 
 function moveRuns(plan: MovePlan) {
@@ -106,13 +112,43 @@ function rowValue(plan: MovePlan, label: string): string | undefined {
 describe('a move', () => {
   it('says how many lines still name an old path with verbs that agree with the count', () => {
     expect(moveRuns(movePlan(1, 0)).closing).toContain(
-      ' 1 line still names an old path and stays as written.',
+      ' 1 line still names an old path and stays as written: a page loads the image through it, so change it by hand or it breaks.',
     );
     expect(moveRuns(movePlan(2, 0)).closing).toContain(
-      ' 2 lines still name an old path and stay as written.',
+      ' 2 lines still name an old path and stay as written: a page loads the image through every one, so change those by hand or they break.',
     );
     expect(rowValue(movePlan(1, 0), 'Not followed')).toBe('1 line still names an old path');
     expect(rowValue(movePlan(2, 0), 'Not followed')).toBe('2 lines still name an old path');
+  });
+
+  it('separates the lines a page loads the image through from the lines that load nothing', () => {
+    // The first kind breaks the page unless somebody changes it; the second is prose or an
+    // example that can stay. Upfly cannot read what the first kind does, so it is the one to
+    // put in front of the reader.
+    const mixed = movePlan(2, 0);
+    const plan: MovePlan = {
+      ...mixed,
+      unfollowed: [
+        ...mixed.unfollowed.slice(0, 1),
+        {
+          image: 'public/hero.png',
+          file: 'README.md',
+          line: 12,
+          text: '/hero.png',
+          reason: 'other' as const,
+          why: 'in a code example, which a page shows rather than loads',
+          loads: false,
+        },
+      ],
+    };
+
+    expect(rowDetails(plan, 'Not followed')).toEqual([
+      '1 line a page loads the image through: it breaks unless you change it by hand',
+      '1 line loads nothing: prose, a code example, a comment Upfly could not rewrite',
+    ]);
+    expect(moveRuns(plan).closing).toContain(
+      '2 lines still name an old path and stay as written: a page loads the image through 1 of them, so change it by hand or it breaks.',
+    );
   });
 
   it('says a reference that cannot follow breaks, and two of them break', () => {

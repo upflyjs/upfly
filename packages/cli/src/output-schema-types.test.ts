@@ -727,6 +727,7 @@ describe('the command schemas and the types each command prints agree', () => {
         text: 'required',
         reason: 'required',
         why: 'required',
+        loads: 'required',
         host: 'optional',
       }),
     );
@@ -773,6 +774,7 @@ describe('the command schemas and the types each command prints agree', () => {
         text: 'required',
         reason: 'required',
         why: 'required',
+        loads: 'required',
         host: 'optional',
       }),
     );
@@ -783,6 +785,7 @@ describe('the command schemas and the types each command prints agree', () => {
         'data-or-props': true,
         'unread-file-type': true,
         comment: true,
+        folder: true,
         other: true,
       }),
     );

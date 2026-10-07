@@ -23,8 +23,9 @@ import type { Unsearchable } from './plan/old-path-search.js';
 import type { PlannedRewrite } from './plan/plan.js';
 import { withExtraEdits } from './plan/plan.js';
 import { type Move, type RefusedMove, planRelocation } from './plan/relocate.js';
+import type { FolderLinesInput } from './plan/unfollowed.js';
 import type { UnfollowedLine } from './plan/unfollowed.js';
-import { unfollowedLines } from './project-search.js';
+import { folderLines, unfollowedLines } from './project-search.js';
 import type { ServingRoots } from './resolve/resolve.js';
 import { citeReferences } from './scan/citation.js';
 import type { Reference } from './types.js';
@@ -142,26 +143,62 @@ ${line.file}
 ${line.line}`),
     ),
   };
-  const result = { pipeline, plan, unsearchable: search.unsearchable };
+  // Where a whole folder moves, the lines that name the folder itself: a rule that copies it,
+  // a pattern, a path built from it. Each names no image, so nothing rewrites it, and after
+  // the move it points at a folder that is not there.
+  const folders = await folderLines(
+    pipeline,
+    input.moves.flatMap((move) => namedFolder(move, graph)),
+    linesCovered(plan),
+  );
+  const whole: MovePlan = { ...plan, unfollowed: [...plan.unfollowed, ...folders.lines] };
+  const result = {
+    pipeline,
+    plan: whole,
+    unsearchable: [...search.unsearchable, ...folders.unsearchable],
+  };
 
-  if (!input.apply || plan.moves.length === 0) return { ...result, manifest: null };
-  if (input.beforeWrite !== undefined && !(await input.beforeWrite(plan))) {
+  if (!input.apply || whole.moves.length === 0) return { ...result, manifest: null };
+  if (input.beforeWrite !== undefined && !(await input.beforeWrite(whole))) {
     return { ...result, manifest: null };
   }
   const manifest = await writeRewrites({
-    moves: plan.moves,
-    rewrites: plan.rewrites,
+    moves: whole.moves,
+    rewrites: whole.rewrites,
     store: createNodeFileStore(pipeline.discovery.root),
     runId: input.runId ?? newRunId(new Date()),
     now: input.now ?? (() => new Date().toISOString()),
     // What the run leaves naming an old path is kept in its record with each reason.
     declined: [
-      ...plan.declined.map((entry) => ({ path: entry.file, line: entry.line, reason: entry.why })),
-      ...plan.unfollowed.map((line) => ({ path: line.file, line: line.line, reason: line.why })),
+      ...whole.declined.map((entry) => ({ path: entry.file, line: entry.line, reason: entry.why })),
+      ...whole.unfollowed.map((line) => ({ path: line.file, line: line.line, reason: line.why })),
     ],
     ...(input.lock === undefined ? {} : { lock: input.lock }),
   });
   return { ...result, manifest };
+}
+
+/** The folder one request names, or nothing where it names an image or nothing at all. */
+function namedFolder(move: Move, graph: Graph): string[] {
+  const from = posix.normalize(toPosix(move.from));
+  if (graph.assets.some((node) => node.asset.relative === from)) return [];
+  const prefix = from === '.' ? '' : `${from}/`;
+  const holds =
+    prefix !== '' && graph.assets.some((node) => node.asset.relative.startsWith(prefix));
+  return holds ? [from] : [];
+}
+
+/** What a plan already says about a line: the ones it lists, and where its edits sit. */
+function linesCovered(plan: MovePlan): Pick<FolderLinesInput, 'listed' | 'rewritten'> {
+  const listed = new Set<string>();
+  for (const line of plan.unfollowed) listed.add(`${line.file}:${line.line}`);
+  for (const entry of plan.declined) listed.add(`${entry.file}:${entry.line}`);
+  return {
+    listed,
+    rewritten: new Map(
+      plan.rewrites.map((rewrite) => [rewrite.file, rewrite.edits.map((edit) => edit.start)]),
+    ),
+  };
 }
 
 /**

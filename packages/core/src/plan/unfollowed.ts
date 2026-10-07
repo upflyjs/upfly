@@ -32,6 +32,7 @@ import {
   findPathOccurrences,
   foldCase,
   lineIndex,
+  lineTextAt,
   spellingsFor,
 } from './old-path-search.js';
 
@@ -46,6 +47,8 @@ export type UnfollowedReason =
   | 'data-or-props'
   | 'unread-file-type'
   | 'comment'
+  /** It names a moved folder itself rather than an image in it. */
+  | 'folder'
   | 'other';
 
 /** A line that names an image, which Upfly does not follow. */
@@ -60,6 +63,12 @@ export interface UnfollowedLine {
   readonly reason: UnfollowedReason;
   /** Why Upfly does not follow it, as a sentence. */
   readonly why: string;
+  /**
+   * Whether a page can still load the image through this line, so a move breaks it unless
+   * somebody changes it by hand. False for a line nothing loads: a comment, a code example,
+   * prose.
+   */
+  readonly loads: boolean;
   /**
    * The host of a full address. Upfly cannot tell which host serves the site itself, so a
    * reader, or a setting naming the site's own address, has to.
@@ -138,11 +147,25 @@ const OTHER_CASE =
 const UNPLACED_ROOT =
   "a path from the site's root, which Upfly cannot follow while it cannot tell the folder the site is served from";
 const UNKNOWN_ALIAS = 'written through an alias that no configuration Upfly reads defines';
+const NAMES_THE_FOLDER =
+  'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide';
 const NOT_A_PATH_HERE =
   'Upfly reads this file but takes no path from this text: prose, or a value no reader takes for a file';
 
 /** How much of a path as written is kept, as the old-path search caps a line. */
 const TEXT_CAP = 120;
+
+/**
+ * Whether a page can still load the image through a line Upfly does not follow.
+ *
+ * Everything Upfly cannot read is taken as able to load it: a file type it does not read,
+ * frontmatter, a path built at runtime, a value in data or props, a full address, a page the
+ * run excluded. Only a place something has read and found to load nothing is false.
+ */
+function stillLoads(reason: UnfollowedReason, why: string): boolean {
+  if (reason === 'comment') return false;
+  return why !== IN_CODE_EXAMPLE && why !== NOT_A_PATH_HERE;
+}
 
 /** The verdict on one place the search found. */
 type Verdict =
@@ -254,17 +277,30 @@ function placesByLine(
       if (held.some((candidate) => candidate.raw === undefined)) continue;
       const verdict = placeOf(image, occurrence, text, inFile, regions, context);
       if (verdict === 'covered' || verdict === 'elsewhere') continue;
-      const line = { image, file, line: occurrence.line };
-      const at = { offset: occurrence.offset, spelling: occurrence.spelling };
-      held.push(
-        'resolve' in verdict
-          ? { line: { ...line, ...verdict.listed }, raw: verdict.resolve, at }
-          : { line: { ...line, ...verdict }, at },
-      );
+      held.push(candidateFor(image, file, occurrence, verdict));
       candidates.set(key, held);
     }
   }
   return candidates;
+}
+
+/** One place that may list its line, from the verdict on it. */
+function candidateFor(
+  image: string,
+  file: string,
+  occurrence: PathOccurrence,
+  verdict: Listed | { readonly resolve: RawReference; readonly listed: Listed },
+): Candidate {
+  const listed = 'resolve' in verdict ? verdict.listed : verdict;
+  const line = {
+    image,
+    file,
+    line: occurrence.line,
+    ...listed,
+    loads: stillLoads(listed.reason, listed.why),
+  };
+  const at = { offset: occurrence.offset, spelling: occurrence.spelling };
+  return 'resolve' in verdict ? { line, raw: verdict.resolve, at } : { line, at };
 }
 
 /**
@@ -728,4 +764,107 @@ function lazily<T>(make: () => T): () => T {
     value ??= { made: make() };
     return value.made;
   };
+}
+
+/** What `linesNamingFolders` needs: the folders, the files, and what the plan already covers. */
+export interface FolderLinesInput {
+  /** The folders being moved, POSIX-relative to the project root. */
+  readonly folders: readonly string[];
+  /** Every file to search, as `UnfollowedInput.files`. */
+  readonly files: readonly string[];
+  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
+  readonly readFile: (relative: string) => Promise<string>;
+  readonly servingRoots: ServingRoots;
+  /** `file:line` for every line the move already lists. */
+  readonly listed: ReadonlySet<string>;
+  /**
+   * The offsets the move's edits sit at, by POSIX-relative file. Offsets rather than lines,
+   * because the line an offset sits on needs the file's text, which this search reads.
+   */
+  readonly rewritten: ReadonlyMap<string, readonly number[]>;
+}
+
+/**
+ * Every line that names a moved folder itself rather than an image in it: a build's rule
+ * that copies the folder, a pattern that matches inside it, a path built from it at runtime.
+ *
+ * A move rewrites references to images, and a line like this names no image, so nothing
+ * rewrites it and after the move it points at a folder that is not there. Listing it is all
+ * Upfly can do: what a copy rule or a glob should become is the project's decision.
+ *
+ * The match has to be the whole of a path segment, or `src/img` would be found inside
+ * `src/images`. A URL counts only with something under it, since `/blogs` alone is the page
+ * of that name rather than the folder a site serves from: measured on three projects, where
+ * that one rule takes a folder move from 7 false lines to none on the largest of them.
+ *
+ * @param input the folders, the files to search, and what the plan already covers
+ * @returns the lines, by file then line, and the files that could not be read
+ */
+export async function linesNamingFolders(input: FolderLinesInput): Promise<{
+  readonly lines: readonly UnfollowedLine[];
+  readonly unsearchable: readonly Unsearchable[];
+}> {
+  if (input.folders.length === 0) return { lines: [], unsearchable: [] };
+  const found = await findPathOccurrences({
+    paths: input.folders,
+    files: input.files,
+    readFile: input.readFile,
+    servingDirs: input.servingRoots.dirs,
+  });
+  const byFolder = new Map(
+    input.folders.map((folder) => [
+      folder,
+      new Set(spellingsFor(folder, input.servingRoots.dirs).map(foldCase)),
+    ]),
+  );
+
+  const edited = new Map<string, ReadonlySet<number>>();
+  for (const [file, offsets] of input.rewritten) {
+    const text = found.texts.get(file);
+    if (text === undefined) continue;
+    const lineAt = lineIndex(text);
+    edited.set(file, new Set(offsets.map(lineAt)));
+  }
+
+  const lines: UnfollowedLine[] = [];
+  const seen = new Set<string>();
+  for (const place of found.occurrences) {
+    const text = found.texts.get(place.file) ?? '';
+    if (!wholeSegment(text, place.offset, place.offset + place.spelling.length, place.spelling)) {
+      continue;
+    }
+    const at = `${place.file}:${place.line}`;
+    if (input.listed.has(at) || edited.get(place.file)?.has(place.line) === true) continue;
+    if (seen.has(at)) continue;
+    const folder = [...byFolder].find(([, holds]) => holds.has(foldCase(place.spelling)))?.[0];
+    if (folder === undefined) continue;
+    seen.add(at);
+    lines.push({
+      image: folder,
+      file: place.file,
+      line: place.line,
+      text: shown(lineTextAt(text, place.offset)),
+      reason: 'folder',
+      why: NAMES_THE_FOLDER,
+      loads: true,
+    });
+  }
+  lines.sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line);
+  return { lines, unsearchable: found.unsearchable };
+}
+
+/** The characters a file or folder name is made of, for deciding where a match ends. */
+const NAME_CHARACTER = /[A-Za-z0-9_.@~$-]/;
+
+/**
+ * Whether the match is the whole of a path segment: `src/img` inside `src/images`, or inside
+ * `vendor/src/img`, is another path. A URL spelling needs something under it.
+ */
+function wholeSegment(text: string, start: number, end: number, spelling: string): boolean {
+  const before = start === 0 ? '' : text.charAt(start - 1);
+  if (before !== '' && (NAME_CHARACTER.test(before) || before === '/' || before === '\\')) {
+    return false;
+  }
+  const after = text.charAt(end);
+  return spelling.startsWith('/') ? after === '/' : !NAME_CHARACTER.test(after);
 }

@@ -506,7 +506,7 @@ function countBelow(values: readonly number[], limit: number): number {
 }
 
 /** The line an offset sits on, trimmed and capped so a report stays readable. */
-function lineTextAt(text: string, offset: number): string {
+export function lineTextAt(text: string, offset: number): string {
   const start = text.lastIndexOf('\n', offset) + 1;
   const end = text.indexOf('\n', offset);
   const line = text.slice(start, end === -1 ? text.length : end).trim();

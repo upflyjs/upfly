@@ -152,7 +152,7 @@
     },
     "unfollowed": {
       "type": "object",
-      "required": ["from", "file", "line", "text", "reason", "why"],
+      "required": ["from", "file", "line", "text", "reason", "why", "loads"],
       "additionalProperties": false,
       "properties": {
         "from": { "description": "The old path of the image the line names.", "type": "string" },
@@ -163,17 +163,22 @@
           "type": "string"
         },
         "reason": {
-          "description": "Why Upfly does not follow it, as in refs.json's unfollowed.",
+          "description": "Why Upfly does not follow it, as in refs.json's unfollowed; folder means the line names the moved folder itself rather than an image in it.",
           "enum": [
             "full-address",
             "built-at-runtime",
             "data-or-props",
             "unread-file-type",
             "comment",
+            "folder",
             "other"
           ]
         },
         "why": { "description": "The reason, as a sentence.", "type": "string" },
+        "loads": {
+          "description": "Whether a page can still load the image through this line, so the move breaks it unless somebody changes it by hand. False for a line nothing loads: a comment, a code example, prose.",
+          "type": "boolean"
+        },
         "host": { "description": "The host, for a full address.", "type": "string" }
       }
     }

@@ -159,6 +159,42 @@ describe('moveProject', () => {
     ).toBe(true);
   });
 
+  it('lists the lines that name a moved folder itself, and not the page of that name', async () => {
+    // A rule that copies the folder, a pattern that matches inside it and a path built from
+    // it name no image, so nothing rewrites them and each points at a folder that is not
+    // there after the move. The link to the page of the same name is not one of them.
+    const root = await project({
+      'public/img/hero.png': 'IMAGE',
+      'index.html': `<img src="/img/hero.png" alt=""><a href="/img">Gallery</a>
+`,
+      'build.config.js': `copy('public/img');
+const glob = 'public/img/**';
+`,
+      'src/gallery.js': `const src = '/img/' + name + '.png';
+`,
+      'src/other.js': `import x from './images/x.js';
+`,
+    });
+
+    const { plan } = await moveProject({
+      root,
+      declared: SERVED,
+      apply: false,
+      moves: [{ from: 'public/img', to: 'public/pictures' }],
+    });
+
+    expect(plan.unfollowed.map((line) => [`${line.file}:${line.line}`, line.reason])).toEqual([
+      ['build.config.js:1', 'folder'],
+      ['build.config.js:2', 'folder'],
+    ]);
+    // Only beyond what the plan already says: the path built at runtime is already cited as
+    // a reference that cannot follow, and the link to the page of that name names no folder.
+    expect(plan.declined.map((entry) => `${entry.file}:${entry.line}`)).toEqual([
+      'src/gallery.js:1',
+    ]);
+    expect(plan.unfollowed.every((line) => line.loads)).toBe(true);
+  });
+
   it('cites a reference that cannot follow, and writes nothing for a refused move', async () => {
     const root = await project({
       'public/a.png': 'IMAGE',

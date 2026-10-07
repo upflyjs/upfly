@@ -1036,6 +1036,40 @@ function moveUpdateRow(plan: MovePlan, apply: boolean): Row {
   };
 }
 
+/**
+ * The lines a move leaves naming an old path, split by whether a page still loads the image
+ * through one: the first kind breaks unless somebody changes it, and the second is prose or
+ * an example that can stay. Upfly cannot read what the first kind does, which is why it is
+ * the one to look at.
+ */
+function notFollowedRow(unfollowed: MovePlan['unfollowed']): Row {
+  const one = unfollowed.length === 1;
+  const loading = unfollowed.filter((line) => line.loads).length;
+  const idle = unfollowed.length - loading;
+  return {
+    label: 'Not followed',
+    value: [count(unfollowed.length, 'line'), ` still name${one ? 's' : ''} an old path`],
+    details: [
+      ...(loading === 0
+        ? []
+        : [
+            `${count(loading, 'line')} a page loads the image through: ${loading === 1 ? 'it breaks' : 'they break'} unless you change ${loading === 1 ? 'it' : 'them'} by hand`,
+          ]),
+      ...(idle === 0
+        ? []
+        : [
+            `${count(idle, 'line')} ${idle === 1 ? 'loads' : 'load'} nothing: prose, a code example, a comment Upfly could not rewrite`,
+          ]),
+    ],
+    key: 'unfollowed',
+    list: {
+      intro:
+        'Each of these lines names a moved image by its old path, or the moved folder itself, in a form Upfly does not follow, and stays as written. A full address on the site itself, a path built when the code runs, or a rule that copies the folder may need the new place.',
+      items: unfollowed.map((line) => `${line.file}:${line.line}  ${line.text}  ${line.why}`),
+    },
+  };
+}
+
 /** The summary of a `move` run, dry or applied. */
 export function moveSummary(facts: MoveFacts): Summary {
   const { plan, apply } = facts;
@@ -1062,24 +1096,7 @@ export function moveSummary(facts: MoveFacts): Summary {
   ];
   if (only !== undefined) rows.push(moveUpdateRow(plan, apply));
   if (plan.declined.length > 0) rows.push(declinedRow(plan.declined));
-  if (plan.unfollowed.length > 0) {
-    const one = plan.unfollowed.length === 1;
-    rows.push({
-      label: 'Not followed',
-      value: [count(plan.unfollowed.length, 'line'), ` still name${one ? 's' : ''} an old path`],
-      details: [
-        `Upfly leaves ${one ? 'it' : 'them'} as written; change by hand what should follow`,
-      ],
-      key: 'unfollowed',
-      list: {
-        intro:
-          'Each of these lines names a moved image by its old path, in a form Upfly does not follow, and stays as written. A full address on the site itself, or a path built when the code runs, may need the new place.',
-        items: plan.unfollowed.map(
-          (line) => `${line.file}:${line.line}  ${line.text}  ${line.why}`,
-        ),
-      },
-    });
-  }
+  if (plan.unfollowed.length > 0) rows.push(notFollowedRow(plan.unfollowed));
   if (plan.refused.length > 0) {
     rows.push({
       label: 'Refused',
@@ -1154,16 +1171,27 @@ function moveRunRows(facts: MoveFacts): Row[] {
 }
 
 /** The sentence that ends a `move` run. */
+/** What the closing says about the lines a page still loads the image through. */
+function loadedThrough(lines: number, loading: number): string {
+  const one = lines === 1;
+  if (loading === 0) return `, and no page loads the image through ${one ? 'it' : 'any of them'}`;
+  const which = loading === lines ? (one ? 'it' : 'every one') : `${loading} of them`;
+  const act =
+    loading === 1 ? 'change it by hand or it breaks' : 'change those by hand or they break';
+  return `: a page loads the image through ${which}, so ${act}`;
+}
+
 function moveClosing(facts: MoveFacts, references: number): string {
   const { plan } = facts;
   const images = count(plan.moves.length, 'image');
   const updated = `${count(references, 'reference')} in ${count(plan.rewrites.length, 'file')}`;
   const lines = plan.unfollowed.length + plan.declined.length;
   const one = lines === 1;
+  const loading = plan.unfollowed.filter((line) => line.loads).length + plan.declined.length;
   const left =
     lines === 0
       ? ''
-      : ` ${count(lines, 'line')} still name${one ? 's' : ''} an old path and stay${one ? 's' : ''} as written.`;
+      : ` ${count(lines, 'line')} still name${one ? 's' : ''} an old path and stay${one ? 's' : ''} as written${loadedThrough(lines, loading)}.`;
   if (!facts.apply) {
     return plan.moves.length === 0
       ? 'Dry run: no project file was changed, and there is nothing to move.'
