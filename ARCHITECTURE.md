@@ -2654,6 +2654,23 @@ The promise is that the run's changes are the only ones a reviewer has to look a
   (`GIT_LITERAL_PATHSPECS`), so a name holding `[` never matches a second file and work the user
   staged elsewhere stays staged and out of the commit. The project's own index is then brought to
   what was committed. Paths travel on stdin, never through a shell.
+- **The commit reads only the files the run wrote.** `git commit` refreshes its index first, and
+  for an entry with no size recorded git reads the file to learn whether it changed, so an index
+  straight from `git read-tree HEAD` costs a read of every tracked file: about 8 seconds a commit
+  on a repository of 2,800 files and 515 MB. The index of its own therefore starts as a copy of
+  the project's, which carries each entry's size and time, and `git read-tree -m HEAD` keeps them
+  for every entry whose content already matches HEAD. What is left to read is each file the user
+  had staged differently, whose recorded size belongs to the staged content. A split index, a
+  sparse index, a linked worktree and a `GIT_INDEX_FILE` the user set all hold, since git resolves
+  the index's own location and any shared index from the repository. An index holding an unresolved
+  merge, which a conflicted `git stash pop` leaves, refuses `-m`; then HEAD is read afresh and the
+  commit is the slow one. A branch with no commit starts from an empty index.
+- **A run never ends a merge, a rebase, a cherry-pick or a revert the user started.** A plain
+  `git commit` made in any of those states finishes it: a merge would gain the other branch as a
+  second parent and carry the user's half-finished resolution. Git decides the same question from
+  the same files (`MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply`)
+  and refused a commit of named paths in every one of them, so the commit refuses too: the files
+  stay written, and the message says to commit them by hand or to undo the run.
 - **A moved file keeps its executable mark in the commit.** `git commit --only` would build the
   same commit, but it gives a path new to HEAD the mode on disk, and Windows (`core.filemode`
   false) keeps no executable bit there, so `move --commit` dropped it. The moved path now takes the

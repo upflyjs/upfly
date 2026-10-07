@@ -7,7 +7,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -252,7 +252,8 @@ export function identityProblem(root: string): string | null {
  * @param message the commit message
  * @param moved the files among `paths` that moved, each committed at `to` with the mode
  * `from` has in the index
- * @throws when git refuses; the message carries git's own reason
+ * @throws when git refuses, and when the repository is part way through a merge, a rebase,
+ * a cherry-pick or a revert; the message carries the reason
  */
 export function commitPaths(
   root: string,
@@ -260,6 +261,12 @@ export function commitPaths(
   message: string,
   moved: readonly { readonly from: string; readonly to: string }[] = [],
 ): string {
+  const ground = groundFor(root);
+  if (ground.started !== null) {
+    throw new Error(
+      `this repository is part way through a ${ground.started}, so nothing was committed`,
+    );
+  }
   const list = nulList(paths);
   const executable = executableAfterMove(root, moved);
   // The commit is made from an index of its own, HEAD with these paths as they are on disk,
@@ -268,7 +275,7 @@ export function commitPaths(
   const folder = mkdtempSync(join(tmpdir(), 'upfly-commit-'));
   const own = { GIT_INDEX_FILE: join(folder, 'index') };
   try {
-    must(git(root, ['read-tree', 'HEAD'], undefined, { env: own }), 'read-tree');
+    headInto(root, ground, own);
     stage(root, list, executable, own);
     must(git(root, ['commit', '--quiet', '-m', message], undefined, { env: own }), 'commit');
   } finally {
@@ -277,6 +284,83 @@ export function commitPaths(
   // The project's own index then holds these paths as committed, as after any commit.
   stage(root, list, executable);
   return must(git(root, ['rev-parse', 'HEAD']), 'rev-parse').stdout.trim();
+}
+
+/** What the repository is part way through, by the file git itself reads to decide. */
+const PART_WAY_THROUGH: readonly (readonly [string, string])[] = [
+  ['MERGE_HEAD', 'merge'],
+  ['CHERRY_PICK_HEAD', 'cherry-pick'],
+  ['REVERT_HEAD', 'revert'],
+  ['rebase-merge', 'rebase'],
+  ['rebase-apply', 'rebase'],
+];
+
+interface CommitGround {
+  /** The project's own index, wherever git keeps it. */
+  readonly index: string;
+  /**
+   * What the repository is part way through, in a word, or null when it is nothing. A plain
+   * `git commit` made in one of those states ends it: a merge would take the other branch as
+   * a second parent and carry the user's half-finished resolution into the run's commit. Git
+   * refused a commit of named paths in every one of them.
+   */
+  readonly started: string | null;
+  /** Whether HEAD names a commit; a branch can have none yet. */
+  readonly head: boolean;
+}
+
+/** What a commit here needs to know, in one call: each part is a question for `rev-parse`. */
+function groundFor(root: string): CommitGround {
+  const named = ['index', ...PART_WAY_THROUGH.map(([file]) => file)];
+  // `--quiet --verify HEAD` comes last, so it prints its hash after the paths, or prints
+  // nothing and exits 1 where the branch has no commit yet.
+  const asked = [...named.flatMap((file) => ['--git-path', file]), '--quiet', '--verify', 'HEAD'];
+  const result = git(root, ['rev-parse', ...asked]);
+  const lines = (result.status === 1 ? result : must(result, 'rev-parse')).stdout
+    .trim()
+    .split('\n');
+  const at = PART_WAY_THROUGH.findIndex((_, index) => inGitFolder(root, lines[index + 1]));
+  return {
+    index: resolve(root, lines[0]?.trim() ?? ''),
+    started: at === -1 ? null : (PART_WAY_THROUGH[at]?.[1] ?? null),
+    head: lines.length > named.length,
+  };
+}
+
+/** Whether the file `line` names is there, where an empty line means git named none. */
+function inGitFolder(root: string, line: string | undefined): boolean {
+  const named = line?.trim() ?? '';
+  return named !== '' && existsSync(resolve(root, named));
+}
+
+/**
+ * Fills the commit's own index with HEAD, keeping the size and time the project's index
+ * recorded for every file whose content HEAD holds.
+ *
+ * `git commit` refreshes its index first, and for an entry with no size recorded git has to
+ * read the file to learn whether it changed, so an index straight from `read-tree` costs a
+ * read of every tracked file: seconds on a large repository. A copy of the project's index
+ * carries those sizes and times, and `read-tree -m` keeps them for every entry whose content
+ * already matches. What is left to read is each file the user had staged differently, whose
+ * recorded size belongs to the staged content rather than to HEAD's.
+ */
+function headInto(
+  root: string,
+  ground: CommitGround,
+  own: { readonly GIT_INDEX_FILE: string },
+): void {
+  // A branch with no commit starts from an empty index, which is the whole of its first commit.
+  if (!ground.head) return;
+  try {
+    copyFileSync(ground.index, own.GIT_INDEX_FILE);
+  } catch {
+    // No index to copy, so there is nothing to keep: reading HEAD afresh below is enough.
+  }
+  // `-m` refuses an index holding an unresolved merge, which a conflicted `git stash pop`
+  // leaves behind. Then the sizes cannot be kept and the commit is the slow one it was.
+  if (git(root, ['read-tree', '-m', 'HEAD'], undefined, { env: own }).status !== 0) {
+    must(git(root, ['read-tree', 'HEAD'], undefined, { env: own }), 'read-tree');
+  }
 }
 
 /** Adds the paths in `list` to an index: the one `env` names, or else the project's own. */

@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -53,6 +54,19 @@ function repository(files: Record<string, string>): string {
   git(root, 'add', '-A');
   git(root, 'commit', '--quiet', '-m', 'start');
   return root;
+}
+
+/**
+ * How many files git had to read while making a commit to see that they had not changed,
+ * from its own performance trace, or null when the trace holds no such count. `git add`
+ * writes none, so a count over the whole call is the commit's.
+ */
+function filesRead(trace: string): number | null {
+  const counts = readFileSync(trace, 'utf8')
+    .split('\n')
+    .filter((line) => line.includes('refresh/sum_scan'))
+    .map((line) => Number(line.slice(line.indexOf('refresh/sum_scan:') + 17).trim()));
+  return counts.length === 0 ? null : counts.reduce((sum, count) => sum + count, 0);
 }
 
 /** Runs `body` with some environment variables set, then puts them back. */
@@ -205,6 +219,90 @@ describe('commitPaths', () => {
 
     expect(git(root, 'show', '--name-only', '--format=', 'HEAD').trim()).toBe('a[1].png');
     expect(gitState(root)).toMatchObject({ changed: ['a1.png'] });
+  });
+
+  it('reads no file the run did not write, whatever else the repository tracks', () => {
+    const root = repository({
+      'index.html': 'a',
+      'img/logo.png': 'p',
+      'img/hero.png': 'h',
+      'notes.txt': 'n',
+      'src/app.js': 'j',
+      'src/style.css': 'c',
+    });
+    write(root, 'index.html', '<img src="img/logo.webp">');
+    write(root, 'img/logo.webp', 'new');
+    const trace = join(root, 'trace.txt');
+
+    withEnv({ GIT_TRACE2_PERF: trace }, () =>
+      commitPaths(root, ['img/logo.webp', 'index.html'], 'the run'),
+    );
+
+    expect(filesRead(trace)).toBe(0);
+    expect(gitState(root)).toMatchObject({ changed: ['trace.txt'] });
+  });
+
+  it('reads only the files whose staged content it has to put back', () => {
+    const root = repository({ 'index.html': 'a', 'notes.txt': 'n', 'img/logo.png': 'p' });
+    write(root, 'notes.txt', 'staged by the user');
+    git(root, 'add', '--', 'notes.txt');
+    write(root, 'index.html', 'written by the run');
+    const trace = join(root, 'trace.txt');
+
+    withEnv({ GIT_TRACE2_PERF: trace }, () => commitPaths(root, ['index.html'], 'the run'));
+
+    // The commit holds HEAD's `notes.txt`, whose size and time the index recorded for the
+    // staged one, so git reads that file and no other.
+    expect(filesRead(trace)).toBe(1);
+    expect(git(root, 'diff', '--cached', '--name-only').trim()).toBe('notes.txt');
+  });
+
+  it('never ends a merge the person started', () => {
+    const root = repository({ 'shared.txt': 'base\n' });
+    git(root, 'checkout', '--quiet', '-b', 'theirs');
+    write(root, 'shared.txt', 'theirs\n');
+    git(root, 'commit', '--quiet', '-am', 'theirs');
+    git(root, 'checkout', '--quiet', '-');
+    write(root, 'shared.txt', 'ours\n');
+    git(root, 'commit', '--quiet', '-am', 'ours');
+    spawnSync('git', ['merge', 'theirs'], { cwd: root, encoding: 'utf8' });
+    const before = git(root, 'rev-parse', 'HEAD').trim();
+    write(root, 'hero.webp', 'written by the run');
+
+    expect(() => commitPaths(root, ['hero.webp'], 'the run')).toThrow(/part way through a merge/);
+
+    expect(git(root, 'rev-parse', 'HEAD').trim()).toBe(before);
+    expect(git(root, 'rev-parse', '--verify', 'MERGE_HEAD').trim()).not.toBe('');
+  });
+
+  it('never ends a cherry-pick the person started', () => {
+    const root = repository({ 'shared.txt': 'base\n' });
+    git(root, 'checkout', '--quiet', '-b', 'theirs');
+    write(root, 'shared.txt', 'theirs\n');
+    git(root, 'commit', '--quiet', '-am', 'theirs');
+    git(root, 'checkout', '--quiet', '-');
+    write(root, 'shared.txt', 'ours\n');
+    git(root, 'commit', '--quiet', '-am', 'ours');
+    spawnSync('git', ['cherry-pick', 'theirs'], { cwd: root, encoding: 'utf8' });
+    const before = git(root, 'rev-parse', 'HEAD').trim();
+    write(root, 'hero.webp', 'written by the run');
+
+    expect(() => commitPaths(root, ['hero.webp'], 'the run')).toThrow(
+      /part way through a cherry-pick/,
+    );
+
+    expect(git(root, 'rev-parse', 'HEAD').trim()).toBe(before);
+  });
+
+  it('makes the first commit on a branch that has none', () => {
+    const root = repository({ 'index.html': 'a', 'notes.txt': 'n' });
+    git(root, 'checkout', '--quiet', '--orphan', 'fresh');
+    write(root, 'img/logo.webp', 'written by the run');
+
+    commitPaths(root, ['img/logo.webp'], 'the run');
+
+    expect(git(root, 'rev-list', '--count', 'HEAD').trim()).toBe('1');
+    expect(git(root, 'show', '--name-only', '--format=', 'HEAD').trim()).toBe('img/logo.webp');
   });
 
   it('inside a larger repository, leaves work staged elsewhere out of the commit, and staged', () => {
