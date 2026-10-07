@@ -1,7 +1,7 @@
 /**
- * `optimize` over a project on disk: the pipeline with every image measured, then the plan
- * and, when asked, the write. The CLI and the benchmark package's fixture builds both run
- * this, so what those builds prove is what users run.
+ * `optimize` over a project on disk: the pipeline, then the plan and, when asked, the write.
+ * The CLI and the benchmark package's fixture builds both run this, so what those builds
+ * prove is what users run.
  */
 
 import { readdirSync } from 'node:fs';
@@ -14,6 +14,7 @@ import {
   runPipeline,
   servingRootsFor,
 } from './pipeline.js';
+import { convertibleImages } from './plan/plan.js';
 import type { PublicPolicy } from './plan/plan.js';
 import { createSharpProbe } from './probe/probe-sharp.js';
 import type { EncodeFormat } from './probe/probe.js';
@@ -84,8 +85,10 @@ export interface OptimizeProjectResult {
 /**
  * Plans the optimization of the project at `root` and, when `apply` is true, carries it out.
  *
- * Every image is measured, or every one `only` names, with no cap: an image converts only on
- * a measured saving, so a cap would leave every image past it unconverted.
+ * Every image a conversion of could be used is measured, or every such one `only` names,
+ * with no cap: an image converts only on a measured saving, so a cap would leave every image
+ * past it unconverted. Measuring an image no reference would move to tells the plan nothing
+ * it does not already know, and on a large project those images are most of the time.
  *
  * @param input the project, the format and policy, and whether to write
  * @returns the pipeline's output and the run's result, whose plan is the same on a dry run
@@ -99,6 +102,7 @@ export async function optimizeProject(input: OptimizeProjectInput): Promise<Opti
     servingRoots: servingRootsFor(input.declared),
     publicDirs: (servingRoots) => servingRoots.dirs,
     probeOptions: { formats: [input.format] },
+    encodeOnly: (built) => convertibleImages({ ...built, format: input.format }),
     ...(only === undefined ? {} : { measureOnly: only }),
     ...(input.extraIgnores === undefined ? {} : { extraIgnores: input.extraIgnores }),
     ...(input.onProgress === undefined ? {} : { onProgress: input.onProgress }),

@@ -152,7 +152,7 @@
       }
     },
     "edit": {
-      "description": "One reference re-spelled. The offsets count the file's text in UTF-16 code units, as JavaScript counts a string.",
+      "description": "One path re-spelled: a reference, or a path inside a comment. The offsets count the file's text in UTF-16 code units, as JavaScript counts a string.",
       "type": "object",
       "required": ["start", "end", "replacement"],
       "additionalProperties": false,
@@ -163,6 +163,10 @@
         "expected": {
           "description": "The text the edit replaces, the path as written.",
           "type": "string"
+        },
+        "inComment": {
+          "description": "The path is inside a comment, which no page loads. It moves with the references, and is never counted as one.",
+          "const": true
         }
       }
     },

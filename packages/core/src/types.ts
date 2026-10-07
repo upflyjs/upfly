@@ -317,6 +317,11 @@ export interface Edit {
    * never applied to another.
    */
   readonly expected?: string;
+  /**
+   * The text is inside a comment, which no page loads: the path in it moves with the
+   * references, and is never counted as one.
+   */
+  readonly inComment?: true;
 }
 
 /**

@@ -1644,18 +1644,35 @@ asset however low the cap goes. Everything past the cap is reported as unmeasure
 reason and the flag that lifts it; silence would read as "no opportunity here". The default comes
 from `bench/` rather than a guess, like the concurrency number.
 
-### `audit`'s savings are `optimize`'s plan
+### `audit`'s savings are `optimize`'s plan, and both measure only what could convert
 
 `upfly audit` states what `optimize` would convert and save with the same folder, options and
 config, never a saving `optimize` would not deliver: an unused image's size is already in the
 Unused row. So `audit` encodes only the images a plan could convert (`convertibleImages`: an image
 with a reference that would move to the new file, judged by the rules that need no measurement),
 reads every other image's header as before, and plans with `optimizeFromPipeline`, the function
-`optimizeProject` runs after its own pipeline. Measuring every convertible image gives the same
-plan as measuring every image: every other image is declined for a reason no measurement changes,
-so the set the plan starts from, and everything decided after it (collisions, references that
-would lead elsewhere, the search for mentions of a removed original), is the same. A test runs both
-on three fixtures under both policies.
+`optimizeProject` runs after its own pipeline. **`optimize` measures the same set**, for the same
+reason and with a larger effect, since it is the command that runs on a whole repository: on a
+Next.js site of 1,004 images, 297 of them images no reference would move to, a dry run takes a
+third of the time it took when every image was encoded.
+
+Measuring every convertible image gives the same plan as measuring every image: every other image
+is declined for a reason no measurement changes, so the set the plan starts from, and everything
+decided after it (collisions, references that would lead elsewhere, the search for mentions of a
+removed original), is the same. **The reasons come out the same too, which is the part a filter can
+quietly lose:** `convertDecision` decides every reason that needs no measurement
+(`whyNothingWouldUseIt`) whether the image was measured or not, so an image the measuring left out
+says why it stays in the words a run that measured everything would use. An image the measuring
+skipped for a reason of its own (a vector, one already in the target format, one past the cap, one
+whose header could not be read) keeps saying nothing, because the audit reports each of those. A
+test plans both ways over five fixtures under both policies and compares the conversions, the
+rewrites, the kept originals and every reason.
+
+**An image whose name already ends in the target format but whose bytes are another format** says
+so, from the header the measuring read: changing its extension would be wrong, since every
+reference names the one it has, and re-encoding a file where it lies is not this command's. Without
+that sentence the full plan printed "another reason, in the full plan" as the reason, inside the
+full plan.
 
 The cap then chooses among the convertible images, and the figure past it is marked "at least".
 That needs the capped plan to convert nothing the full plan would not. An image measured or not
@@ -2301,6 +2318,29 @@ deletes, so an applied run makes the search again after them, under the lock, ov
 walked again. An original a mention then names is kept, with the reason, and the run goes on: its
 converted file is written and the references the plan read still move to it, as under
 `keep-original`. What that leaves uncovered is under "The transaction".
+
+**A path inside a comment moves with the references.** Nothing loads a comment, so a path in
+one never makes an image convert or move; but the path names the file it names, and a comment
+left naming a file that has gone is a lie the next reader believes. So `optimize` and `move`
+rewrite it, as one more edit in the same transaction, shown in the plan and undone with it
+(`commentEditsFor`, `comment-edits.ts`). Where a comment sits is read by the parser of the
+adapter that reads the file, through the same reading that lists the lines a move cannot
+follow, and only for a place that reading says names this image: a text search alone would
+rewrite `vendor/a/b.png` because it ends with another image's path. The new text is the
+destination's spelling of the kind the comment used (`respellAs`): a URL is answered with a
+URL, a project-relative path with a project-relative path, so an image leaving the served
+folder has no answer for a URL and that comment is left as written. Three more are left:
+a mention written in another letter case, which Windows and macOS find and Upfly will not
+decide the spelling of; a place two images both claim; and a path whose file no text hash
+covers. Each edit carries the hash of the text the search read, not the graph's, because the
+graph records a hash only for a file it found a reference in, and a comment is often the only
+line in a file that names an image. In the plan's JSON such an edit carries `inComment`, and
+the summary counts it apart: a comment is not a reference.
+
+**Every reason that cites a mention says what kind of place it is** — a code example, a
+file type Upfly does not read, frontmatter, prose — in the words the lines a move lists use,
+so a reader knows what to open without searching for it. The kind comes from the graph, so
+the search after the encodes does not claim one for a file written while Upfly worked.
 
 ### Every line that names an image
 

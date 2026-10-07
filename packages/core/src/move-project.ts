@@ -18,8 +18,10 @@ import {
   runPipeline,
   servingRootsFor,
 } from './pipeline.js';
+import { commentEditsFor, editsByFile } from './plan/comment-edits.js';
 import type { Unsearchable } from './plan/old-path-search.js';
 import type { PlannedRewrite } from './plan/plan.js';
+import { withExtraEdits } from './plan/plan.js';
 import { type Move, type RefusedMove, planRelocation } from './plan/relocate.js';
 import type { UnfollowedLine } from './plan/unfollowed.js';
 import { unfollowedLines } from './project-search.js';
@@ -114,12 +116,31 @@ export async function moveProject(input: MoveProjectInput): Promise<MoveProjectR
     pipeline,
     relocation.moves.map((move) => move.from),
   );
+  // A path written inside a comment moves with the references: no page loads a comment, so
+  // it never makes an image move, and after the move the path in it names nothing.
+  const comments = commentEditsFor({
+    comments: search.comments,
+    destinations: new Map(relocation.moves.map((move) => [move.from, move.to])),
+    servingDirs: servingRoots.dirs,
+  });
+  const rewritten = new Set(
+    comments.map(
+      (entry) => `${entry.image}
+${entry.file}
+${entry.line}`,
+    ),
+  );
   const plan: MovePlan = {
     moves: relocation.moves,
-    rewrites: relocation.rewrites,
+    rewrites: withExtraEdits(relocation.rewrites, editsByFile(comments)),
     refused: relocation.refused,
     declined: await cited(relocation.declined, relocation.declinedReferences, graph.root),
-    unfollowed: search.lines,
+    unfollowed: search.lines.filter(
+      (line) =>
+        !rewritten.has(`${line.image}
+${line.file}
+${line.line}`),
+    ),
   };
   const result = { pipeline, plan, unsearchable: search.unsearchable };
 

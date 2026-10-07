@@ -46,7 +46,7 @@ describe('declineGroup', () => {
         'its new name is taken by another file',
       ],
       [
-        'converting it would delete the original, and notes.txt:3 (and 1 more) still names its path in a form Upfly cannot rewrite',
+        'converting it would delete the original, and notes.txt:3 (and 1 more) still names its path: in a code example, which a page shows rather than loads',
         'named where Upfly cannot rewrite it',
       ],
       [
@@ -60,6 +60,14 @@ describe('declineGroup', () => {
       [
         '`src/App.jsx` reaches it only through `./img/${name}.png`, a template assembled at run time. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file',
         'no reference would move to a new file',
+      ],
+      [
+        'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change',
+        'named for a format the file is not',
+      ],
+      [
+        'its name already ends in .avif, but the file is PNG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .avif file would need no other change',
+        'named for a format the file is not',
       ],
     ];
     for (const [reason, group] of cases) expect(declineGroup(reason), reason).toBe(group);

@@ -13,6 +13,7 @@ import type {
   KeptBecause,
   Manifest,
   OptimizationPlan,
+  PlannedRewrite,
   PublicPolicy,
   Report,
   ServingRootUnknownFinding,
@@ -537,7 +538,7 @@ export function optimizeSummary(facts: OptimizeFacts): Summary {
   };
 
   const assets = new Set(sizes.keys());
-  const references = plan.rewrites.reduce((sum, rewrite) => sum + rewrite.edits.length, 0);
+  const { references, comments } = editCounts(plan.rewrites);
   const stays = plan.declined.filter((entry) => !assets.has(entry.path));
   const stay = stays.length;
   const update: Row = {
@@ -546,22 +547,22 @@ export function optimizeSummary(facts: OptimizeFacts): Summary {
       references === 0
         ? ['no reference']
         : [count(references, 'reference'), ` in ${count(plan.rewrites.length, 'file')}`],
-    details:
-      stay === 0
+    details: [
+      ...commentDetail(comments),
+      ...(stay === 0
         ? []
         : [
             `${count(stay, 'other reference')} ${stay === 1 ? 'stays' : 'stay'} as written, each for a reason in the full plan`,
-          ],
+          ]),
+    ],
     key: 'update',
-    ...(references + stay === 0
+    ...(references + comments + stay === 0
       ? {}
       : {
           list: {
             intro: `In each file, every reference Upfly can rewrite moves to the converted file.${stay === 0 ? '' : ' The references after the files stay as written, each for the reason given.'}`,
             items: [
-              ...plan.rewrites.map(
-                (rewrite) => `${rewrite.file}  ${count(rewrite.edits.length, 'reference')}`,
-              ),
+              ...plan.rewrites.map(editsInFile),
               ...stays.map(
                 (entry) =>
                   `${entry.line === null ? entry.path : `${entry.path}:${entry.line}`}  stays: ${entry.reason}`,
@@ -975,10 +976,69 @@ export interface MoveFacts {
   readonly next: NextStep | null;
 }
 
+/**
+ * How many of a plan's edits move a reference, and how many move a path written inside a
+ * comment. A comment is not a reference and no page loads one, so the two are never one
+ * number.
+ */
+function editCounts(rewrites: readonly PlannedRewrite[]): {
+  readonly references: number;
+  readonly comments: number;
+} {
+  let references = 0;
+  let comments = 0;
+  for (const rewrite of rewrites) {
+    for (const edit of rewrite.edits) {
+      if (edit.inComment === true) comments += 1;
+      else references += 1;
+    }
+  }
+  return { references, comments };
+}
+
+/** What one file's edits are, for a list of the files a run rewrites. */
+function editsInFile(rewrite: PlannedRewrite): string {
+  const { references, comments } = editCounts([rewrite]);
+  const inComments = `${count(comments, 'path')} inside a comment`;
+  if (comments === 0) return `${rewrite.file}  ${count(references, 'reference')}`;
+  if (references === 0) return `${rewrite.file}  ${inComments}`;
+  return `${rewrite.file}  ${count(references, 'reference')}, ${inComments}`;
+}
+
+/** The detail line for the paths inside comments a run moves, when it moves any. */
+function commentDetail(comments: number): string[] {
+  return comments === 0
+    ? []
+    : [
+        `${count(comments, 'path')} inside a comment ${comments === 1 ? 'moves' : 'move'} with them, so no comment is left naming a file that has gone`,
+      ];
+}
+
+/** What a move rewrote, or will: the references, and any path inside a comment with them. */
+function moveUpdateRow(plan: MovePlan, apply: boolean): Row {
+  const { references, comments } = editCounts(plan.rewrites);
+  return {
+    label: apply ? 'Updated' : 'Update',
+    value:
+      references === 0
+        ? ['no reference']
+        : [count(references, 'reference'), ` in ${count(plan.rewrites.length, 'file')}`],
+    ...(comments === 0 ? {} : { details: commentDetail(comments) }),
+    key: 'update',
+    ...(references + comments === 0
+      ? {}
+      : {
+          list: {
+            intro: 'In each file, the references to a moved image name its new place.',
+            items: plan.rewrites.map(editsInFile),
+          },
+        }),
+  };
+}
+
 /** The summary of a `move` run, dry or applied. */
 export function moveSummary(facts: MoveFacts): Summary {
   const { plan, apply } = facts;
-  const references = plan.rewrites.reduce((sum, rewrite) => sum + rewrite.edits.length, 0);
   const [only] = plan.moves;
   const rows: Row[] = [
     {
@@ -1000,26 +1060,7 @@ export function moveSummary(facts: MoveFacts): Summary {
           }),
     },
   ];
-  if (only !== undefined) {
-    rows.push({
-      label: apply ? 'Updated' : 'Update',
-      value:
-        references === 0
-          ? ['no reference']
-          : [count(references, 'reference'), ` in ${count(plan.rewrites.length, 'file')}`],
-      key: 'update',
-      ...(references === 0
-        ? {}
-        : {
-            list: {
-              intro: 'In each file, the references to a moved image name its new place.',
-              items: plan.rewrites.map(
-                (rewrite) => `${rewrite.file}  ${count(rewrite.edits.length, 'reference')}`,
-              ),
-            },
-          }),
-    });
-  }
+  if (only !== undefined) rows.push(moveUpdateRow(plan, apply));
   if (plan.declined.length > 0) rows.push(declinedRow(plan.declined));
   if (plan.unfollowed.length > 0) {
     const one = plan.unfollowed.length === 1;
@@ -1064,7 +1105,7 @@ export function moveSummary(facts: MoveFacts): Summary {
         ...nextRows(facts.next),
       ],
     ],
-    closing: moveClosing(facts, references),
+    closing: moveClosing(facts, editCounts(plan.rewrites).references),
   };
 }
 

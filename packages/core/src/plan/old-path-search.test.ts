@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compareStrings } from '../paths.js';
-import { findSurvivingPaths, spellingsFor } from './old-path-search.js';
+import { findSurvivingPaths, respellAs, spellingsFor } from './old-path-search.js';
 
 /**
  * Searching for an old path without asking the graph.
@@ -72,6 +72,41 @@ describe('the spellings an old path is searched for', () => {
 
   it('searches a backslash spelling too, for generated manifests', () => {
     expect(spellingsFor('public/img/hero.png', SERVING)).toContain('public\\img\\hero.png');
+  });
+});
+
+describe('exchanging one path’s spelling for another’s', () => {
+  it('answers in the kind of spelling the text used', () => {
+    const from = 'public/img/hero.png';
+    const to = 'public/img/hero.webp';
+    const cases: [string, string | null][] = [
+      ['/img/hero.png', '/img/hero.webp'],
+      ['public/img/hero.png', 'public/img/hero.webp'],
+      ['img/hero.png', 'img/hero.webp'],
+      ['public\\img\\hero.png', 'public\\img\\hero.webp'],
+      ['/public/img/hero.png', '/public/img/hero.webp'],
+      ['hero.png', null],
+    ];
+    for (const [written, expected] of cases) {
+      expect(respellAs(written, from, to, SERVING), written).toBe(expected);
+    }
+  });
+
+  it('answers for a move out of the served folder only where the spelling has a counterpart', () => {
+    const from = 'public/img/hero.png';
+    const to = 'src/assets/hero.png';
+
+    // The URL of a served image has no counterpart outside every serving directory: no
+    // address reaches the new place, which is why the move lists such a line instead.
+    expect(respellAs('/img/hero.png', from, to, SERVING)).toBeNull();
+    expect(respellAs('public/img/hero.png', from, to, SERVING)).toBe('src/assets/hero.png');
+    expect(respellAs('img/hero.png', from, to, SERVING)).toBe('assets/hero.png');
+  });
+
+  it('leaves a mention written in another letter case alone', () => {
+    expect(respellAs('/IMG/Hero.PNG', 'public/img/hero.png', 'public/img/hero.webp', SERVING)).toBe(
+      null,
+    );
   });
 });
 

@@ -510,6 +510,9 @@ describe('replace refuses to delete an original a mention would outlive', () => 
    * deletion candidate; outside a served directory nothing is deleted and the search for
    * surviving mentions does not apply.
    */
+  /** The extensions no adapter claims, which the walk hands the graph as unscanned. */
+  const UNREAD = new Set(['.yml', '.yaml', '.txt', '.pdf', '.log']);
+
   function servedProject(tree: Record<string, string>, files: readonly string[]) {
     const html = tree['index.html'] ?? '';
     const assets = [asset('public/logo.png')];
@@ -525,7 +528,22 @@ describe('replace refuses to delete an original a mention would outlive', () => 
           root: ROOT,
           assets,
           references,
-          unscannedFiles: [],
+          // As the walk hands them over, so a reason about where a path sits is read from
+          // the same facts a real run has.
+          unscannedFiles: files.flatMap((file) => {
+            const extension = file.slice(file.lastIndexOf('.')).toLowerCase();
+            return UNREAD.has(extension)
+              ? [
+                  {
+                    path: `${ROOT}/${file}`,
+                    relative: file,
+                    extension,
+                    reason: 'unclaimed-extension' as const,
+                    detail: '',
+                  },
+                ]
+              : [];
+          }),
           texts: [scanned('index.html', html)],
         }),
         probes: [probeOf('public/logo.png')],
@@ -626,7 +644,7 @@ describe('replace refuses to delete an original a mention would outlive', () => 
       {
         asset: mine,
         reason:
-          'converted, but the original was kept: bangalore.html:1 (and 1 more) still names its path in a form Upfly cannot rewrite',
+          'converted, but the original was kept: bangalore.html:1 (and 1 more) still names its path: Upfly cannot rule out that this line names it',
       },
     ]);
     expect(project.tree.get('bangalore.html')).toBe(bangalore);
@@ -678,7 +696,8 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     // It names where. A reason that says a mention survives somewhere leaves the user to
     // search for a path the engine had already located.
     expect(declined?.reason).toContain('deploy.yml:1');
-    expect(declined?.reason).toContain('cannot rewrite');
+    // And what kind of place it is, so nobody has to open the file to find out.
+    expect(declined?.reason).toContain('in a .yml file, a type Upfly does not read');
   });
 
   it('reads no binary file, and a text file nothing parses that names the original still keeps it', async () => {
@@ -779,7 +798,80 @@ describe('replace refuses to delete an original a mention would outlive', () => 
 
     const declined = result.plan.declined.find((entry) => entry.path === 'public/logo.png');
     expect(declined?.reason).toContain('deploy.yml:1');
-    expect(declined?.reason).toContain('cannot rewrite');
+    expect(declined?.reason).toContain('in a .yml file, a type Upfly does not read');
+  });
+
+  it('rewrites the path inside a comment, and converts the image', async () => {
+    // A commented-out copy of an old line names the image. Nothing loads a comment, so it
+    // cannot keep the conversion from happening; and the path in it names the file it names,
+    // so it moves with the references rather than being left pointing at a deleted file.
+    const page = '<img src="/logo.png">';
+    const code = `const hero = "/logo.webp";\n// const hero = "/logo.png";\n`;
+    const project = harness({
+      'index.html': page,
+      'src/App.jsx': code,
+      'public/logo.png': 'PNG',
+    });
+    const input = inputFor({
+      ...project,
+      files: ['index.html', 'src/App.jsx'],
+      graph: buildGraph({
+        root: ROOT,
+        assets: [asset('public/logo.png')],
+        references: [resolved('index.html', '/logo.png', 'public/logo.png', page)],
+        unscannedFiles: [],
+        texts: [scanned('index.html', page), scanned('src/App.jsx', code)],
+      }),
+      probes: [probeOf('public/logo.png')],
+      publicPolicy: 'replace' as const,
+      servingRoots: { dirs: ['public'], declared: true },
+      apply: true,
+    });
+
+    const result = await optimize(input);
+
+    expect(result.plan.conversions.map((conversion) => conversion.asset)).toEqual([
+      'public/logo.png',
+    ]);
+    expect(result.plan.declined).toEqual([]);
+    expect(project.tree.has('public/logo.png')).toBe(false);
+    expect(project.tree.get('index.html')).toBe('<img src="/logo.webp">');
+    expect(project.tree.get('src/App.jsx')).toBe(
+      `const hero = "/logo.webp";\n// const hero = "/logo.webp";\n`,
+    );
+    // Shown as an edit like any other, so the dry run previews it and `undo` reverses it.
+    expect(result.plan.rewrites.map((rewrite) => rewrite.file)).toEqual([
+      'index.html',
+      'src/App.jsx',
+    ]);
+  });
+
+  it('leaves a comment alone when the image it names is not converting', async () => {
+    // A comment never makes an image convert: this one names an image nothing links to, so
+    // the plan converts nothing and the comment keeps the path it has.
+    const code = `// const hero = "/logo.png";\n`;
+    const project = harness({ 'src/App.jsx': code, 'public/logo.png': 'PNG' });
+    const input = inputFor({
+      ...project,
+      files: ['src/App.jsx'],
+      graph: buildGraph({
+        root: ROOT,
+        assets: [asset('public/logo.png')],
+        references: [],
+        unscannedFiles: [],
+        texts: [scanned('src/App.jsx', code)],
+      }),
+      probes: [probeOf('public/logo.png')],
+      publicPolicy: 'replace' as const,
+      servingRoots: { dirs: ['public'], declared: true },
+      apply: true,
+    });
+
+    const result = await optimize(input);
+
+    expect(result.plan.conversions).toEqual([]);
+    expect(result.plan.rewrites).toEqual([]);
+    expect(project.tree.get('src/App.jsx')).toBe(code);
   });
 
   it('does not refuse under keep-original, where nothing is deleted', async () => {

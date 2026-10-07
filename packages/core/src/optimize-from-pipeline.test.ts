@@ -17,12 +17,13 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
-/** What a plan converts and keeps, without the reasons a run that measured less leaves out. */
+/** What a plan converts and keeps, and why it leaves each image as it is. */
 function decisions(result: OptimizeResult) {
   return {
     conversions: result.plan.conversions,
     keptOriginals: result.plan.keptOriginals,
     rewrites: result.plan.rewrites,
+    declined: result.plan.declined,
   };
 }
 
@@ -49,6 +50,17 @@ async function plannedFromConvertible(
   };
 }
 
+/** A dry run planned from the measurements of every image, as `optimize` used to measure. */
+async function plannedFromEverything(root: string, publicPolicy: PublicPolicy) {
+  const pipeline = await runPipeline({
+    root,
+    servingRoots: servingRootsFor(),
+    publicDirs: (servingRoots) => servingRoots.dirs,
+    probeOptions: { formats: ['webp'] },
+  });
+  return await optimizeFromPipeline(pipeline, { format: 'webp', publicPolicy, apply: false });
+}
+
 describe('a plan from the measurements of the images it could convert', () => {
   it.each([
     ['plain-html', 'keep-original'],
@@ -57,20 +69,42 @@ describe('a plan from the measurements of the images it could convert', () => {
     ['vite-react', 'replace'],
     ['partial-pattern', 'replace'],
   ] as const)(
-    'is the plan made from every image measured (%s, %s)',
+    'is the plan made from every image measured, reasons included (%s, %s)',
     async (fixture, policy) => {
       const root = join(FIXTURES, fixture);
 
-      const everything = await optimizeProject({
+      const everything = await plannedFromEverything(root, policy);
+      const { result } = await plannedFromConvertible(root, policy);
+
+      expect(everything.plan.conversions.length).toBeGreaterThan(0);
+      expect(decisions(result)).toEqual(decisions(everything));
+    },
+    60_000,
+  );
+
+  it.each([
+    ['plain-html', 'keep-original'],
+    ['vite-react', 'replace'],
+    ['partial-pattern', 'replace'],
+  ] as const)(
+    'is what `optimizeProject` itself plans (%s, %s)',
+    async (fixture, policy) => {
+      const root = join(FIXTURES, fixture);
+
+      const everything = await plannedFromEverything(root, policy);
+      const mine = await optimizeProject({
         root,
         format: 'webp',
         publicPolicy: policy,
         apply: false,
       });
-      const { result } = await plannedFromConvertible(root, policy);
 
-      expect(everything.optimize.plan.conversions.length).toBeGreaterThan(0);
-      expect(decisions(result)).toEqual(decisions(everything.optimize));
+      expect(decisions(mine.optimize)).toEqual(decisions(everything));
+      // What the filter is for: an image no conversion of could be used is not encoded.
+      const measured = (mine.pipeline.probes ?? []).filter((probe) =>
+        probe.encoded.some((encoded) => encoded.format === 'webp'),
+      );
+      expect(measured.length).toBeLessThan(mine.pipeline.graph.assets.length);
     },
     60_000,
   );

@@ -55,8 +55,9 @@ What Upfly could not check
   deletes an SVG, so there is no action to offer. Use --include-unused-svg to
   see them.
 
-  2 images needed no measurement
+  4 images needed no measurement
     vectors, where an encode would measure a rasterisation rather than a saving: 2
+    images optimize would not convert, whatever they measured: 2
 
   SVG files are counted as images and also left unparsed: one can hold
   references of its own, and no adapter reads that yet (2 SVGs here)

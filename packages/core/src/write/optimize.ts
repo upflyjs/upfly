@@ -14,6 +14,7 @@ import type { Graph } from '../graph/graph.js';
 import { isBinaryExtension } from '../graph/unscanned.js';
 import { compareStrings, extensionOf } from '../paths.js';
 import type { ProjectBuilds } from '../plan/builds.js';
+import { type CommentEdit, commentEditsFor, editsByFile } from '../plan/comment-edits.js';
 import {
   type Survivor,
   type Unsearchable,
@@ -28,8 +29,11 @@ import {
   type PlannedRewrite,
   type PublicPolicy,
   type RootLinkPolicy,
+  type SurvivingMention,
   planOptimization,
+  withExtraEdits,
 } from '../plan/plan.js';
+import { type CommentMention, findUnfollowedLines } from '../plan/unfollowed.js';
 import type { AssetProbe, EncodeFormat, ImageProbe } from '../probe/probe.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import type { ServingRoots } from '../resolve/resolve.js';
@@ -162,8 +166,8 @@ export interface OptimizeResult {
 
 /** What stops a delete: a mention the plan would not rewrite, or a gap in the search. */
 interface Blocked {
-  /** Each asset a surviving mention names, mapped to where it is (`file:line`). */
-  readonly assets: ReadonlyMap<string, string>;
+  /** Each asset a surviving mention names, mapped to where it is and what kind of place. */
+  readonly assets: ReadonlyMap<string, SurvivingMention>;
   /** Each asset only files the run excluded still name, mapped to where (`file:line`). */
   readonly excluded: ReadonlyMap<string, string>;
   /** Each asset the plan would delete, mapped to what could not be read. */
@@ -171,6 +175,13 @@ interface Blocked {
   readonly occurrences: readonly Survivor[];
   /** Each asset in `assets` or `excluded`, mapped to the file its sentence names. */
   readonly namedIn: ReadonlyMap<string, string>;
+  /**
+   * The paths inside a comment that this plan rewrites, by POSIX-relative file. A comment
+   * is not a reference and no page loads it, but a path written in one names the file it
+   * names, so it moves with the references rather than being left to rot or standing in
+   * the way of the conversion.
+   */
+  readonly commentEdits: readonly CommentEdit[];
 }
 
 /**
@@ -199,6 +210,7 @@ async function mentionsThatWouldSurvive(
       unread: new Map(),
       occurrences: [],
       namedIn: new Map(),
+      commentEdits: [],
     };
   }
 
@@ -230,19 +242,35 @@ async function mentionsThatWouldSurvive(
     return !ranges.some(([start, end]) => start <= survivor.offset && survivor.offset < end);
   });
 
+  // What kind of place each of these is, read by the parser of the adapter that reads the
+  // file, over the few files that hold one. A path inside a comment is rewritten and stops
+  // blocking; every other kind is named in the reason, so a reader knows what to look at.
+  const places = await placesOf(occurrences, deleting, input, scope);
+  const commentEdits = commentEditsFor({
+    comments: places.comments,
+    destinations: new Map(deleting.map((conversion) => [conversion.asset, conversion.target])),
+    servingDirs: input.servingRoots.dirs,
+  });
+  const rewriting = new Set(commentEdits.map((entry) => `${entry.file}\n${entry.edit.start}`));
+  const standing = occurrences.filter(
+    (survivor) =>
+      !rewriting.has(`${survivor.file}
+${survivor.offset}`),
+  );
+
   // An occurrence names a spelling, not an asset, so map back through each asset's
   // spellings, in any letter case as the search matched them. Two assets can share one (the
   // suffix `img/hero.png`, or `/hero.png` under two serving roots), and a mention of it then
   // blocks both: a lost saving, never a lost file.
   const excludedFiles = new Set(scope.excludedFiles ?? []);
-  const assets = new Map<string, string>();
+  const assets = new Map<string, SurvivingMention>();
   const excluded = new Map<string, string>();
   const namedIn = new Map<string, string>();
   for (const conversion of deleting) {
     const spellings = new Set(
       spellingsFor(conversion.asset, input.servingRoots.dirs).map(foldCase),
     );
-    const mine = occurrences.filter((survivor) => spellings.has(foldCase(survivor.spelling)));
+    const mine = standing.filter((survivor) => spellings.has(foldCase(survivor.spelling)));
     // A mention in a file the run reads is the one to name. Where only excluded files name
     // the path, the exclusion is why the mention stays as written, and the reason says so.
     const read = mine.filter((survivor) => !excludedFiles.has(survivor.file));
@@ -252,7 +280,15 @@ async function mentionsThatWouldSurvive(
     // One location plus a count, so the reason stays one readable sentence. Searching for
     // the same path finds the rest.
     const more = named.length === 1 ? '' : ` (and ${named.length - 1} more)`;
-    into.set(conversion.asset, `${first.file}:${first.line}${more}`);
+    const where = `${first.file}:${first.line}${more}`;
+    if (into === assets) {
+      assets.set(conversion.asset, {
+        where,
+        kind:
+          places.kinds.get(`${first.file}
+${first.line}`) ?? CANNOT_RULE_OUT,
+      });
+    } else excluded.set(conversion.asset, where);
     namedIn.set(conversion.asset, first.file);
   }
 
@@ -268,7 +304,83 @@ async function mentionsThatWouldSurvive(
     for (const conversion of deleting) unread.set(conversion.asset, `${gap.file}${more}`);
   }
 
-  return { assets, excluded, unread, occurrences, namedIn };
+  return { assets, excluded, unread, occurrences: standing, namedIn, commentEdits };
+}
+
+/**
+ * What the reason says of a place the lines a move lists have nothing to say about: one
+ * inside a reference that leads to another file whose path ends the same way, or inside a
+ * reference to this image that this run does not rewrite. The search found the path and
+ * could not rule the place out, which is why the original stays.
+ */
+const CANNOT_RULE_OUT = 'Upfly cannot rule out that this line names it';
+
+/**
+ * The plan with each comment's path moved to the converted file, for the conversions the
+ * final plan still makes.
+ *
+ * The search ran against the first plan, and the plan made with what it found can convert
+ * fewer images: a comment whose image no longer converts keeps the path it has.
+ */
+function commentsMoved(plan: OptimizationPlan, blocked: Blocked): OptimizationPlan {
+  if (blocked.commentEdits.length === 0) return plan;
+  const converting = new Set(
+    plan.conversions
+      .filter((conversion) => conversion.replacesOriginal)
+      .map((conversion) => conversion.asset),
+  );
+  const kept = editsByFile(blocked.commentEdits.filter((entry) => converting.has(entry.image)));
+  return { ...plan, rewrites: withExtraEdits(plan.rewrites, kept) };
+}
+
+/**
+ * What kind of place each surviving occurrence is, and which of them sit inside a comment
+ * naming the asset, from the same reading that lists the lines a move cannot follow.
+ *
+ * Read over the files that hold an occurrence and the assets they name, not the project: the
+ * search above has already narrowed both, and this is the second reading of those files.
+ */
+async function placesOf(
+  occurrences: readonly Survivor[],
+  deleting: readonly { readonly asset: string; readonly target: string }[],
+  input: OptimizeInput,
+  scope: Pick<OptimizeInput, 'files' | 'unread' | 'excludedFiles'>,
+): Promise<{
+  readonly kinds: ReadonlyMap<string, string>;
+  readonly comments: readonly CommentMention[];
+}> {
+  const files = [...new Set(occurrences.map((survivor) => survivor.file))];
+  if (files.length === 0) return { kinds: new Map(), comments: [] };
+  const spellings = new Map(
+    deleting.map((conversion) => [
+      conversion.asset,
+      new Set(spellingsFor(conversion.asset, input.servingRoots.dirs).map(foldCase)),
+    ]),
+  );
+  const named = new Set(
+    occurrences.flatMap((survivor) =>
+      [...spellings]
+        .filter(([, holds]) => holds.has(foldCase(survivor.spelling)))
+        .map(([asset]) => asset),
+    ),
+  );
+  const read = await findUnfollowedLines({
+    graph: input.graph,
+    images: [...named].sort(compareStrings),
+    files,
+    excludedFiles: (scope.excludedFiles ?? []).filter((file) => files.includes(file)),
+    readFile: (relative) => input.store.readText(relative),
+    servingRoots: input.servingRoots,
+    aliases: input.aliases ?? { rules: [], skipped: [] },
+  });
+  const kinds = new Map<string, string>();
+  for (const line of read.lines)
+    kinds.set(
+      `${line.file}
+${line.line}`,
+      line.why,
+    );
+  return { kinds, comments: read.comments };
 }
 
 /**
@@ -322,7 +434,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
   const blocked = await mentionsThatWouldSurvive(first, input, input, readBefore);
   const nothingBlocked =
     blocked.assets.size === 0 && blocked.excluded.size === 0 && blocked.unread.size === 0;
-  const plan = nothingBlocked ? first : planWith(blocked);
+  const plan = commentsMoved(nothingBlocked ? first : planWith(blocked), blocked);
 
   if (plan.refusal !== null) {
     return { plan, runId: input.runId, runDir, manifest: null, refusal: plan.refusal };
@@ -456,11 +568,15 @@ function whyKeptSince(
   changed: (file: string) => boolean,
 ): string | null {
   const file = blocked.namedIn.get(asset);
-  const since =
-    file !== undefined && changed(file) ? ', written while Upfly was converting,' : null;
+  const written = file !== undefined && changed(file);
+  const since = written ? ', written while Upfly was converting,' : null;
   const named = blocked.assets.get(asset);
   if (named !== undefined) {
-    return `${named} ${MENTION_SURVIVES}${since ?? ''} in a form Upfly cannot rewrite`;
+    // What kind of place it is comes from the graph, which read the project before the
+    // encodes, so it is not claimed for a file written since.
+    return written
+      ? `${named.where} ${MENTION_SURVIVES}${since ?? ''} in a form Upfly cannot rewrite`
+      : `${named.where} ${MENTION_SURVIVES}: ${named.kind}`;
   }
   const excluded = blocked.excluded.get(asset);
   if (excluded !== undefined) {

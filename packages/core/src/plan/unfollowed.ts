@@ -23,6 +23,7 @@ import { compareStrings, extensionOf, relativePath } from '../paths.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import { isLinked, linkedPaths } from '../resolve/reference.js';
 import { type ServingRoots, resolveReferences } from '../resolve/resolve.js';
+import { hashText } from '../scan/text-hash.js';
 import type { ExcludedRoot, RawReference, Reference, UnscannedFile } from '../types.js';
 import {
   type PathOccurrence,
@@ -89,9 +90,35 @@ export interface UnfollowedInput {
 export interface UnfollowedResult {
   /** By image, then file, then line; at most one per line for each image. */
   readonly lines: readonly UnfollowedLine[];
+  /**
+   * The places among them that sit inside a comment, with what an edit would replace there.
+   * A conversion or a move rewrites the path in a comment as it rewrites a reference, and
+   * these are the places it writes; the lines stay listed, since a comment is not a
+   * reference and nothing loads it.
+   */
+  readonly comments: readonly CommentMention[];
   readonly filesSearched: number;
   /** Files that could not be read, so a line inside one cannot be ruled out. */
   readonly unsearchable: readonly Unsearchable[];
+}
+
+/** A place inside a comment that names an image: enough to rewrite the path there. */
+export interface CommentMention {
+  /** The image it names, POSIX-relative to the project root. */
+  readonly image: string;
+  /** POSIX-relative path of the file that holds it. */
+  readonly file: string;
+  readonly line: number;
+  /** Offset of the path's spelling in the file's text, in UTF-16 code units. */
+  readonly offset: number;
+  /** The spelling the file holds there, which an edit replaces. */
+  readonly spelling: string;
+  /**
+   * The hash of the file's text as this search read it, which is the text the offset was
+   * measured in. The graph records a hash only for a file it found a reference in, and a
+   * comment can be the only line in a file that names an image.
+   */
+  readonly textHash: string;
 }
 
 const FULL_ADDRESS =
@@ -101,7 +128,8 @@ const BUILT_AT_RUNTIME =
 const DATA_GUESS =
   'a path in data that names no file from where it is written, so the code that reads it decides which file it is';
 const IN_FRONTMATTER = "in a Markdown file's frontmatter, which Upfly does not read";
-const IN_COMMENT = 'in a comment, which no page loads';
+const IN_COMMENT =
+  'in a comment, which no page loads: the path in it is rewritten with the references, and never decides on its own whether the image converts or moves';
 const IN_CODE_EXAMPLE = 'in a code example, which a page shows rather than loads';
 const EXCLUDED_FILE =
   'in a file this run leaves out (.upflyignore, --exclude or the config file), read only to list it here';
@@ -137,6 +165,8 @@ interface Listed {
 interface Candidate {
   readonly line: UnfollowedLine;
   readonly raw?: RawReference;
+  /** Where the spelling sits in the file, so a comment's path can be rewritten. */
+  readonly at: Pick<PathOccurrence, 'offset' | 'spelling'>;
 }
 
 /** What reading a place needs, the same for every file. */
@@ -173,11 +203,19 @@ export async function findUnfollowedLines(input: UnfollowedInput): Promise<Unfol
     excluded: new Set(input.excludedFiles),
     unscanned: new Map(graph.unscannedFiles.map((file) => [file.relative, file])),
   };
-  const lines = chosen(placesByLine(found, imagesBySpelling(input), context), context);
+  const { lines, comments } = chosen(
+    placesByLine(found, imagesBySpelling(input), context),
+    context,
+    new Map([...found.texts].map(([file, text]) => [file, hashText(text)])),
+  );
   lines.sort(
     (a, b) => compareStrings(a.image, b.image) || compareStrings(a.file, b.file) || a.line - b.line,
   );
-  return { lines, filesSearched: found.filesSearched, unsearchable: found.unsearchable };
+  comments.sort(
+    (a, b) =>
+      compareStrings(a.file, b.file) || a.offset - b.offset || compareStrings(a.image, b.image),
+  );
+  return { lines, comments, filesSearched: found.filesSearched, unsearchable: found.unsearchable };
 }
 
 /** Which images each spelling belongs to, folded to lower case. */
@@ -217,10 +255,11 @@ function placesByLine(
       const verdict = placeOf(image, occurrence, text, inFile, regions, context);
       if (verdict === 'covered' || verdict === 'elsewhere') continue;
       const line = { image, file, line: occurrence.line };
+      const at = { offset: occurrence.offset, spelling: occurrence.spelling };
       held.push(
         'resolve' in verdict
-          ? { line: { ...line, ...verdict.listed }, raw: verdict.resolve }
-          : { line: { ...line, ...verdict } },
+          ? { line: { ...line, ...verdict.listed }, raw: verdict.resolve, at }
+          : { line: { ...line, ...verdict }, at },
       );
       candidates.set(key, held);
     }
@@ -232,7 +271,11 @@ function placesByLine(
  * Each line's entry: its first place that does not lead to another file. The paths that wait
  * on the resolver are resolved in one call for the whole search rather than once each.
  */
-function chosen(candidates: ReadonlyMap<string, Candidate[]>, context: Context): UnfollowedLine[] {
+function chosen(
+  candidates: ReadonlyMap<string, Candidate[]>,
+  context: Context,
+  hashes: ReadonlyMap<string, string>,
+): { readonly lines: UnfollowedLine[]; readonly comments: CommentMention[] } {
   const pending = [...candidates.values()]
     .flat()
     .filter((candidate) => candidate.raw !== undefined);
@@ -243,10 +286,24 @@ function chosen(candidates: ReadonlyMap<string, Candidate[]>, context: Context):
       return target !== null && target !== undefined && target !== candidate.line.image;
     }),
   );
-  return [...candidates.values()].flatMap((held) => {
+  const lines: UnfollowedLine[] = [];
+  const comments: CommentMention[] = [];
+  for (const held of candidates.values()) {
     const first = held.find((candidate) => !leadsElsewhere.has(candidate));
-    return first === undefined ? [] : [first.line];
-  });
+    if (first === undefined) continue;
+    lines.push(first.line);
+    const textHash = hashes.get(first.line.file);
+    if (first.line.reason === 'comment' && textHash !== undefined) {
+      comments.push({
+        image: first.line.image,
+        file: first.line.file,
+        line: first.line.line,
+        ...first.at,
+        textHash,
+      });
+    }
+  }
+  return { lines, comments };
 }
 
 /** The occurrences grouped by file, in the search's order. */

@@ -44,3 +44,8 @@ Options: --apply
                  npx upfly undo puts every file back
 
   Upfly converted 5 images and saved 93.1 KB.
+
+What Upfly could not check
+
+  3 images needed no measurement
+    images optimize would not convert, whatever they measured: 3

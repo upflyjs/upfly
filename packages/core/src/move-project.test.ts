@@ -127,6 +127,38 @@ describe('moveProject', () => {
     ]);
   });
 
+  it('rewrites the path inside a comment, and leaves it out of the lines it lists', async () => {
+    // Nothing loads a comment, so a path in one never makes an image move; once the image
+    // moves, the path in the comment names nothing, so it moves too.
+    const root = await project({
+      'public/hero.png': 'IMAGE',
+      'index.html': `<img src="/hero.png" alt="">\n`,
+      'src/app.js': `const hero = '/hero.png';\n// const old = '/hero.png';\n`,
+      'src/site.css': '/* background: url(/hero.png); */\n',
+    });
+
+    const { plan, manifest } = await moveProject({
+      root,
+      declared: SERVED,
+      apply: true,
+      moves: [{ from: 'public/hero.png', to: 'public/img/hero.png' }],
+    });
+
+    expect(plan.unfollowed).toEqual([]);
+    expect(await readFile(join(root, 'src/app.js'), 'utf8')).toBe(
+      `const hero = '/img/hero.png';\n// const old = '/img/hero.png';\n`,
+    );
+    expect(await readFile(join(root, 'src/site.css'), 'utf8')).toBe(
+      '/* background: url(/img/hero.png); */\n',
+    );
+    // In the run's record, so `undo` puts the comment back with everything else.
+    expect(
+      manifest?.operations.some(
+        (operation) => operation.kind === 'edit' && operation.path === 'src/site.css',
+      ),
+    ).toBe(true);
+  });
+
   it('cites a reference that cannot follow, and writes nothing for a refused move', async () => {
     const root = await project({
       'public/a.png': 'IMAGE',

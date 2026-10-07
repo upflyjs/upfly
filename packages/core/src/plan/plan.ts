@@ -21,6 +21,7 @@ import type { AssetProbe, EncodeFormat, EncodeSetting } from '../probe/probe.js'
 import type { AliasMap } from '../resolve/aliases.js';
 import { isLinked, linkedPaths } from '../resolve/reference.js';
 import { type ServingRoots, resolveReferences } from '../resolve/resolve.js';
+import type { ScannedText } from '../scan/scan.js';
 import type { Asset, Edit, RawReference, Reference } from '../types.js';
 import type { Declined } from '../write/manifest.js';
 import { type Build, type ProjectBuilds, buildOf } from './builds.js';
@@ -83,7 +84,7 @@ export interface PlanInput {
    * resolves. The search reads files and this module is pure, so `optimize` plans once,
    * searches against that plan, and plans again with this set.
    */
-  readonly blockedByMention?: ReadonlyMap<string, string>;
+  readonly blockedByMention?: ReadonlyMap<string, SurvivingMention>;
   /**
    * Assets not to convert because converting would delete the original while a file the
    * run excluded still names it, each mapped to where (`file:line`). Filled by `optimize`.
@@ -175,10 +176,66 @@ export interface EditsInFile {
  * A file's collected edits as a `PlannedRewrite`: in offset order, and carrying the hash
  * of the text they were counted in when the graph recorded one.
  */
+/**
+ * The text of each file the graph read, by POSIX path relative to the project root.
+ *
+ * The map the graph keeps is keyed by absolute path in the platform's own spelling, which a
+ * caller holding a relative path cannot rebuild by joining: on Windows the separators would
+ * differ from the ones the scan recorded.
+ *
+ * @param graph the graph
+ */
+export function textsByFile(graph: Graph): ReadonlyMap<string, ScannedText> {
+  return new Map([...graph.texts].map(([path, text]) => [relativePath(graph.root, path), text]));
+}
+
+/** A mention of an asset's path that a plan would not rewrite: where it is, and what kind. */
+export interface SurvivingMention {
+  /** Where to look: `file:line`, and a count of any others. */
+  readonly where: string;
+  /**
+   * What kind of place it is, in the words the lines a move lists use: a comment the path
+   * could not be re-spelled in, a code example, prose, a file type Upfly does not read. A
+   * reader deciding what to do needs the kind, not only that something was found.
+   */
+  readonly kind: string;
+}
+
 export function plannedRewrite(file: string, collected: EditsInFile, graph: Graph): PlannedRewrite {
   const edits = [...collected.edits].sort((a, b) => a.start - b.start);
   const text = graph.texts.get(collected.path);
   return text === undefined ? { file, edits } : { file, edits, textHash: text.hash };
+}
+
+/**
+ * The rewrites with more edits merged in, each file's edits in offset order.
+ *
+ * The planner decides what a reference becomes; a path written inside a comment is not a
+ * reference, and the search that finds one reads text, which this module never does. So a
+ * command merges those edits into the plan it made, and from there they are edits like any
+ * other: shown in the plan, applied in the same transaction, undone with it.
+ *
+ * @param rewrites the plan's rewrites
+ * @param extra edits to add, by POSIX-relative file, each with the hash of the text its
+ * offsets were measured in; an offset no other edit covers
+ */
+export function withExtraEdits(
+  rewrites: readonly PlannedRewrite[],
+  extra: ReadonlyMap<string, { readonly edits: readonly Edit[]; readonly textHash: string }>,
+): PlannedRewrite[] {
+  if (extra.size === 0) return [...rewrites];
+  const byFile = new Map(rewrites.map((rewrite) => [rewrite.file, rewrite]));
+  for (const [file, added] of extra) {
+    const held = byFile.get(file);
+    byFile.set(file, {
+      file,
+      edits: [...(held?.edits ?? []), ...added.edits].sort((a, b) => a.start - b.start),
+      // The plan's own hash wins where it has one: both were read from the same file, and
+      // the transaction refuses the rewrite if what is there now matches neither.
+      textHash: held?.textHash ?? added.textHash,
+    });
+  }
+  return [...byFile.values()].sort((a, b) => compareStrings(a.file, b.file));
 }
 
 /**
@@ -773,13 +830,31 @@ function measuredSavings(input: PlanInput): Map<string, Saving> {
   return savings;
 }
 
-/**
- * Whether this asset was encoded in the target format at all, which separates "measured,
- * nothing to gain" from "never measured". Only the second is reported elsewhere.
- */
-function wasMeasured(relative: string, input: PlanInput): boolean {
+/** What the measuring did with one asset, which decides what the plan can say about it. */
+type Measuring =
+  /** Encoded in the target format: "nothing to gain" is a measured answer. */
+  | 'measured'
+  /**
+   * The header was read and the encode left out, because no conversion of it could be used.
+   * The plan says why, from the rules that need no measurement.
+   */
+  | 'left-out'
+  /**
+   * Not measured for a reason of the measuring's own: a vector, a file already in the target
+   * format, one past the cap, one whose header could not be read. The audit reports each, so
+   * the plan says nothing about them.
+   */
+  | 'skipped';
+
+/** What the measuring did with this asset. */
+function measuring(relative: string, input: PlanInput): Measuring {
   const probe = input.probes.find((entry) => entry.relative === relative);
-  return probe?.encoded.some((encoded) => encoded.format === input.format) ?? false;
+  if (probe === undefined) return 'skipped';
+  if (probe.encoded.some((encoded) => encoded.format === input.format)) return 'measured';
+  const leftOut = probe.skipped.some(
+    (skip) => skip.measurement === input.format && skip.code === 'would-not-convert',
+  );
+  return leftOut ? 'left-out' : 'skipped';
 }
 
 /** What `convertibleImages` reads: the plan's input, less the measurements. */
@@ -824,9 +899,13 @@ type ConvertDecision =
 /**
  * Whether one asset is converted, and why not when it is not.
  *
- * `reason: null` is only for an asset there was no decision to make about, such as one
- * nothing measured, which the audit already reports as a probe skip naming the cap, the
- * vector or the format. An asset measured and found no smaller gets a reason, because
+ * Every reason that needs no measurement is decided whether the asset was measured or not,
+ * so an asset the measuring left out because no conversion of it could be used still says
+ * why it stays, in the words a run that measured everything would use.
+ *
+ * `reason: null` is only for an asset there was no decision to make about, such as one the
+ * measuring skipped for a reason of its own, which the audit already reports naming the cap,
+ * the vector or the format. An asset measured and found no smaller gets a reason, because
  * nothing else reports it: a `format-opportunity` finding exists only when there is an
  * opportunity, and the audit's skip list holds only measurements that were not taken.
  */
@@ -838,61 +917,22 @@ function convertDecision(
   const relative = node.asset.relative;
   const saving = savings.get(relative);
   if (saving === undefined) {
-    return wasMeasured(relative, input)
-      ? {
-          convert: false,
-          reason: `measured as ${input.format} and came out no smaller, so converting it would cost bytes rather than save them`,
-        }
-      : { convert: false, reason: null };
+    const state = measuring(relative, input);
+    if (state === 'measured') {
+      return {
+        convert: false,
+        reason: `measured as ${input.format} and came out no smaller, so converting it would cost bytes rather than save them`,
+      };
+    }
+    if (state === 'skipped') return { convert: false, reason: null };
   }
 
-  const target = withExtension(relative, input.format);
-  if (target === relative) return { convert: false, reason: null };
+  const kept = whyNothingWouldUseIt(node, input);
+  if (kept !== null) return { convert: false, reason: kept.reason };
 
-  // A new file has to be one some reference moves to, under either policy: otherwise no
-  // visitor downloads fewer bytes, and a saving counted for it would be a saving nobody gets.
-  // An asset nothing links to is the plainest case, with its own sentences.
-  if (node.references.length === 0) {
-    const why = input.hedged.has(relative)
-      ? 'nothing links to it and something we could not read mentions it, so converting would change a file whose references we cannot see'
-      : noServingRootFound(input.servingRoots)
-        ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}`
-        : 'nothing links to it, so converting it would rewrite no reference and gain only bytes';
-    return { convert: false, reason: why };
-  }
-
-  // Decided here, before collisions and before any reference is repointed. See "The
-  // transaction" in ARCHITECTURE.md.
-  const unused = usedByNoMove(node, input);
-  if (unused !== null) return { convert: false, reason: unused };
-
-  // A literal mention of the path would outlive the rewrite. `optimize` fills this set only
-  // with assets its first plan converted, so none of the checks above declines them here.
-  const surviving = input.blockedByMention?.get(relative);
-  if (surviving !== undefined) {
-    return {
-      convert: false,
-      // Names where the mention is, so the user does not have to search the repository
-      // for a path the search already found.
-      reason: `converting it would delete the original, and ${surviving} ${MENTION_SURVIVES} in a form Upfly cannot rewrite`,
-    };
-  }
-
-  const excluded = input.blockedByExclusion?.get(relative);
-  if (excluded !== undefined) {
-    return {
-      convert: false,
-      reason: `converting it would delete the original, and ${excluded} ${MENTION_SURVIVES}, in a file this run excluded`,
-    };
-  }
-
-  const unread = input.blockedByUnread?.get(relative);
-  if (unread !== undefined) {
-    return {
-      convert: false,
-      reason: `converting it would delete the original, and ${unread} could not be read to rule out a mention of it`,
-    };
-  }
+  // An asset the measuring left out that no rule above explains: it was left out by one of
+  // them, so there is nothing to add, and the measuring's own skip says it was not measured.
+  if (saving === undefined) return { convert: false, reason: null };
 
   // Last, so that this reason is given only for an image nothing else keeps, and the plan
   // converts exactly the savings the report counts.
@@ -903,13 +943,92 @@ function convertDecision(
     convert: true,
     conversion: {
       asset: relative,
-      target,
+      target: withExtension(relative, input.format),
       format: input.format,
       quality: saving.quality,
       savedBytes: saving.savedBytes,
       replacesOriginal: input.publicPolicy === 'replace' && !noServingRootFound(input.servingRoots),
     },
   };
+}
+
+/**
+ * Why no conversion of this asset would be used, whatever it measures, or null when one
+ * would. These are the rules `convertibleImages` reads to choose what to measure, so an
+ * asset left unmeasured is one of them, and each reads the graph alone.
+ *
+ * A `reason` of null is a decision with nothing to say: an asset already in the format its
+ * name claims is one the audit reports as measured and already there.
+ */
+function whyNothingWouldUseIt(
+  node: AssetNode,
+  input: PlanInput,
+): { readonly reason: string | null } | null {
+  const relative = node.asset.relative;
+  if (withExtension(relative, input.format) === relative) {
+    return { reason: whyNameSaysAnotherFormat(relative, input) };
+  }
+
+  // A new file has to be one some reference moves to, under either policy: otherwise no
+  // visitor downloads fewer bytes, and a saving counted for it would be a saving nobody gets.
+  // An asset nothing links to is the plainest case, with its own sentences.
+  if (node.references.length === 0) {
+    const why = input.hedged.has(relative)
+      ? 'nothing links to it and something we could not read mentions it, so converting would change a file whose references we cannot see'
+      : noServingRootFound(input.servingRoots)
+        ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}`
+        : 'nothing links to it, so converting it would rewrite no reference and gain only bytes';
+    return { reason: why };
+  }
+
+  // Decided here, before collisions and before any reference is repointed. See "The
+  // transaction" in ARCHITECTURE.md.
+  const unused = usedByNoMove(node, input);
+  if (unused !== null) return { reason: unused };
+
+  // A literal mention of the path would outlive the rewrite. `optimize` fills this set only
+  // with assets its first plan converted, so none of the checks above declines them here.
+  const surviving = input.blockedByMention?.get(relative);
+  if (surviving !== undefined) {
+    // Names where the mention is and what kind of place it is, so the user does not have to
+    // search the repository for a path the search already found, or open it to see why it
+    // was not rewritten.
+    return {
+      reason: `converting it would delete the original, and ${surviving.where} ${MENTION_SURVIVES}: ${surviving.kind}`,
+    };
+  }
+
+  const excluded = input.blockedByExclusion?.get(relative);
+  if (excluded !== undefined) {
+    return {
+      reason: `converting it would delete the original, and ${excluded} ${MENTION_SURVIVES}, in a file this run excluded`,
+    };
+  }
+
+  const unread = input.blockedByUnread?.get(relative);
+  if (unread !== undefined) {
+    return {
+      reason: `converting it would delete the original, and ${unread} could not be read to rule out a mention of it`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Why an asset whose name already ends in the target format stays, or null when there is
+ * nothing to say about it.
+ *
+ * A file whose bytes are in that format needs nothing: the audit reports it as measured and
+ * already there. A file whose bytes are another format is a different thing, and the only
+ * place a person could learn it: changing its extension would be wrong, since every
+ * reference names the one it has, and re-encoding a file where it lies is not this command's
+ * to do. Without the header the formats cannot be compared, so nothing is claimed.
+ */
+function whyNameSaysAnotherFormat(relative: string, input: PlanInput): string | null {
+  const held = input.probes.find((entry) => entry.relative === relative)?.metadata;
+  if (held === null || held === undefined || held.format === input.format) return null;
+  const extension = extensionOf(relative);
+  return `its name already ends in ${extension}, but the file is ${held.format.toUpperCase()}, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real ${extension} file would need no other change`;
 }
 
 /** A file already at a conversion's target, and whether the walk left it out. */

@@ -596,6 +596,7 @@ describe('the command schemas and the types each command prints agree', () => {
         end: 'required',
         replacement: 'required',
         expected: 'optional',
+        inComment: 'optional',
       }),
     );
     expectFields(

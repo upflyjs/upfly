@@ -89,15 +89,37 @@ const TEXT_CAP = 120;
  * @param servingDirs serving directories; a path under one is also spelled as its URL
  */
 export function spellingsFor(from: string, servingDirs: readonly string[]): string[] {
+  return [...new Set(spellingsByKind(from, servingDirs).values())].sort(compareStrings);
+}
+
+/**
+ * The same spellings, each under the kind of place it is written in: the project-relative
+ * path, the URL of a project that serves its own root, the URL under each serving directory
+ * that holds it, the distinctive suffix, and the Windows form.
+ *
+ * The kind is what lets one path's spelling be exchanged for another's: a comment that writes
+ * `/img/hero.png` wants the new path's URL, not its project path. Keyed per serving directory,
+ * since two nested ones give a path two URLs.
+ *
+ * @param from the asset's POSIX path, relative to the project root
+ * @param servingDirs serving directories; a path under one is also spelled as its URL
+ */
+export function spellingsByKind(
+  from: string,
+  servingDirs: readonly string[],
+): ReadonlyMap<string, string> {
   // `/${from}` is the URL when the project serves its own root (the `''` serving
   // directory). It is added here, so the loop needs no case for `''`: there its condition
   // reads `from.startsWith('/')`, which a project-relative path never does.
-  const spellings = new Set<string>([from, `/${from}`]);
+  const spellings = new Map<string, string>([
+    ['project', from],
+    ['root-url', `/${from}`],
+  ]);
 
   for (const dir of servingDirs) {
     if (from === dir || from.startsWith(`${dir}/`)) {
       const served = from.slice(dir.length).replace(/^\/+/, '');
-      if (served !== '') spellings.add(`/${served}`);
+      if (served !== '') spellings.set(`served:${dir}`, `/${served}`);
     }
   }
 
@@ -106,13 +128,45 @@ export function spellingsFor(from: string, servingDirs: readonly string[]): stri
   const cut = from.lastIndexOf('/');
   if (cut > 0) {
     const parent = from.lastIndexOf('/', cut - 1);
-    spellings.add(from.slice(parent + 1));
+    spellings.set('suffix', from.slice(parent + 1));
   }
 
   // Windows-style, which appears in generated manifests and in some config files.
-  spellings.add(from.split('/').join('\\'));
+  spellings.set('windows', from.split('/').join('\\'));
 
-  return [...spellings].sort(compareStrings);
+  return spellings;
+}
+
+/**
+ * What text spells `to` the way `written` spells `from`, or null when nothing does.
+ *
+ * The letter case has to match: a mention written in another case names the file on Windows
+ * and macOS, and replacing it would be Upfly deciding how the path should have been spelled.
+ * Null where the spelling has no counterpart, as a served URL has none for a destination
+ * outside every serving directory.
+ *
+ * @param written the text found, one of `from`'s spellings
+ * @param from the asset's path now, POSIX-relative to the project root
+ * @param to where it is going, POSIX-relative to the project root
+ * @param servingDirs serving directories, as `spellingsFor` takes them
+ */
+export function respellAs(
+  written: string,
+  from: string,
+  to: string,
+  servingDirs: readonly string[],
+): string | null {
+  const before = spellingsByKind(from, servingDirs);
+  const after = spellingsByKind(to, servingDirs);
+  let replacement: string | null = null;
+  let longest = 0;
+  for (const [kind, spelling] of before) {
+    const candidate = after.get(kind);
+    if (spelling !== written || candidate === undefined || spelling.length <= longest) continue;
+    longest = spelling.length;
+    replacement = candidate;
+  }
+  return replacement;
 }
 
 /**

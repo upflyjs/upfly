@@ -35,11 +35,16 @@ function asset(relative: string, bytes = 10_000): Asset {
   };
 }
 
-/** A measurement that says this asset shrinks to `bytes` as webp. */
+/**
+ * A measurement that says this asset shrinks to `bytes` as webp. The header's format follows
+ * the asset's name, as it does in a project where nothing is mislabelled.
+ */
 function probe(relative: string, bytes = 4_000): AssetProbe {
+  const extension = relative.slice(relative.lastIndexOf('.') + 1).toLowerCase();
+  const format = extension === 'jpg' ? 'jpeg' : extension;
   return {
     relative,
-    metadata: { width: 100, height: 100, format: 'png', pages: 1 },
+    metadata: { width: 100, height: 100, format, pages: 1 },
     encoded: [{ format: 'webp', bytes, quality: 80 }],
     skipped: [],
   };
@@ -1512,6 +1517,148 @@ describe('an asset that was measured and gained nothing', () => {
     );
 
     expect(plan.conversions).toEqual([]);
+    expect(plan.declined).toEqual([]);
+  });
+});
+
+describe('an asset the measuring left out because no conversion of it could be used', () => {
+  /** A header read with no encode, as the measuring leaves an asset it was told to skip. */
+  function leftOut(relative: string, format = 'png'): AssetProbe {
+    return {
+      relative,
+      metadata: { width: 100, height: 100, format, pages: 1 },
+      encoded: [],
+      skipped: [
+        {
+          measurement: 'webp',
+          code: 'would-not-convert',
+          reason: 'not measured: optimize would not convert it, so a saving would reach no visitor',
+        },
+      ],
+    };
+  }
+
+  it('keeps the reason a run that measured it would give', () => {
+    const measured = planOptimization(
+      input({ assets: [asset('public/img/orphan.png')], references: [], served: ['public'] }),
+    );
+    const unmeasured = planOptimization(
+      input({
+        assets: [asset('public/img/orphan.png')],
+        references: [],
+        served: ['public'],
+        probes: [leftOut('public/img/orphan.png')],
+      }),
+    );
+
+    expect(unmeasured.declined).toEqual(measured.declined);
+    expect(reasonsByPath(unmeasured)['public/img/orphan.png']).toContain('nothing links to it');
+  });
+
+  it('keeps it for an image a reference reaches in a form Upfly cannot rewrite', () => {
+    const icon = resolved('index.html', 'public/favicon.png', 'public/favicon.png', {
+      shape: 'html.link.href.icon',
+    });
+    const assets = [asset('public/favicon.png')];
+    const measured = planOptimization(input({ assets, references: [icon], served: ['public'] }));
+    const unmeasured = planOptimization(
+      input({
+        assets,
+        references: [icon],
+        served: ['public'],
+        probes: [leftOut('public/favicon.png')],
+      }),
+    );
+
+    expect(unmeasured.declined).toEqual(measured.declined);
+    expect(reasonsByPath(unmeasured)['public/favicon.png']).toContain('No reference would move');
+  });
+
+  it('stays silent about one the measuring skipped for a reason of its own', () => {
+    const vector: AssetProbe = {
+      relative: 'public/img/orphan.svg',
+      metadata: { width: 100, height: 100, format: 'svg', pages: 1 },
+      encoded: [],
+      skipped: [
+        {
+          measurement: 'webp',
+          code: 'vector',
+          reason: 'SVG is a vector: encoding it measures a rasterisation, not a saving',
+        },
+      ],
+    };
+
+    const plan = planOptimization(
+      input({
+        assets: [asset('public/img/orphan.svg')],
+        references: [],
+        served: ['public'],
+        probes: [vector],
+      }),
+    );
+
+    expect(plan.declined).toEqual([]);
+  });
+});
+
+describe('an image whose name says a format the file is not', () => {
+  /** The measuring's header read: the name ends in `.webp`, the bytes are something else. */
+  function mislabelled(relative: string, format: string): AssetProbe {
+    return {
+      relative,
+      metadata: { width: 952, height: 1078, format, pages: 1 },
+      encoded: [],
+      skipped: [
+        {
+          measurement: 'webp',
+          code: 'would-not-convert',
+          reason: 'not measured: optimize would not convert it, so a saving would reach no visitor',
+        },
+      ],
+    };
+  }
+
+  it('says so, rather than leaving the full plan with no reason', () => {
+    const plan = planOptimization(
+      input({
+        assets: [asset('public/erp/login-bg.webp')],
+        references: [
+          resolved('index.html', '/erp/login-bg.webp', 'public/erp/login-bg.webp', {
+            resolvedVia: 'serving-root',
+          }),
+        ],
+        served: ['public'],
+        probes: [mislabelled('public/erp/login-bg.webp', 'jpeg')],
+      }),
+    );
+
+    expect(plan.conversions).toEqual([]);
+    expect(reasonsByPath(plan)['public/erp/login-bg.webp']).toBe(
+      'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change',
+    );
+  });
+
+  it('says nothing about one that really is in that format, which the audit reports', () => {
+    const genuine: AssetProbe = {
+      relative: 'public/hero.webp',
+      metadata: { width: 100, height: 100, format: 'webp', pages: 1 },
+      encoded: [],
+      skipped: [{ measurement: 'webp', code: 'already-target-format', reason: 'already webp' }],
+    };
+
+    const plan = planOptimization(
+      input({
+        assets: [asset('public/hero.webp')],
+        references: [
+          resolved('index.html', '/hero.webp', 'public/hero.webp', {
+            resolvedVia: 'serving-root',
+          }),
+        ],
+        served: ['public'],
+        probes: [genuine],
+      }),
+    );
+
     expect(plan.declined).toEqual([]);
   });
 });

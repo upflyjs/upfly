@@ -43,3 +43,8 @@ Options: none
 
   Dry run: no project file was changed. With --apply, npx upfly optimize would
   convert 5 images and save 93.1 KB.
+
+What Upfly could not check
+
+  3 images needed no measurement
+    images optimize would not convert, whatever they measured: 3

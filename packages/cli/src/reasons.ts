@@ -27,9 +27,10 @@ const DECLINES: readonly (readonly [RegExp, string])[] = [
   // so what is left here is one no reference would move from, such as a framework's own file.
   [/^nothing (?:Upfly can see )?links to it/, 'no reference would move to a new file'],
   [/ would replace a file rather than add one\./, 'its new name is taken by another file'],
+  [/^its name already ends in /, 'named for a format the file is not'],
   [/ could not be read to rule out a mention of it$/, 'a file that may name it could not be read'],
   [/ still names its path, in a file this run excluded$/, 'named in a file this run leaves out'],
-  [/ still names its path in a form Upfly cannot rewrite$/, 'named where Upfly cannot rewrite it'],
+  [/ still names its path: /, 'named where Upfly cannot rewrite it'],
   [/\. No reference would move to a new file,/, 'no reference would move to a new file'],
   [/ loads it through the build as /, 'its build may not load the new format'],
   [
