@@ -2760,7 +2760,9 @@ command line or configuration was wrong, 3 Upfly refused to act for safety, 4 so
 anticipate went wrong. A crash is its own code, because it is neither a finding nor a refusal. A
 refusal's `error` line under `--json` also carries a `reason`, a stable name such as
 `UNCOMMITTED_CHANGES` or the engine's `TRANSACTION_LOCKED`, so a script can tell refusals apart
-without reading the sentence.
+without reading the sentence. The names are one typed list, `REFUSAL_REASONS` in
+`packages/cli/src/exit-codes.ts`: a refusal given a name outside it does not compile, and a test
+holds `AGENTS.md`'s list of what to do for each to exactly that list.
 
 ### `optimize` and git
 

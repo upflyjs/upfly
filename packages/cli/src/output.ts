@@ -6,7 +6,7 @@
 
 import { reportsMeasuring } from 'upfly-core/internal';
 import type { CommandName } from './args.js';
-import type { ExitCode } from './exit-codes.js';
+import type { ExitCode, RefusalReason } from './exit-codes.js';
 
 /** The streams and environment a command runs against, so tests can supply their own. */
 export interface Io {
@@ -163,7 +163,7 @@ export function stopWith(
   style: Style,
   code: ExitCode,
   message: string,
-  reason?: string,
+  reason?: RefusalReason,
 ): ExitCode {
   if (style.json) {
     emit(io, {

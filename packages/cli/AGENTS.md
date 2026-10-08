@@ -137,6 +137,17 @@ often a `reason` to branch on:
 
 - `UNCOMMITTED_CHANGES`: ask the user to commit or stash, then run again.
 - `NO_REPOSITORY`: git does not track the folder. `--commit` needs it; ask the user.
+- `NO_GIT_IDENTITY`: git has no name and email to commit with. Ask the user to set them
+  with `git config`, or run without `--commit`.
+- `GIT_OPERATION_IN_PROGRESS`: the repository is part way through a merge, a rebase, a
+  cherry-pick or a revert, and a commit would become part of it. Ask the user to finish or
+  abort it, or run without `--commit`.
+- `IGNORED_BY_GIT`: git ignores some of the files the run would write, so one commit could
+  not hold the run, and nothing was written. When the message names a build's output
+  folder, run again with the `--exclude` it gives; otherwise ask the user.
+- `GIT_COMMIT_FAILED`: the run was applied but git did not commit it, and its files stay
+  written. Ask the user whether to commit them, or run `npx upfly undo` to put every file
+  back.
 - `SERVING_ROOT_UNKNOWN`: Upfly could not tell which folder the site is served from. Ask
   the user, then pass it with `--public <dir>`, or run `npx upfly init` and correct
   `publicDirs` in the file it writes.
@@ -144,12 +155,25 @@ often a `reason` to branch on:
 - `TRANSACTION_LOCKED`: another run is in progress. Wait for it.
 - `TRANSACTION_FOREIGN_CHANGE`: a file changed after Upfly read it, so Upfly will not
   touch it. Tell the user; after a committed run, `git revert` is the other way back.
+- `TRANSACTION_PLAN_INVALID`: a check of the run's plan failed, such as a file it would
+  create already existing, or a file to edit that is not UTF-8; the message names the file.
+  Nothing was written, unless the message says the run stopped part way: then
+  `npx upfly undo` puts back what it wrote. Tell the user.
 - `MOVE_REFUSED`: `move` refused every move it was asked for; the message names what is in
   the way. Tell the user.
 - `CONFIG_EXISTS`: `init` found a config file. Edit that file instead.
+- `UPFLY_BLOCK_UNCLOSED`: `npx upfly init --agents` found an instruction file holding
+  Upfly's start line with no end line, so it cannot tell where its block ends, and wrote
+  nothing. The message names the file; ask the user to remove that line or add the end
+  line.
 - `V2_EXTENSION_CONFIG`: `upfly.config.json` belongs to the Upfly VS Code extension (v2).
   Leave it alone; this CLI reads `upfly.config.ts` instead, or a JSON config that carries
   the `$schema` line `npx upfly init` writes.
+- `MANIFEST_VERSION_UNSUPPORTED`: the last run's record was written by another version of
+  Upfly, which `undo` cannot follow. Nothing was changed; undo it with the version that
+  wrote it.
+- `MANIFEST_UNREADABLE`: `.upfly/manifest.json`, the record `undo` follows, cannot be read,
+  so nothing was changed. Tell the user.
 
 ## The JSON
 

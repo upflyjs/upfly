@@ -18,18 +18,25 @@ import {
 } from 'upfly-core';
 import type { UndoOptions } from './args.js';
 import { isDirectory } from './audit.js';
-import { EXIT_CODES, type ExitCode } from './exit-codes.js';
+import { EXIT_CODES, type ExitCode, type RefusalReason } from './exit-codes.js';
 import { commitForRun } from './git.js';
 import { headline, spaced } from './layout.js';
 import { type Io, emit, stopWith, stylesFor } from './output.js';
 import { count } from './plan-text.js';
 
 /** The engine's refusals, each of which leaves every file as it was. */
-const REFUSALS = new Set([
+const REFUSALS: readonly RefusalReason[] = [
   'TRANSACTION_FOREIGN_CHANGE',
   'TRANSACTION_LOCKED',
   'MANIFEST_VERSION_UNSUPPORTED',
-]);
+];
+
+/** The refusal `error` is, if the engine threw one of `REFUSALS`. */
+function refusalIn(error: unknown): { reason: RefusalReason; message: string } | null {
+  if (!(error instanceof UpflyError)) return null;
+  const reason = REFUSALS.find((candidate) => candidate === error.code);
+  return reason === undefined ? null : { reason, message: error.message };
+}
 
 /** What undo put back, by kind. */
 export interface Undone {
@@ -64,8 +71,9 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
   try {
     manifest = await readManifest(store);
   } catch (error) {
-    if (error instanceof UpflyError) {
-      return stopWith(io, options, EXIT_CODES.ABORTED, error.message, error.code);
+    const refused = refusalIn(error);
+    if (refused !== null) {
+      return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
     }
     return stopWith(
       io,
@@ -95,10 +103,9 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
     states = await inspect(manifest, store);
     await revert(manifest, store);
   } catch (error) {
-    if (error instanceof UpflyError && REFUSALS.has(error.code)) {
-      return stopWith(io, options, EXIT_CODES.ABORTED, error.message, error.code);
-    }
-    throw error;
+    const refused = refusalIn(error);
+    if (refused === null) throw error;
+    return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
   }
 
   write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId));

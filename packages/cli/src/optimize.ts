@@ -29,7 +29,7 @@ import {
 import type { OptimizeOptions } from './args.js';
 import { isDirectory, scopeWords } from './audit.js';
 import { type UpflyConfig, loadConfig } from './config.js';
-import { EXIT_CODES, type ExitCode } from './exit-codes.js';
+import { EXIT_CODES, type ExitCode, type RefusalReason } from './exit-codes.js';
 import {
   type GitState,
   RUN_TRAILER,
@@ -58,7 +58,7 @@ import { type NextStep, nextAfterPlan, nextAfterRun, optimizeSummary } from './s
 /** A reason to stop, with the exit code and, for a refusal, the name `--json` gives it. */
 export interface Refusal {
   readonly code: ExitCode;
-  readonly reason?: string;
+  readonly reason?: RefusalReason;
   readonly message: string;
 }
 

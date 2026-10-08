@@ -10,7 +10,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { EXIT_CODES } from '../src/exit-codes.js';
+import { EXIT_CODES, REFUSAL_REASONS } from '../src/exit-codes.js';
 import { upfly } from './helpers.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
@@ -179,6 +179,14 @@ describe.each(DOCS)('%s says only what the built CLI does', (doc) => {
       if (COMMANDS.includes(word) || NOT_JSON.has(word)) continue;
       expect(words.has(word), word).toBe(true);
     }
+  });
+});
+
+describe('AGENTS.md', () => {
+  it('says what to do for every reason an error line can give', () => {
+    const text = readFileSync(join(PACKAGE, 'AGENTS.md'), 'utf8');
+    const listed = [...text.matchAll(/^- `([A-Z][A-Z0-9_]+)`: \S/gm)].map((match) => match[1]);
+    expect([...listed].sort()).toEqual([...REFUSAL_REASONS].sort());
   });
 });
 
