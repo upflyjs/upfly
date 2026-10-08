@@ -98,23 +98,42 @@ export const htmlAdapter: Adapter = defineAdapter({
   },
 });
 
+/** Where an HTML document holds comments, and text a page shows, as `[start, end)` offsets. */
+export interface HtmlRegions {
+  readonly comments: readonly (readonly [number, number])[];
+  /**
+   * The runs of text between tags, less the contents of `<script>` and `<style>`, which a
+   * page runs or applies rather than shows.
+   */
+  readonly text: readonly (readonly [number, number])[];
+}
+
+/** Elements whose text a page does not show. */
+const NOT_SHOWN: ReadonlySet<string> = new Set(['script', 'style']);
+
 /**
- * Where the comments are in an HTML document, as `[start, end)` offsets into `text`, read with
- * the options the adapter parses with. parse5 recovers from any error, so every text has an
- * answer.
+ * Where the comments and the shown text are in an HTML document, as offsets into `text`, read
+ * with the options the adapter parses with. parse5 recovers from any error, so every text has
+ * an answer.
  */
-export function htmlCommentRanges(text: string): readonly (readonly [number, number])[] {
+export function htmlRegions(text: string): HtmlRegions {
   const document = parse(text, { sourceCodeLocationInfo: true, scriptingEnabled: false });
-  const ranges: (readonly [number, number])[] = [];
-  const visit = (node: ParsedNode): void => {
-    if (node.nodeName === '#comment' && node.sourceCodeLocation) {
-      ranges.push([node.sourceCodeLocation.startOffset, node.sourceCodeLocation.endOffset]);
+  const comments: (readonly [number, number])[] = [];
+  const shown: (readonly [number, number])[] = [];
+  const visit = (node: ParsedNode, inside: string): void => {
+    const location = 'sourceCodeLocation' in node ? node.sourceCodeLocation : undefined;
+    if (node.nodeName === '#comment' && location) {
+      comments.push([location.startOffset, location.endOffset]);
     }
-    if ('childNodes' in node) for (const child of node.childNodes) visit(child);
-    if ('content' in node) visit(node.content);
+    if (node.nodeName === '#text' && location && !NOT_SHOWN.has(inside)) {
+      shown.push([location.startOffset, location.endOffset]);
+    }
+    const parent = isElement(node) ? node.tagName.toLowerCase() : inside;
+    if ('childNodes' in node) for (const child of node.childNodes) visit(child, parent);
+    if ('content' in node) visit(node.content, parent);
   };
-  visit(document);
-  return ranges;
+  visit(document, '');
+  return { comments, text: shown };
 }
 
 interface Context {

@@ -1064,7 +1064,7 @@ function notFollowedRow(unfollowed: MovePlan['unfollowed']): Row {
     key: 'unfollowed',
     list: {
       intro:
-        'Each of these lines names a moved image by its old path, or the moved folder itself, in a form Upfly does not follow, and stays as written. A full address on the site itself, a path built when the code runs, or a rule that copies the folder may need the new place.',
+        'Each of these lines names a moved image by its old path, or the moved folder or a path inside it, in a form Upfly does not follow, and stays as written. A full address on the site itself, a path built when the code runs, or a rule that copies the folder may need the new place.',
       items: unfollowed.map((line) => `${line.file}:${line.line}  ${line.text}  ${line.why}`),
     },
   };
@@ -1170,7 +1170,6 @@ function moveRunRows(facts: MoveFacts): Row[] {
   return rows;
 }
 
-/** The sentence that ends a `move` run. */
 /** What the closing says about the lines a page still loads the image through. */
 function loadedThrough(lines: number, loading: number): string {
   const one = lines === 1;
@@ -1181,6 +1180,7 @@ function loadedThrough(lines: number, loading: number): string {
   return `: a page loads the image through ${which}, so ${act}`;
 }
 
+/** The sentence that ends a `move` run. */
 function moveClosing(facts: MoveFacts, references: number): string {
   const { plan } = facts;
   const images = count(plan.moves.length, 'image');

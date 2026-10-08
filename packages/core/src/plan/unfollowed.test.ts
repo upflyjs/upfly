@@ -166,7 +166,7 @@ describe('a place inside a reference Upfly read', () => {
 });
 
 describe('a place outside every reference', () => {
-  it('says where it sits: a comment, code, frontmatter, a file not read or not parsed', async () => {
+  it("says where it sits: a comment, code, frontmatter, a page's text, a file not read or not parsed", async () => {
     const root = await project({
       'public/img/a.png': 'IMAGE',
       'styles/site.css': '/* url(/img/a.png) */\n.x { color: red; }\n',
@@ -199,7 +199,7 @@ describe('a place outside every reference', () => {
       'docs/guide.md:2': { reason: 'data-or-props', why: expect.stringContaining('frontmatter') },
       'docs/guide.md:6': { reason: 'other', why: expect.stringContaining('code example') },
       'docs/guide.md:9': { reason: 'comment' },
-      'docs/guide.md:11': { reason: 'other', why: expect.stringContaining('takes no path') },
+      'docs/guide.md:11': { reason: 'other', why: expect.stringContaining('text of a page') },
       'public/icon.svg:1': { reason: 'unread-file-type', why: expect.stringContaining('.svg') },
       'src/broken.js:1': { reason: 'other', why: expect.stringContaining('could not parse') },
       'data/links.json:1': { reason: 'data-or-props' },
@@ -240,6 +240,83 @@ describe('a place outside every reference', () => {
     });
     expect(await linesFor(root, 'src/img/a.png')).toMatchObject({
       'src/both.vue:1': { reason: 'unread-file-type', text: './img/a.png' },
+    });
+  });
+});
+
+describe('whether a page still loads the image through a line', () => {
+  it('counts a value no reader takes a path from as loading, such as HTML inside a string', async () => {
+    // A shortcode returns this HTML for a page to show, so the image loads through it, and a
+    // move that leaves the line breaks every page it is on.
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'site.config.js':
+        'const avatar = `<img src="/img/a.png" alt="" loading="lazy">`;\nexport default { avatar };\n',
+    });
+
+    expect(await linesFor(root, 'public/img/a.png')).toMatchObject({
+      'site.config.js:1': { reason: 'other', loads: true },
+    });
+  });
+
+  it('counts an HTML attribute Upfly does not read as loading, and names the attribute', async () => {
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'index.html': [
+        '<!doctype html>',
+        '<img class="lazy" data-src="/img/a.png" alt="">',
+        `<img class="lazy" data-src="{{ '/img/a.png' | url }}" alt="">`,
+        '',
+      ].join('\n'),
+    });
+
+    expect(await linesFor(root, 'public/img/a.png')).toMatchObject({
+      'index.html:2': {
+        reason: 'data-or-props',
+        why: expect.stringContaining('data-src'),
+        loads: true,
+      },
+      'index.html:3': { loads: true },
+    });
+  });
+
+  it('counts a line as loading nothing only where Upfly read it: a comment, a code example, prose', async () => {
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'docs/guide.md': [
+        'The logo is /img/a.png, kept small.',
+        '',
+        'Copy it with `cp /img/a.png out/`.',
+        '',
+        '```js',
+        "load('/img/a.png');",
+        '```',
+        '',
+      ].join('\n'),
+      'about.html': '<!doctype html>\n<p>Our logo lives at /img/a.png.</p>\n<!-- /img/a.png -->\n',
+      'src/app.js': "// '/img/a.png'\nexport {};\n",
+    });
+
+    expect(await linesFor(root, 'public/img/a.png')).toMatchObject({
+      'docs/guide.md:1': { why: expect.stringContaining('text of a page'), loads: false },
+      'docs/guide.md:3': { why: expect.stringContaining('code example'), loads: false },
+      'docs/guide.md:6': { why: expect.stringContaining('code example'), loads: false },
+      'about.html:2': { why: expect.stringContaining('text of a page'), loads: false },
+      'about.html:3': { reason: 'comment', loads: false },
+      'src/app.js:1': { reason: 'comment', loads: false },
+    });
+  });
+
+  it("counts a script or a template engine's tag inside a page as loading", async () => {
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'index.html': '<!doctype html>\n<script>\n  hero.src = "/img/a.png";\n</script>\n',
+      'docs/page.md': 'The logo:\n\n{% image "/img/a.png", "The logo" %}\n',
+    });
+
+    expect(await linesFor(root, 'public/img/a.png')).toMatchObject({
+      'index.html:3': { reason: 'other', loads: true },
+      'docs/page.md:3': { reason: 'other', why: expect.stringContaining('Nunjucks'), loads: true },
     });
   });
 });

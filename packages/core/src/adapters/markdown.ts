@@ -13,7 +13,7 @@ import { UpflyError } from '../errors.js';
 import { extensionOf } from '../paths.js';
 import type { Adapter, RawReference } from '../types.js';
 import { defineAdapter } from './define.js';
-import { htmlAdapter } from './html.js';
+import { htmlAdapter, htmlRegions } from './html.js';
 import { findJavaScriptReferences, javaScriptParseOutcome } from './javascript.js';
 import {
   ENCODED_BACKSLASH_REASON,
@@ -758,30 +758,43 @@ function addReference(
   });
 }
 
-/** A region of Markdown text the readers leave alone, as `markdownRegionAt` names it. */
-export type InactiveMarkdown = 'comment' | 'code' | 'frontmatter';
+/**
+ * What a Markdown text holds at an offset, as `markdownRegionAt` names it: a region no reader
+ * looks in, or the text a page shows, given as that run of text up to the offset with code
+ * blanked, so a template engine's tag still open there can be told apart.
+ */
+export type MarkdownRegion = 'comment' | 'code' | 'frontmatter' | { readonly shown: string };
 
 /**
- * What a Markdown text holds at an offset where no reader looks: an HTML comment, code (a
- * fence, an indented block or a code span), or the YAML frontmatter at the very start, which
- * no adapter reads. `null` is text the readers do read. The regions are the ones
- * `maskInactiveRegions` blanks, told apart.
+ * What a Markdown text holds at an offset: an HTML comment, code (a fence, an indented block
+ * or a code span), the YAML frontmatter at the very start, which no adapter reads, or text a
+ * page shows, outside any tag and outside `<script>` and `<style>`. `null` is anything else,
+ * such as an attribute of raw HTML. MDX claims no shown text, since its expressions and
+ * `import` and `export` blocks are code a reader would have to tell apart from prose.
  *
  * @param extension `.md`, `.markdown` or `.mdx`, which has no indented code blocks
  */
 export function markdownRegionAt(
   text: string,
   extension: string,
-): (offset: number) => InactiveMarkdown | null {
+): (offset: number) => MarkdownRegion | null {
   const bodyStart = FRONTMATTER.exec(text)?.[0].length ?? 0;
   const masked = maskInactiveRegions(text, { indentedCode: extension !== '.mdx' });
   const comments = [...maskFencedBlocks(text).matchAll(/<!--[\s\S]*?-->/g)].map(
     (match) => [match.index, match.index + match[0].length] as const,
   );
+  // The HTML parser reads the masked text as the adapter's HTML pass does, so what it calls
+  // text is what neither a tag nor a script holds.
+  let runs: readonly (readonly [number, number])[] | undefined;
   return (offset) => {
     if (offset < bodyStart) return 'frontmatter';
-    if (masked[offset] === text[offset]) return null;
-    return comments.some(([start, end]) => start <= offset && offset < end) ? 'comment' : 'code';
+    if (masked[offset] !== text[offset]) {
+      return comments.some(([start, end]) => start <= offset && offset < end) ? 'comment' : 'code';
+    }
+    if (extension === '.mdx') return null;
+    runs ??= htmlRegions(masked).text;
+    const run = runs.find(([start, end]) => start <= offset && offset < end);
+    return run === undefined ? null : { shown: masked.slice(run[0], offset) };
   };
 }
 

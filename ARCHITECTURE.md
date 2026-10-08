@@ -2344,23 +2344,32 @@ the search after the encodes does not claim one for a file written while Upfly w
 
 **What a move leaves behind, split by whether a page loads it.** Every line the move does not
 rewrite carries `loads`: whether a page can still load the image through it, so the move
-breaks that page unless somebody changes the line. Everything Upfly cannot read counts as
-able to load it (a file type it does not read, frontmatter, a path built at runtime, a value
-in data or props, a full address, a page the run excluded); only a place something read and
-found to load nothing is false (a comment, a code example, prose). The summary and the
-closing say how many of each, because the first kind is the one to look at: on eleventy-docs,
-`move src/img src/img-moved` listed twelve lines and the built site lost 230 image
-references, every one of them from six of those lines.
+breaks that page unless somebody changes the line. Only a place a parser read and found to
+load nothing is false: a comment, a code example, or text a page shows, which in HTML and
+Markdown is the text between tags outside `<script>`, `<style>` and a template engine's tag
+(`{% image "/img/a.png" %}` is read by the engine, so it loads). Everything else counts as
+able to load it: a file type Upfly does not read, frontmatter, a path built at runtime, a
+value in data or props, a full address, a page the run excluded, and a value no reader took a
+path from, such as HTML written inside a JavaScript string, which a shortcode puts on a page.
+MDX and Astro claim no shown text, since text there can be an expression. The error this
+leaves is a line counted as loading that does not, which costs a glance; the other way round
+a page breaks. The summary and the closing say how many of each, because the first kind is
+the one to look at: on eleventy-docs, `move src/img src/img-moved` listed twelve lines and the
+built site lost 230 image references, every one of them from six of those lines.
 
-**A folder move also lists the lines that name the folder itself** (`linesNamingFolders`): a
-rule that copies it, a pattern that matches inside it, a path built from it at run time. Each
-names no image, so nothing rewrites it, and after the move it points at a folder that is not
-there; what a copy rule should become is the project's decision, so the line is listed and
-never rewritten. The match has to be the whole of a path segment, or `src/img` would be found
-inside `src/images`, and a URL counts only with something under it, since `/blogs` alone is
-the page of that name rather than the folder a site serves from. Measured on four folder
-moves across three projects before it was built: of 95, 14, 64 and 353 occurrences of a
-folder's spellings, the rules above leave 15, 9, 2 and 0 lines to list, the rest being parts
+**A folder move also lists the lines that name the folder** (`linesNamingFolders`): a rule
+that copies it, a pattern that matches inside it, a path built from it at run time, or a path
+inside it that is none of the images moving, such as a file a build writes. Each names no
+image the move takes, so nothing rewrites it, and after the move it points at a folder that is
+not there; what a copy rule should become is the project's decision, so the line is listed
+and never rewritten. Whether one loads is read from where it sits, as for an image's lines:
+twelve of the fifteen such lines on eleventy-docs sit in its documentation's code examples.
+The match has to be the whole of a path segment, or `src/img` would be found inside
+`src/images`, and a URL counts only with something under it, since `/blogs` alone is the page
+of that name rather than the folder a site serves from. A link to a page built from that URL,
+`/blogs/${id}`, still looks like a path built from the folder, and is listed. Measured on four
+folder moves across three projects before it was built: of 95, 14, 64 and 353 occurrences of
+a folder's spellings, the rules above leave 15, 9, 2 and 0 lines to list, the rest being parts
 of longer names or lines the move already rewrites or lists.
 
 ### Every line that names an image
@@ -2395,8 +2404,9 @@ path is resolved from the file that holds it, as an unasserted reference would b
 file, then from the project root, from a serving root or through an alias, with letter case
 folded. One that leads to another image, or into an excluded folder, names that file. What is
 left is listed with where it sits: a file the run excluded, a type no adapter reads, a file
-that did not parse, a comment, Markdown code or frontmatter, or plain text. Comments are found
-by the parser of the adapter that reads the file, Babel, parse5 or PostCSS, and Markdown's own
+that did not parse, a comment, Markdown code or frontmatter, a page's text, a template
+engine's tag, or a value no reader took a path from. Comments and a page's text are found by
+the parser of the adapter that reads the file, Babel, parse5 or PostCSS, and Markdown's own
 masks, never by a pattern over code.
 
 A place Upfly cannot pin on another file is listed rather than dropped, as the independent

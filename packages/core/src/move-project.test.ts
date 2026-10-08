@@ -195,6 +195,58 @@ const glob = 'public/img/**';
     expect(plan.unfollowed.every((line) => line.loads)).toBe(true);
   });
 
+  it('takes whether a line naming the folder loads from where it sits, and says when it names a path inside', async () => {
+    // Documentation that writes the folder in an example or in prose loads nothing through it,
+    // and a link to a file a build writes into the folder names that file, not the folder.
+    const root = await project({
+      'public/img/hero.png': 'IMAGE',
+      'index.html': '<img src="/img/hero.png" alt="">\n',
+      'build.config.js': "copy('public/img');\n// copy('public/img');\n",
+      'docs/setup.md': [
+        'Put images in `public/img` before you build.',
+        '',
+        'The build copies public/img to the site.',
+        '',
+        '```js',
+        "copy('public/img');",
+        '```',
+        '',
+      ].join('\n'),
+      'layout.njk': '<link rel="icon" href="/img/favicon.png">\n',
+    });
+
+    const { plan } = await moveProject({
+      root,
+      declared: SERVED,
+      apply: false,
+      moves: [{ from: 'public/img', to: 'public/pictures' }],
+    });
+
+    const lines = Object.fromEntries(
+      plan.unfollowed.map((line) => [`${line.file}:${line.line}`, line]),
+    );
+    expect(Object.keys(lines).sort()).toEqual([
+      'build.config.js:1',
+      'build.config.js:2',
+      'docs/setup.md:1',
+      'docs/setup.md:3',
+      'docs/setup.md:6',
+      'layout.njk:1',
+    ]);
+    expect(lines).toMatchObject({
+      'build.config.js:1': { loads: true, why: expect.stringContaining('the folder itself') },
+      'build.config.js:2': { loads: false, why: expect.stringContaining('in a comment') },
+      'docs/setup.md:1': { loads: false, why: expect.stringContaining('code example') },
+      'docs/setup.md:3': { loads: false, why: expect.stringContaining('text of a page') },
+      'docs/setup.md:6': { loads: false, why: expect.stringContaining('code example') },
+      'layout.njk:1': {
+        loads: true,
+        why: expect.stringContaining('a path inside the moved folder'),
+      },
+    });
+    expect(plan.unfollowed.every((line) => line.reason === 'folder')).toBe(true);
+  });
+
   it('cites a reference that cannot follow, and writes nothing for a refused move', async () => {
     const root = await project({
       'public/a.png': 'IMAGE',

@@ -73,7 +73,7 @@
           },
           "why": { "description": "The reason, as a sentence.", "type": "string" },
           "loads": {
-            "description": "Whether a page can still load the image through this line, so a move breaks it unless somebody changes it by hand. False for a line nothing loads: a comment, a code example, prose.",
+            "description": "Whether a page can still load the image through this line, so a move breaks it unless somebody changes it by hand. False only where Upfly read the place and found that nothing loads it: a comment, a code example, or text a page shows. A value no reader takes a path from counts as loading.",
             "type": "boolean"
           },
           "host": { "description": "The host, for a full address.", "type": "string" }

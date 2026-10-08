@@ -14,9 +14,10 @@
 
 import { join } from 'node:path';
 import { cssCommentRanges } from '../adapters/css.js';
-import { htmlCommentRanges } from '../adapters/html.js';
+import { htmlRegions } from '../adapters/html.js';
 import { javaScriptCommentRanges } from '../adapters/javascript.js';
-import { type InactiveMarkdown, markdownRegionAt } from '../adapters/markdown.js';
+import { type MarkdownRegion, markdownRegionAt } from '../adapters/markdown.js';
+import { TEMPLATE_HOLES, type TemplateHole } from '../adapters/reference-path.js';
 import { withheldReferences } from '../audit/resolution-health.js';
 import type { Graph } from '../graph/graph.js';
 import { compareStrings, extensionOf, relativePath } from '../paths.js';
@@ -65,8 +66,8 @@ export interface UnfollowedLine {
   readonly why: string;
   /**
    * Whether a page can still load the image through this line, so a move breaks it unless
-   * somebody changes it by hand. False for a line nothing loads: a comment, a code example,
-   * prose.
+   * somebody changes it by hand. False only where Upfly read the place and found that nothing
+   * loads it: a comment, a code example, or text a page shows.
    */
   readonly loads: boolean;
   /**
@@ -147,25 +148,23 @@ const OTHER_CASE =
 const UNPLACED_ROOT =
   "a path from the site's root, which Upfly cannot follow while it cannot tell the folder the site is served from";
 const UNKNOWN_ALIAS = 'written through an alias that no configuration Upfly reads defines';
-const NAMES_THE_FOLDER =
+const IN_SHOWN_TEXT = 'in the text of a page, which shows the path rather than loads it';
+const NOT_READ_HERE =
+  'Upfly reads this file but takes no path from this text, such as HTML written inside a string, so a page may still load the image through it';
+const FOLDER_ITSELF =
   'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide';
-const NOT_A_PATH_HERE =
-  'Upfly reads this file but takes no path from this text: prose, or a value no reader takes for a file';
+const INSIDE_THE_FOLDER =
+  'it names a path inside the moved folder rather than one of the images moving, such as a file a build writes, so the move leaves it as written';
 
 /** How much of a path as written is kept, as the old-path search caps a line. */
 const TEXT_CAP = 120;
 
 /**
- * Whether a page can still load the image through a line Upfly does not follow.
- *
- * Everything Upfly cannot read is taken as able to load it: a file type it does not read,
- * frontmatter, a path built at runtime, a value in data or props, a full address, a page the
- * run excluded. Only a place something has read and found to load nothing is false.
+ * The tags a template engine fills in before a page is served, `{% image "a.png" %}` among
+ * them. The holes a resolver globs are a language's own interpolation instead, such as a
+ * JavaScript template literal's, which a page's text does not hold.
  */
-function stillLoads(reason: UnfollowedReason, why: string): boolean {
-  if (reason === 'comment') return false;
-  return why !== IN_CODE_EXAMPLE && why !== NOT_A_PATH_HERE;
-}
+const ENGINE_TAGS: readonly TemplateHole[] = TEMPLATE_HOLES.filter((hole) => !hole.globbed);
 
 /** The verdict on one place the search found. */
 type Verdict =
@@ -177,11 +176,16 @@ type Verdict =
   /** Outside every reference: what the resolver makes of the path decides. */
   | { readonly resolve: RawReference; readonly listed: Listed };
 
-interface Listed {
-  readonly reason: UnfollowedReason;
-  readonly why: string;
+interface Listed extends Place {
   readonly text: string;
   readonly host?: string;
+}
+
+/** Why a line is not followed, and whether a page still loads the image through it. */
+interface Place {
+  readonly reason: UnfollowedReason;
+  readonly why: string;
+  readonly loads: boolean;
 }
 
 /** One place that may list its line: settled, or waiting on where `raw` leads. */
@@ -292,13 +296,7 @@ function candidateFor(
   verdict: Listed | { readonly resolve: RawReference; readonly listed: Listed },
 ): Candidate {
   const listed = 'resolve' in verdict ? verdict.listed : verdict;
-  const line = {
-    image,
-    file,
-    line: occurrence.line,
-    ...listed,
-    loads: stillLoads(listed.reason, listed.why),
-  };
+  const line = { image, file, line: occurrence.line, ...listed };
   const at = { offset: occurrence.offset, spelling: occurrence.spelling };
   return 'resolve' in verdict ? { line, raw: verdict.resolve, at } : { line, at };
 }
@@ -414,7 +412,7 @@ function placeOf(
   occurrence: PathOccurrence,
   text: string,
   references: readonly Reference[],
-  regions: () => (offset: number) => InactiveMarkdown | null,
+  regions: () => RegionAt,
   context: Context,
 ): Verdict {
   const start = occurrence.offset;
@@ -423,12 +421,14 @@ function placeOf(
   const written = shown(text.slice(token.start, token.end));
   const reference = innermost(references, start);
   if (reference !== undefined) {
-    return readReference(
+    const read = readReference(
       reference,
       image,
       reference.unread === true ? written : capped(reference.rawPath),
       context,
     );
+    // Upfly took the text for a path, so a page may load the image through it, followed or not.
+    return typeof read === 'string' ? read : { ...read, loads: true };
   }
 
   // A name that carries on past the match, or a folder name the match begins inside, is
@@ -439,13 +439,19 @@ function placeOf(
   const address = addressIn(text.slice(token.start, end));
   if (address !== null) {
     return addressOwners(address.path, context.addresses)?.has(image) === true
-      ? { reason: 'full-address', why: FULL_ADDRESS, text: written, host: address.host }
+      ? {
+          reason: 'full-address',
+          why: FULL_ADDRESS,
+          loads: true,
+          text: written,
+          host: address.host,
+        }
       : 'elsewhere';
   }
   if (holeBefore(text, token.start, start)) {
-    return { reason: 'built-at-runtime', why: BUILT_AT_RUNTIME, text: written };
+    return { reason: 'built-at-runtime', why: BUILT_AT_RUNTIME, loads: true, text: written };
   }
-  const [reason, why] = whereItSits(occurrence.file, start, regions, context);
+  const place = whereItSits(occurrence.file, start, regions, context);
   const from = token.start + afterPrefix(text.slice(token.start, start));
   return {
     // Unasserted, so a path that names no file beside its own is also read from the project
@@ -460,7 +466,7 @@ function placeOf(
       ceiling: 'high',
       asserted: false,
     },
-    listed: { reason, why, text: written },
+    listed: { ...place, text: written },
   };
 }
 
@@ -481,7 +487,7 @@ function readReference(
   image: string,
   text: string,
   context: Context,
-): Verdict {
+): 'covered' | 'elsewhere' | Omit<Listed, 'loads'> {
   switch (reference.resolution) {
     case 'resolved':
     case 'resolved-pattern':
@@ -544,56 +550,105 @@ function innermost(references: readonly Reference[], offset: number): Reference 
   return best;
 }
 
-/** Why a place outside every reference is not followed, from the file and what holds it. */
+/** What a file holds at an offset, as the parser of the adapter that reads the file says. */
+type RegionAt = (offset: number) => MarkdownRegion | null;
+
+/**
+ * Why a place outside every reference is not followed, from the file and what holds it, and
+ * whether a page still loads the image through it. Only a place a parser read and found to
+ * load nothing does not: a comment, a code example, or text a page shows. Everything else
+ * counts as loading, a value no reader took a path from among them.
+ */
 function whereItSits(
   file: string,
   offset: number,
-  regions: () => (offset: number) => InactiveMarkdown | null,
-  context: Context,
-): readonly [UnfollowedReason, string] {
-  if (context.excluded.has(file)) return ['other', EXCLUDED_FILE];
+  regions: () => RegionAt,
+  context: Pick<Context, 'excluded' | 'unscanned'>,
+): Place {
+  if (context.excluded.has(file)) return { reason: 'other', why: EXCLUDED_FILE, loads: true };
   const unscanned = context.unscanned.get(file);
-  if (unscanned !== undefined) {
-    if (unscanned.reason === 'unclaimed-extension') {
-      return [
-        'unread-file-type',
-        unscanned.extension === ''
-          ? 'in a file with no extension, a type Upfly does not read'
-          : `in a ${unscanned.extension} file, a type Upfly does not read`,
-      ];
-    }
-    return unscanned.reason === 'parse-failed'
-      ? ['other', `in a file Upfly could not parse: ${firstLine(unscanned.detail)}`]
-      : ['other', 'in a file Upfly could not read'];
-  }
-  switch (regions()(offset)) {
+  if (unscanned !== undefined) return { ...unreadFile(unscanned), loads: true };
+  const region = regions()(offset);
+  switch (region) {
     case 'comment':
-      return ['comment', IN_COMMENT];
+      return { reason: 'comment', why: IN_COMMENT, loads: false };
     case 'code':
-      return ['other', IN_CODE_EXAMPLE];
+      return { reason: 'other', why: IN_CODE_EXAMPLE, loads: false };
     case 'frontmatter':
-      return ['data-or-props', IN_FRONTMATTER];
-    default:
-      return ['other', NOT_A_PATH_HERE];
+      return { reason: 'data-or-props', why: IN_FRONTMATTER, loads: true };
+    case null:
+      return { reason: 'other', why: NOT_READ_HERE, loads: true };
+    default: {
+      const tag = openTag(region.shown);
+      return tag === null
+        ? { reason: 'other', why: IN_SHOWN_TEXT, loads: false }
+        : { reason: 'other', why: `in ${tag.name}, which Upfly does not read`, loads: true };
+    }
   }
 }
 
-const MARKDOWN = new Set(['.md', '.markdown', '.mdx']);
-const HTML_COMMENTS = new Set(['.html', '.htm', '.astro']);
+/** Why a place in a file the scan did not read is not followed. */
+function unreadFile(unscanned: UnscannedFile): Omit<Place, 'loads'> {
+  if (unscanned.reason === 'unclaimed-extension') {
+    return {
+      reason: 'unread-file-type',
+      why:
+        unscanned.extension === ''
+          ? 'in a file with no extension, a type Upfly does not read'
+          : `in a ${unscanned.extension} file, a type Upfly does not read`,
+    };
+  }
+  return unscanned.reason === 'parse-failed'
+    ? { reason: 'other', why: `in a file Upfly could not parse: ${firstLine(unscanned.detail)}` }
+    : { reason: 'other', why: 'in a file Upfly could not read' };
+}
 
 /**
- * Where a file holds comments, and for Markdown its code and frontmatter, read by the parser
- * of the adapter that reads the file. A file none of them parses has none it can say.
+ * The template engine's tag still open at the end of a page's text, or null: its opener with
+ * no closer after it, as in `{% image "/img/a.png"`. The engine reads what the tag holds, so
+ * a path there can load an image as any value can.
  */
-function regionsOf(file: string, text: string): (offset: number) => InactiveMarkdown | null {
+function openTag(shown: string): TemplateHole | null {
+  let open: TemplateHole | null = null;
+  let at = -1;
+  for (const hole of ENGINE_TAGS) {
+    const opened = shown.lastIndexOf(hole.opener);
+    if (opened <= at || shown.includes(hole.closer, opened + hole.opener.length)) continue;
+    open = hole;
+    at = opened;
+  }
+  return open;
+}
+
+const MARKDOWN = new Set(['.md', '.markdown', '.mdx']);
+
+/** Pages whose text between tags a visitor reads. Astro's holds expressions instead. */
+const PAGES = new Set(['.html', '.htm']);
+
+/**
+ * Where a file holds comments, and for Markdown its code and frontmatter, and for a page the
+ * text it shows, read by the parser of the adapter that reads the file. A file none of them
+ * parses has none it can say.
+ */
+function regionsOf(file: string, text: string): RegionAt {
   const extension = extensionOf(file).toLowerCase();
   if (MARKDOWN.has(extension)) return markdownRegionAt(text, extension);
-  const ranges = HTML_COMMENTS.has(extension)
-    ? htmlCommentRanges(text)
-    : (cssCommentRanges(text, extension) ?? javaScriptCommentRanges(text, extension));
+  if (PAGES.has(extension) || extension === '.astro') {
+    const regions = htmlRegions(text);
+    const runs = PAGES.has(extension) ? regions.text : [];
+    return (offset) => {
+      if (holds(regions.comments, offset)) return 'comment';
+      const run = runs.find(([start, end]) => start <= offset && offset < end);
+      return run === undefined ? null : { shown: text.slice(run[0], offset) };
+    };
+  }
+  const ranges = cssCommentRanges(text, extension) ?? javaScriptCommentRanges(text, extension);
   if (ranges === null) return () => null;
-  return (offset) =>
-    ranges.some(([start, end]) => start <= offset && offset < end) ? 'comment' : null;
+  return (offset) => (holds(ranges, offset) ? 'comment' : null);
+}
+
+function holds(ranges: readonly (readonly [number, number])[], offset: number): boolean {
+  return ranges.some(([start, end]) => start <= offset && offset < end);
 }
 
 /**
@@ -768,10 +823,14 @@ function lazily<T>(make: () => T): () => T {
 
 /** What `linesNamingFolders` needs: the folders, the files, and what the plan already covers. */
 export interface FolderLinesInput {
+  /** The project as the scan read it, which says what holds each line the search finds. */
+  readonly graph: Graph;
   /** The folders being moved, POSIX-relative to the project root. */
   readonly folders: readonly string[];
   /** Every file to search, as `UnfollowedInput.files`. */
   readonly files: readonly string[];
+  /** The files in `files` that the run's ignore rules excluded. */
+  readonly excludedFiles: readonly string[];
   /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
   readonly readFile: (relative: string) => Promise<string>;
   readonly servingRoots: ServingRoots;
@@ -785,17 +844,18 @@ export interface FolderLinesInput {
 }
 
 /**
- * Every line that names a moved folder itself rather than an image in it: a build's rule
- * that copies the folder, a pattern that matches inside it, a path built from it at runtime.
+ * Every line that names a moved folder rather than an image in it: a build's rule that copies
+ * the folder, a pattern that matches inside it, a path built from it at runtime, or a path to
+ * a file inside it that is none of the images moving, such as one a build writes.
  *
  * A move rewrites references to images, and a line like this names no image, so nothing
  * rewrites it and after the move it points at a folder that is not there. Listing it is all
- * Upfly can do: what a copy rule or a glob should become is the project's decision.
+ * Upfly can do: what a copy rule or a glob should become is the project's decision. Whether a
+ * page loads anything through the line is read from where it sits, as for an image's lines.
  *
  * The match has to be the whole of a path segment, or `src/img` would be found inside
- * `src/images`. A URL counts only with something under it, since `/blogs` alone is the page
- * of that name rather than the folder a site serves from: measured on three projects, where
- * that one rule takes a folder move from 7 false lines to none on the largest of them.
+ * `src/images`, and a URL counts only with something under it, since `/blogs` alone is the
+ * page of that name. See "The independent check" in ARCHITECTURE.md.
  *
  * @param input the folders, the files to search, and what the plan already covers
  * @returns the lines, by file then line, and the files that could not be read
@@ -817,40 +877,99 @@ export async function linesNamingFolders(input: FolderLinesInput): Promise<{
       new Set(spellingsFor(folder, input.servingRoots.dirs).map(foldCase)),
     ]),
   );
-
-  const edited = new Map<string, ReadonlySet<number>>();
-  for (const [file, offsets] of input.rewritten) {
-    const text = found.texts.get(file);
-    if (text === undefined) continue;
-    const lineAt = lineIndex(text);
-    edited.set(file, new Set(offsets.map(lineAt)));
-  }
+  const covered = coveredLines(input, found.texts);
+  const sits = placeReader(input, found.texts);
 
   const lines: UnfollowedLine[] = [];
   const seen = new Set<string>();
   for (const place of found.occurrences) {
     const text = found.texts.get(place.file) ?? '';
-    if (!wholeSegment(text, place.offset, place.offset + place.spelling.length, place.spelling)) {
-      continue;
-    }
+    const end = place.offset + place.spelling.length;
+    if (!wholeSegment(text, place.offset, end, place.spelling)) continue;
     const at = `${place.file}:${place.line}`;
-    if (input.listed.has(at) || edited.get(place.file)?.has(place.line) === true) continue;
-    if (seen.has(at)) continue;
-    const folder = [...byFolder].find(([, holds]) => holds.has(foldCase(place.spelling)))?.[0];
+    if (covered(place.file, place.line) || seen.has(at)) continue;
+    const folder = [...byFolder].find(([, spellings]) => spellings.has(foldCase(place.spelling)));
     if (folder === undefined) continue;
     seen.add(at);
     lines.push({
-      image: folder,
+      image: folder[0],
       file: place.file,
       line: place.line,
       text: shown(lineTextAt(text, place.offset)),
       reason: 'folder',
-      why: NAMES_THE_FOLDER,
-      loads: true,
+      ...folderVerdict(namesInside(text, end), sits(place.file, place.offset)),
     });
   }
   lines.sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line);
   return { lines, unsearchable: found.unsearchable };
+}
+
+/** Whether the move already lists a line, or rewrites a reference on it. */
+function coveredLines(
+  input: FolderLinesInput,
+  texts: ReadonlyMap<string, string>,
+): (file: string, line: number) => boolean {
+  const edited = new Map<string, ReadonlySet<number>>();
+  for (const [file, offsets] of input.rewritten) {
+    const text = texts.get(file);
+    if (text === undefined) continue;
+    const lineAt = lineIndex(text);
+    edited.set(file, new Set(offsets.map(lineAt)));
+  }
+  return (file, line) =>
+    input.listed.has(`${file}:${line}`) || edited.get(file)?.has(line) === true;
+}
+
+/**
+ * What holds a place in a file the search read: a reference Upfly read, which counts as
+ * loading, given as null, or the place `whereItSits` says.
+ */
+function placeReader(
+  input: FolderLinesInput,
+  texts: ReadonlyMap<string, string>,
+): (file: string, offset: number) => Place | null {
+  const references = referencesByFile(input.graph, texts);
+  const context = {
+    excluded: new Set(input.excludedFiles),
+    unscanned: new Map(input.graph.unscannedFiles.map((file) => [file.relative, file])),
+  };
+  const readers = new Map<string, () => RegionAt>();
+  return (file, offset) => {
+    if (innermost(references.get(file) ?? [], offset) !== undefined) return null;
+    let regions = readers.get(file);
+    if (regions === undefined) {
+      const text = texts.get(file) ?? '';
+      regions = lazily(() => regionsOf(file, text));
+      readers.set(file, regions);
+    }
+    return whereItSits(file, offset, regions, context);
+  };
+}
+
+/**
+ * Whether the text goes on past the folder into a path inside it, as `/img/favicon.png` does,
+ * rather than ending at the folder or going on into a pattern or a template's hole.
+ */
+function namesInside(text: string, end: number): boolean {
+  const separator = text.charAt(end);
+  if (separator !== '/' && separator !== '\\') return false;
+  if (TEMPLATE_HOLES.some((hole) => text.startsWith(hole.opener, end + 1))) return false;
+  return NAME_CHARACTER.test(text.charAt(end + 1));
+}
+
+/**
+ * The sentence for a line naming a moved folder, and whether a page loads anything through
+ * it: as the place says, where a reference Upfly read, given as null, always loads.
+ */
+function folderVerdict(inside: boolean, place: Place | null): Pick<Place, 'why' | 'loads'> {
+  if (place === null || place.loads) {
+    return { why: inside ? INSIDE_THE_FOLDER : FOLDER_ITSELF, loads: true };
+  }
+  // The sentence for a comment speaks of an image's path, which moves with the references; a
+  // folder's never does.
+  const where = place.reason === 'comment' ? 'in a comment, which no page loads' : place.why;
+  const what = inside ? 'a path inside the moved folder' : 'the moved folder';
+  return { why: `it names ${what} ${where}`, loads: false };
 }
 
 /** The characters a file or folder name is made of, for deciding where a match ends. */
