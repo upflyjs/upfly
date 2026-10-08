@@ -2703,6 +2703,23 @@ above that reads skills; an agent that reads both folders sees two copies of one
 picks before `AGENTS.md` is left alone: each of those belongs to another agent that reads
 `AGENTS.md` too.
 
+#### `upfly mcp`
+
+For an app that reaches tools only through MCP, `upfly mcp` serves the commands over standard input
+and output (`@modelcontextprotocol/server`, which brings no web server and no login code). It adds
+nothing a command does not do: **each tool runs `upfly <command> --json` as a child process whose
+working folder is the project, and answers with the line it printed last**, so the parsing, the
+refusals and the JSON are the command's own by construction, and a run that crashes ends its own
+process rather than the server. Each tool's arguments are the command's flags under its own schema,
+which refuses a key it does not know; `--allow-dirty` has no argument, and `init` no tool, so a
+tool that writes needs a clean folder and never writes into the agent's instruction files. A tool
+that writes acts only when a call sets `apply`, and `undo`'s schema makes `apply` required. The
+child gets the server's own Node options, so a preload such as the no-network test's reaches every
+command; a progress line becomes a progress notification for a client that asked for them; and a
+call the client cancels ends its child, which leaves what any interrupted run leaves, a record
+`undo` follows. `main.ts` imports the module only for `mcp`, so no other command loads the library,
+which a test of the modules each command loads holds.
+
 **The configuration file is `upfly.config.ts` (or `.js` and their module forms), or
 `upfly.config.json`, in the directory the command runs on.** The code forms load through c12 with
 everything a user did not ask for turned off: `extends` layers, which c12 would download from a

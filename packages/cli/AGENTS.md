@@ -219,3 +219,30 @@ agents look for a project's skills, and adds a short marked block pointing at Up
 `AGENTS.md` (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there.
 It changes nothing outside that block and asks nothing; with the user's yes, commit the
 files it names.
+
+## Through MCP
+
+For an app that reaches tools only through MCP, such as Claude Desktop, `npx upfly mcp`
+serves the same commands as an MCP server over standard input and output. There is one tool
+for each of `audit`, `check`, `refs`, `optimize`, `dedupe`, `move` and `undo`. Each takes
+the command's options as arguments, as its schema lists them, and answers with the line the
+command prints last with `--json`: the same result, or the same error line with its
+`reason`. `audit`, `check` and `refs` change no file. `optimize`, `dedupe` and `move` write
+only when a call sets `apply` to true, and then refuse what the command refuses; `undo`
+needs `apply` set to true. No tool runs `init`, and none takes `--allow-dirty`. A tool reads
+the folder its call names, and otherwise the folder given after `mcp`.
+
+Register it as a server the client starts, giving it the project's folder. In Claude
+Desktop's config, and in that of most clients:
+
+```json
+{
+  "mcpServers": {
+    "upfly": { "command": "npx", "args": ["-y", "upfly", "mcp", "/path/to/project"] }
+  }
+}
+```
+
+With Claude Code: `claude mcp add upfly -- npx -y upfly mcp /path/to/project`. On Windows,
+a client that cannot start npx itself takes `"command": "cmd"` with `"/c", "npx"` before the
+same arguments.

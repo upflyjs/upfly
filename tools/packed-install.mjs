@@ -14,11 +14,11 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { missingFromPack, tarPaths } from './pack-check.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,6 +77,22 @@ function fingerprint(root) {
 }
 
 /**
+ * The bytes of every file under `root`, links not followed, to say what an install weighs.
+ *
+ * @param {string} root
+ * @returns {number}
+ */
+function folderBytes(root) {
+  let bytes = 0;
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) bytes += folderBytes(full);
+    else if (entry.isFile()) bytes += statSync(full).size;
+  }
+  return bytes;
+}
+
+/**
  * A copy of the plain HTML fixture at `into`, leaving out any `node_modules`, whose links
  * Windows lets only some users create.
  *
@@ -109,6 +125,7 @@ mkdirSync(user);
 run('npm', ['init', '--yes'], user);
 run('npm', ['install', '--no-audit', '--no-fund', ...tarballs], user);
 const version = run('npx', ['--no', '--', 'upfly', '--version'], user).trim();
+const installed = folderBytes(path.join(user, 'node_modules'));
 const expectedVersion = JSON.parse(
   readFileSync(path.join(ROOT, 'packages/cli/package.json'), 'utf8'),
 ).version;
@@ -135,6 +152,34 @@ for (const line of lines) {
     failures.push(`audit's ${line.type} line: ${ajv.errorsText(validate?.errors)}`);
 }
 if (lines.at(-1)?.type !== 'result') failures.push('audit --json printed no result');
+
+// `upfly mcp` as installed, through the MCP library's own client: its tools are listed, and
+// one answers as its command does, which a dependency missing from the package would stop.
+const cliRequire = createRequire(path.join(ROOT, 'packages/cli/package.json'));
+const { Client } = await import(
+  pathToFileURL(cliRequire.resolve('@modelcontextprotocol/client')).href
+);
+const { StdioClientTransport } = await import(
+  pathToFileURL(cliRequire.resolve('@modelcontextprotocol/client/stdio')).href
+);
+const installedBin = path.join(user, 'node_modules', 'upfly', 'dist', 'bin.js');
+const client = new Client({ name: 'packed-install', version: '1.0.0' });
+await client.connect(
+  new StdioClientTransport({ command: process.execPath, args: [installedBin, 'mcp', project] }),
+);
+const tools = (await client.listTools()).tools.map(
+  (/** @type {{ name: string }} */ tool) => tool.name,
+);
+const answer = await client.callTool({ name: 'check', arguments: {} });
+await client.close();
+const checked = run('npx', ['--no', '--', 'upfly', 'check', project, '--json'], user, 1)
+  .trimEnd()
+  .split('\n')
+  .at(-1);
+if (tools.length !== 7) failures.push(`upfly mcp listed ${tools.length} tools, not 7: ${tools}`);
+if (answer.content?.[0]?.text !== checked) {
+  failures.push(`upfly mcp's check answered ${answer.content?.[0]?.text}, not ${checked}`);
+}
 
 // Written, committed, and undone, in a repository of the project's own.
 const repo = path.join(work, 'repository');
@@ -175,7 +220,7 @@ if (different.length > 0) failures.push(`undo left ${different.join(', ')} diffe
 
 process.stdout.write(
   failures.length === 0
-    ? `\npacked install: upfly ${version} installed from its tarball, audit's JSON matches the shipped schemas, and ${written.length} files written, ${removed.length} removed, committed and undone\n`
+    ? `\npacked install: upfly ${version} installed from its tarball (node_modules ${(installed / 1024 / 1024).toFixed(1)} MB), audit's JSON matches the shipped schemas, and ${written.length} files written, ${removed.length} removed, committed and undone\n`
     : `\npacked install failed:\n${failures.map((failure) => `  ${failure}`).join('\n')}\n`,
 );
 process.exit(failures.length === 0 ? 0 : 1);

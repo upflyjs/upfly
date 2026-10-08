@@ -28,8 +28,10 @@ Commands:
                    Move an image, or the images in a folder, update the references Upfly
                    can rewrite, and list every other line that still names the old path.
                    Deletes nothing; shows the plan unless run with --apply.
+  mcp [dir]        Serve these commands to an MCP client, such as Claude Desktop, over
+                   standard input and output. Its tools write only when a call says apply.
 
-Options for every command:
+Options for every command but mcp:
   --json         Print one JSON object per line: progress, then the result
   -h, --help     Show help for a command
   -v, --version  Print the version
@@ -287,6 +289,25 @@ outside the project or one that names no image; 3 when Upfly refused to write, o
 every move asked for, and the message says why; 4 for a failure Upfly did not anticipate.
 `;
 
+const MCP = `Usage: upfly mcp [dir]
+
+Serves Upfly's commands to an MCP client, such as Claude Desktop, Claude Code or Antigravity,
+over standard input and output, until the client closes the connection. Each tool runs the
+command of its name in the project's folder and answers with the line that command prints last
+with --json: its result, or its refusal and the reason. audit, check and refs change no file.
+optimize, dedupe and move answer with their plan, and write only when a call sets apply to true,
+refusing what the command refuses: uncommitted changes, an earlier run that stopped part way, a
+merge or a rebase in progress. undo writes only when a call sets apply to true. No tool runs
+init, and none takes --allow-dirty.
+
+dir is the folder a tool reads when a call names none, the current directory by default.
+
+Options:
+  -h, --help             Show this help
+
+Exit status: 0 once the client has closed the connection; 2 for a usage error.
+`;
+
 const TEXT: Record<CommandName, string> = {
   audit: AUDIT,
   optimize: OPTIMIZE,
@@ -296,6 +317,7 @@ const TEXT: Record<CommandName, string> = {
   refs: REFS,
   dedupe: DEDUPE,
   move: MOVE,
+  mcp: MCP,
 };
 
 /** The help for one command, or the general help when `command` is null. */

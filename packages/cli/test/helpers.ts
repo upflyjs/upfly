@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 export const NO_NETWORK = fileURLToPath(new URL('./no-network.mjs', import.meta.url));
+export const MODULE_LOG = fileURLToPath(new URL('./module-log.mjs', import.meta.url));
 export const FIXTURES = fileURLToPath(new URL('../../../fixtures/', import.meta.url));
 
 /**
@@ -44,6 +45,18 @@ export function upfly(
     { encoding: 'utf8', env, ...(options.cwd === undefined ? {} : { cwd: options.cwd }) },
   );
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+/**
+ * The environment `upfly` runs a command with, as plain strings, for a process started by
+ * something else, such as an MCP client starting `upfly mcp`.
+ */
+export function commandEnvironment(extra: Record<string, string> = {}): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && key !== 'NO_COLOR' && key !== 'FORCE_COLOR') env[key] = value;
+  }
+  return { ...env, GIT_CEILING_DIRECTORIES: TEMP, ...extra };
 }
 
 /** The JSON lines a `--json` run printed, parsed. */
