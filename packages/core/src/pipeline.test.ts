@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { possiblyBrokenPaths } from './audit/audit.js';
 import { toPosix } from './paths.js';
 import {
   type PipelineProgress,
@@ -1001,5 +1003,76 @@ describe('a reference that reaches an image only in another letter case', () => 
       ['old/Photo.png', 'out-of-scope'],
       ['old/photo.png', 'broken'],
     ]);
+  });
+});
+
+describe('a string in code or data that looks like a path on the site and names no file', () => {
+  // An adapter only guesses that such a string is a path, so it is never a broken finding. One
+  // that starts with `/` names a place on the site, and is listed apart with its file and line.
+  const run = (root: string) =>
+    runPipeline({
+      root,
+      servingRoots: servingRootsFor({ dirs: ['public'], declared: true }),
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: null,
+    });
+  const listed = (output: Awaited<ReturnType<typeof run>>) =>
+    possiblyBrokenPaths({ graph: output.graph, readFile: (file) => readFile(file, 'utf8') });
+
+  it('is listed by file and line, apart from the broken findings, with an image it names in another case', async () => {
+    const root = project({
+      'index.html': '<img src="/img/logo.png">\n<img src="/img/gone.png">\n',
+      'src/team.js': [
+        'export const team = [',
+        '  { name: "Ana", image: "/img/ana.jpg" },',
+        '  { name: "Logo", image: "/img/logo.png" },',
+        '  { name: "Digital", icon: "/img/Logo.png" },',
+        '];',
+        '',
+      ].join('\n'),
+      'src/about.js': 'export const hero = { src: "/img/about.png" };\n',
+      'public/img/logo.png': 'a logo, never decoded',
+    });
+
+    const output = await run(root);
+    const { paths } = await listed(output);
+
+    expect(paths).toEqual([
+      { file: 'src/about.js', line: 1, where: 'src/about.js:1', rawPath: '/img/about.png' },
+      { file: 'src/team.js', line: 2, where: 'src/team.js:2', rawPath: '/img/ana.jpg' },
+      {
+        file: 'src/team.js',
+        line: 4,
+        where: 'src/team.js:4',
+        rawPath: '/img/Logo.png',
+        note: 'names `public/img/logo.png` as `/img/Logo.png`: it loads on Windows and macOS and breaks on a Linux server; fix the letter case',
+      },
+    ]);
+    expect(
+      output.audit.findings.flatMap((finding) =>
+        finding.kind === 'broken' ? [finding.where] : [],
+      ),
+    ).toEqual(['index.html:2']);
+  });
+
+  it('counts a string that does not start with /, and leaves out a value an adapter declined', async () => {
+    const root = project({
+      'src/logos.js':
+        'export const logos = [{ file: "aws.svg" }, { file: "img/copy-to.png" }, { src: "/img/none.png" }];\n',
+      'src/page.jsx': 'export const Page = () => <Card img="/img/card.png" />;\n',
+      'public/img/logo.png': 'a logo, never decoded',
+    });
+
+    const output = await run(root);
+    const { paths, unlisted } = await listed(output);
+
+    expect(paths.map((path) => path.where)).toEqual(['src/logos.js:1']);
+    expect(unlisted).toEqual([
+      { file: 'src/logos.js', rawPath: 'aws.svg' },
+      { file: 'src/logos.js', rawPath: 'img/copy-to.png' },
+    ]);
+    expect(
+      output.graph.byResolution.discarded.filter((reference) => reference.declined === true),
+    ).toHaveLength(1);
   });
 });

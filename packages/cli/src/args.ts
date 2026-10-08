@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from 'node:util';
-import { normaliseServedDir } from './config.js';
+import { CHECK_KINDS, type CheckKind, normaliseServedDir } from './config.js';
 import type { UpflyCommand } from './invocation.js';
 
 export type CommandName =
@@ -86,10 +86,16 @@ export interface CheckOptions extends CommonOptions, ScopeOptions {
    * the change is measured from, or `null` for the uncommitted changes. `null` without the flag.
    */
   readonly changed: { readonly against: string | null } | null;
+  /** `--fail-on`: what fails the check in this run, over the config's; `null` without it. */
+  readonly failOn: readonly CheckKind[] | null;
+  /** `--warn`: list everything and exit 0 whatever is found. */
+  readonly warn: boolean;
 }
 
 export interface InitOptions extends CommonOptions {
   readonly command: 'init';
+  /** `--agents`: point the project's coding agents at Upfly, whether or not a config exists. */
+  readonly agents: boolean;
 }
 
 export interface DedupeOptions extends CommonOptions, ScopeOptions {
@@ -225,9 +231,13 @@ const CHECK = {
   ...COMMON,
   ...SCOPE,
   changed: { type: 'string' },
+  'fail-on': { type: 'string', multiple: true },
+  warn: { type: 'boolean' },
 } as const;
 
 const REFS = { ...COMMON, ...SCOPE } as const;
+
+const INIT = { ...COMMON, agents: { type: 'boolean' } } as const;
 
 const DEDUPE = {
   ...COMMON,
@@ -282,6 +292,7 @@ export function parseCommandLine(
   if (command === 'refs') return parseRefs(rest, upfly);
   if (command === 'dedupe') return parseDedupe(rest);
   if (command === 'move') return parseMove(rest, upfly);
+  if (command === 'init') return parseInit(rest);
   return parseCommonOnly(command, rest);
 }
 
@@ -437,6 +448,8 @@ function parseCheck(args: readonly string[]): Parsed {
   if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
   const scope = scopeOf(values);
   if (typeof scope === 'string') return { kind: 'usage-error', command, message: scope };
+  const failOn = failOnOf(values['fail-on'], values.warn === true);
+  if (typeof failOn === 'string') return { kind: 'usage-error', command, message: failOn };
   const changed = values.changed;
 
   return {
@@ -447,9 +460,31 @@ function parseCheck(args: readonly string[]): Parsed {
       json: values.json === true,
       noColor: values['no-color'] === true,
       changed: changed === undefined ? null : { against: changed === '' ? null : changed },
+      failOn,
+      warn: values.warn === true,
       ...scope,
     },
   };
+}
+
+/** What `--fail-on` names, each flag holding one kind or a list split by commas. */
+function failOnOf(
+  written: readonly string[] | undefined,
+  warn: boolean,
+): readonly CheckKind[] | null | string {
+  if (written === undefined) return null;
+  if (warn) return '--warn and --fail-on cannot be used together: --warn makes nothing fail';
+  const named = written.flatMap((value) => value.split(',').map((kind) => kind.trim()));
+  const kinds = named.filter((kind) => kind !== '');
+  if (kinds.length === 0) {
+    return '--fail-on needs at least one of broken, too-large and possibly-broken; --warn makes nothing fail';
+  }
+  const unknown = kinds.find((kind) => !(CHECK_KINDS as readonly string[]).includes(kind));
+  if (unknown !== undefined) {
+    const unused = unknown === 'unused' ? ', and an unused image never fails the check' : '';
+    return `--fail-on takes broken, too-large or possibly-broken, separated by commas; got \`${unknown}\`${unused}`;
+  }
+  return CHECK_KINDS.filter((kind) => kinds.includes(kind));
 }
 
 function parseCheckArgs(args: readonly string[]) {
@@ -632,8 +667,36 @@ function fullConflict(full: boolean | undefined, json: boolean | undefined): str
     : null;
 }
 
+function parseInit(args: readonly string[]): Parsed {
+  const command = 'init';
+  let parsed: ReturnType<typeof parseInitArgs>;
+  try {
+    parsed = parseInitArgs(args);
+  } catch (error) {
+    return { kind: 'usage-error', command, message: plainParseError(error) };
+  }
+  const { values, positionals } = parsed;
+  if (values.help === true) return { kind: 'help', command };
+  const dir = directoryOf(positionals);
+  if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
+  return {
+    kind: 'run',
+    options: {
+      command,
+      dir: dir.value,
+      json: values.json === true,
+      noColor: values['no-color'] === true,
+      agents: values.agents === true,
+    },
+  };
+}
+
+function parseInitArgs(args: readonly string[]) {
+  return parseArgs({ args: [...args], options: INIT, allowPositionals: true, strict: true });
+}
+
 /** A command that takes a folder and only the options every command takes. */
-function parseCommonOnly(command: 'undo' | 'init', args: readonly string[]): Parsed {
+function parseCommonOnly(command: 'undo', args: readonly string[]): Parsed {
   let parsed: ReturnType<typeof parseCommonArgs>;
   try {
     parsed = parseCommonArgs(args);

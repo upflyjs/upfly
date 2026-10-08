@@ -39,6 +39,33 @@ function result(stdout: string): Record<string, unknown> {
   return jsonLines(stdout).at(-1) ?? {};
 }
 
+/**
+ * A framework site whose component data names images on the site by path: one that does not
+ * exist, one in another letter case than its file, and a bare file name.
+ */
+function dataSite(files: Record<string, string | Buffer> = {}): string {
+  return site({
+    'package.json': '{ "name": "site" }\n',
+    'public/img/logo.png': image(100, 5),
+    'src/team.js': [
+      'export const team = [',
+      '  { name: "Ana", image: "/img/ana.jpg" },',
+      '  { name: "Digital", icon: "/img/Logo.png" },',
+      '  { name: "File", file: "people.png" },',
+      '];',
+      '',
+    ].join('\n'),
+    ...files,
+  });
+}
+
+const POSSIBLY_BROKEN = [
+  'Possibly broken: image paths in code or data that name no file (2)',
+  '    src/team.js:2  /img/ana.jpg',
+  '    src/team.js:3  /img/Logo.png',
+  '      names `public/img/logo.png` as `/img/Logo.png`: it loads on Windows and macOS and breaks on a Linux server; fix the letter case',
+];
+
 describe('upfly check', () => {
   it('passes when every reference names an image that exists, however many images are unused', () => {
     const root = site();
@@ -88,6 +115,7 @@ describe('upfly check', () => {
       command: 'check',
       exitCode: 1,
       passed: false,
+      failOn: ['broken'],
       findings: [
         {
           kind: 'broken',
@@ -97,6 +125,7 @@ describe('upfly check', () => {
           rawPath: 'img/team.png',
         },
       ],
+      possiblyBroken: { paths: [], leftOut: 0, unlisted: 0 },
       maxImageBytes: null,
       changed: null,
       leftOut: 0,
@@ -163,7 +192,7 @@ describe('upfly check', () => {
     );
     expect(second.status).toBe(2);
     expect(second.stderr).toContain(
-      'unknown setting `check.maxWidth`. The settings under `check` are `maxImageBytes`.',
+      'unknown setting `check.maxWidth`. The settings under `check` are `maxImageBytes` and `failOn`.',
     );
   });
 
@@ -295,6 +324,153 @@ describe('upfly check', () => {
   });
 });
 
+describe('upfly check: image paths in code or data that name no file', () => {
+  const NOTE =
+    'A possibly broken path is a string Upfly does not read as a reference: a page that shows it shows no image, but Upfly cannot tell whether a page does. Such paths fail the check only when check.failOn or --fail-on names possibly-broken.';
+  const UNLISTED =
+    '1 more string ends in an image extension and names no file, but does not start with / as a path on the site does; `npx upfly audit --include-discarded` lists it.';
+
+  it('lists them apart from the findings, with file and line, and passes by default', () => {
+    const root = dataSite();
+
+    const human = upfly(['check', root]);
+    const json = result(upfly(['check', root, '--json']).stdout);
+
+    expect(human.status).toBe(0);
+    expect(human.stdout.slice(1, -1)).toBe(
+      [
+        'Upfly check',
+        '',
+        'Passed: no reference names a missing image.',
+        '',
+        ...POSSIBLY_BROKEN,
+        '',
+        NOTE,
+        UNLISTED,
+        '',
+      ].join('\n'),
+    );
+    expect(json).toMatchObject({
+      exitCode: 0,
+      passed: true,
+      failOn: ['broken'],
+      findings: [],
+      possiblyBroken: {
+        paths: [
+          { file: 'src/team.js', line: 2, where: 'src/team.js:2', rawPath: '/img/ana.jpg' },
+          {
+            file: 'src/team.js',
+            line: 3,
+            where: 'src/team.js:3',
+            rawPath: '/img/Logo.png',
+            note: 'names `public/img/logo.png` as `/img/Logo.png`: it loads on Windows and macOS and breaks on a Linux server; fix the letter case',
+          },
+        ],
+        leftOut: 0,
+        unlisted: 1,
+      },
+    });
+  });
+
+  it('fails on them only when check.failOn names them, and a flag overrides the config', () => {
+    const root = dataSite({
+      'upfly.config.json': JSON.stringify({ check: { failOn: ['broken', 'possibly-broken'] } }),
+    });
+
+    const named = upfly(['check', root]);
+    const overridden = upfly(['check', root, '--fail-on', 'broken']);
+    const byFlag = upfly(['check', dataSite(), '--fail-on', 'broken,possibly-broken', '--json']);
+
+    expect(named.status).toBe(1);
+    expect(named.stdout.split('\n')[3]).toBe('Failed: 2 image paths in code or data name no file.');
+    expect(named.stdout).toContain(POSSIBLY_BROKEN.join('\n'));
+    expect(named.stdout).not.toContain('Such paths fail the check only when');
+    expect(overridden.status).toBe(0);
+    expect(byFlag.status).toBe(1);
+    expect(result(byFlag.stdout)).toMatchObject({
+      exitCode: 1,
+      passed: false,
+      failOn: ['broken', 'possibly-broken'],
+      findings: [],
+    });
+  });
+
+  it('under --warn lists everything and exits 0, while a usage or configuration error still stops it', () => {
+    const root = dataSite({ 'about.html': '<img src="img/team.png">\n' });
+    const misconfigured = site({ 'upfly.config.json': '{ "check": { "failOn": ["unused"] } }' });
+
+    const warned = upfly(['check', root, '--warn']);
+    const json = result(upfly(['check', root, '--warn', '--json']).stdout);
+    const refused = upfly(['check', misconfigured, '--warn']);
+
+    expect(warned.status).toBe(0);
+    expect(warned.stdout.slice(1, -1).split('\n').slice(0, 7)).toEqual([
+      'Upfly check',
+      '',
+      'Warning: 1 reference names an image that does not exist. --warn keeps the exit code at 0.',
+      '',
+      'References to images that do not exist (1)',
+      '    about.html:1  img/team.png',
+      '',
+    ]);
+    expect(warned.stdout).toContain(POSSIBLY_BROKEN.join('\n'));
+    expect(json).toMatchObject({ exitCode: 0, passed: true, failOn: [] });
+    expect(json.findings).toHaveLength(1);
+    expect(refused.status).toBe(2);
+  });
+
+  it('says why a broken reference does not fail it when failOn leaves broken out', () => {
+    const root = site({
+      'about.html': '<img src="img/team.png">\n',
+      'upfly.config.json': JSON.stringify({
+        check: { maxImageBytes: 500, failOn: ['too-large'] },
+      }),
+    });
+
+    const run = upfly(['check', root]);
+
+    expect(run.status).toBe(0);
+    expect(run.stdout.split('\n')[3]).toBe(
+      'Warning: 1 reference names an image that does not exist; check.failOn does not name broken, so it does not fail the check.',
+    );
+  });
+
+  it('refuses to fail on unused images, or on a size with no limit set', () => {
+    const unused = site({ 'upfly.config.json': '{ "check": { "failOn": ["unused"] } }' });
+    const noLimit = site({ 'upfly.config.json': '{ "check": { "failOn": ["too-large"] } }' });
+    const plain = site();
+
+    const runs = {
+      unused: upfly(['check', unused]),
+      noLimit: upfly(['check', noLimit]),
+      flagUnused: upfly(['check', plain, '--fail-on', 'unused']),
+      flagNoLimit: upfly(['check', plain, '--fail-on', 'too-large']),
+      both: upfly(['check', plain, '--warn', '--fail-on', 'broken']),
+      empty: upfly(['check', plain, '--fail-on', '']),
+    };
+
+    for (const run of Object.values(runs)) expect(run.status).toBe(2);
+    expect(runs.unused.stderr).toContain(
+      '`check.failOn` holds `unused`, which the check cannot fail on: the choices are `broken`, `too-large` and `possibly-broken`, and an unused image never fails the check.',
+    );
+    expect(runs.noLimit.stderr).toContain(
+      '`check.failOn` names `too-large`, which needs `check.maxImageBytes`, the largest an image in use may be.',
+    );
+    expect(runs.flagUnused.stderr).toContain(
+      '--fail-on takes broken, too-large or possibly-broken, separated by commas; got `unused`, and an unused image never fails the check',
+    );
+    expect(runs.flagNoLimit.stderr).toContain(
+      '--fail-on too-large needs check.maxImageBytes in the config file, the largest an image in use may be',
+    );
+    expect(runs.both.stderr).toContain(
+      '--warn and --fail-on cannot be used together: --warn makes nothing fail',
+    );
+    expect(runs.empty.stderr).toContain(
+      '--fail-on needs at least one of broken, too-large and possibly-broken; --warn makes nothing fail',
+    );
+  });
+});
+
 describe('upfly check --changed', () => {
   /** A repository whose first commit already holds a broken reference in `old.html`. */
   function repository(): { readonly root: string; readonly start: string } {
@@ -373,6 +549,43 @@ describe('upfly check --changed', () => {
       passed: false,
       findings: [{ kind: 'too-large', asset: 'img/used.png', bytes: 200 }],
     });
+  });
+
+  it('limits the image paths that name no file as it limits the findings', () => {
+    const root = dataSite();
+    commitAll(root);
+    const start = git(root, 'rev-parse', 'HEAD').trim();
+    write(root, 'src/hero.js', 'export const hero = { src: "/img/hero.png" };\n');
+    git(root, 'add', 'src/hero.js');
+    git(root, 'commit', '--quiet', '-m', 'add a hero');
+
+    const run = upfly(['check', root, '--changed', start]);
+    const json = result(upfly(['check', root, '--changed', start, '--json']).stdout);
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain(
+      'Possibly broken: image paths in code or data that name no file (1)\n    src/hero.js:1  /img/hero.png\n',
+    );
+    expect(run.stdout).toContain(
+      `Checked the 1 file changed against ${start}; 2 possibly broken paths in files this change did not touch were left out.`,
+    );
+    expect(json).toMatchObject({
+      leftOut: 0,
+      possiblyBroken: { leftOut: 2, unlisted: 0 },
+    });
+  });
+
+  it('keeps a path in unchanged data that names an image the change deleted', () => {
+    const root = dataSite({ 'src/brand.js': 'export const brand = { logo: "/img/logo.png" };\n' });
+    commitAll(root);
+    const start = git(root, 'rev-parse', 'HEAD').trim();
+    git(root, 'rm', '--quiet', 'public/img/logo.png');
+    git(root, 'commit', '--quiet', '-m', 'remove the logo');
+
+    const run = upfly(['check', root, '--changed', start]);
+
+    expect(run.stdout).toContain('    src/brand.js:1  /img/logo.png');
+    expect(run.stdout).not.toContain('/img/ana.jpg');
   });
 
   it('says so with exit 2 when git knows no such ref, and outside a repository', () => {

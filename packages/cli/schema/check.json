@@ -1,14 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "upfly check --json: the result",
-  "description": "The last line upfly check --json prints when the check runs. It fails, with exit code 1, when a reference names an image that does not exist, or an image a reference uses is larger than check.maxImageBytes; an unused image never fails it. Progress and diagnostic lines come before it (events.json); a check that cannot run prints an error line instead (events.json).",
+  "description": "The last line upfly check --json prints when the check runs. It fails, with exit code 1, when it finds something of a kind failOn names: by default a reference to an image that does not exist, and an image a reference uses that is larger than check.maxImageBytes when that is set; check.failOn in the config and --fail-on choose the kinds, and --warn makes nothing fail. An unused image never fails it. Progress and diagnostic lines come before it (events.json); a check that cannot run prints an error line instead (events.json).",
   "type": "object",
   "required": [
     "type",
     "command",
     "exitCode",
     "passed",
+    "failOn",
     "findings",
+    "possiblyBroken",
     "maxImageBytes",
     "changed",
     "leftOut",
@@ -20,21 +22,49 @@
     "type": { "const": "result" },
     "command": { "const": "check" },
     "exitCode": {
-      "description": "0 when it passed, 1 when a finding failed it.",
+      "description": "0 when it passed, or under --warn; 1 when something of a kind failOn names was found.",
       "enum": [0, 1]
     },
     "passed": {
-      "description": "true exactly when findings is empty and exitCode is 0.",
+      "description": "true exactly when exitCode is 0: nothing of a kind failOn names was found.",
       "type": "boolean"
     },
+    "failOn": {
+      "description": "The kinds that fail the check in this run, from --warn (none), --fail-on, check.failOn in the config, or by default broken, and too-large when check.maxImageBytes is set.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/checkKind" }
+    },
     "findings": {
-      "description": "What failed the check.",
+      "description": "References to images that do not exist, and images in use larger than check.maxImageBytes. Each fails the check when failOn names its kind.",
       "type": "array",
       "items": {
         "oneOf": [
           { "$ref": "report.json#/definitions/brokenFinding" },
           { "$ref": "#/definitions/tooLargeFinding" }
         ]
+      }
+    },
+    "possiblyBroken": {
+      "description": "Image paths in code or data that name no file, listed apart from the findings: strings that start with / as a path on the site does, which Upfly does not read as references, so it cannot tell whether a page shows each. They fail the check only when failOn names possibly-broken.",
+      "type": "object",
+      "required": ["paths", "leftOut", "unlisted"],
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "description": "Each one, by file, then line.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/possiblyBrokenPath" }
+        },
+        "leftOut": {
+          "description": "Paths --changed left out, since the change did not touch their files. A path naming an image the change deleted is kept wherever it is.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "unlisted": {
+          "description": "Strings that end in an image extension and name no file but do not start with /, such as a file name a component joins to a folder: counted, not listed. upfly audit --include-discarded lists them.",
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "maxImageBytes": {
@@ -102,6 +132,33 @@
     }
   },
   "definitions": {
+    "checkKind": {
+      "description": "What can fail the check: broken, a reference to an image that does not exist; too-large, an image in use larger than check.maxImageBytes; possibly-broken, an image path in code or data that names no file.",
+      "enum": ["broken", "too-large", "possibly-broken"]
+    },
+    "possiblyBrokenPath": {
+      "description": "A string in code or data that looks like a path on the site and names no file.",
+      "type": "object",
+      "required": ["file", "line", "where", "rawPath"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "The source file, relative to the project.", "type": "string" },
+        "line": {
+          "description": "The line, from 1, or null when the file could not be read again.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "where": {
+          "description": "file:line, or the file alone when the line is unknown.",
+          "type": "string"
+        },
+        "rawPath": { "description": "The string as written.", "type": "string" },
+        "note": {
+          "description": "The image it names in another letter case, which loads on Windows and macOS and not on a Linux server. Absent when there is nothing more to say.",
+          "type": "string"
+        }
+      }
+    },
     "tooLargeFinding": {
       "description": "An image a reference uses whose file is larger than check.maxImageBytes.",
       "type": "object",

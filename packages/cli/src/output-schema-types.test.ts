@@ -34,6 +34,7 @@ import type { DedupeCopy, DedupePlan, DedupeSet, KeptBecause, StayingReference }
 import type { Move, MovePlan, RefusalCode, RefusedMove } from 'upfly-core/internal';
 import type {
   Mention,
+  PossiblyBrokenPath,
   ProbeDiagnostic,
   ScanDiagnostic,
   ServingRootDecision,
@@ -42,7 +43,9 @@ import type {
   Unsearchable,
 } from 'upfly-core/internal';
 import { describe, expect, it } from 'vitest';
+import type { InstructionFile, SkillFile } from './agents.js';
 import type { TooLargeFinding } from './check.js';
+import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
 import type { MoveRun, UnfollowedOldPath } from './move.js';
 import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
@@ -756,6 +759,44 @@ describe('the command schemas and the types each command prints agree', () => {
       at('check.json', '/definitions/tooLargeFinding'),
       fields<TooLargeFinding>({ kind: 'required', asset: 'required', bytes: 'required' }),
     );
+    expectFields(
+      at('check.json', '/definitions/possiblyBrokenPath'),
+      fields<PossiblyBrokenPath>({
+        file: 'required',
+        line: 'required',
+        where: 'required',
+        rawPath: 'required',
+        note: 'optional',
+      }),
+    );
+    expect(enumOf(at('check.json', '/definitions/checkKind'))).toEqual(
+      members<CheckKind>({ broken: true, 'too-large': true, 'possibly-broken': true }),
+    );
+    expect(enumOf(at('config.json', '/properties/check/properties/failOn/items'))).toEqual(
+      members<CheckKind>({ broken: true, 'too-large': true, 'possibly-broken': true }),
+    );
+    expectFields(
+      at('init.json', '/properties/agents/properties/instructions/items'),
+      fields<InstructionFile>({ file: 'required', action: 'required', why: 'optional' }),
+    );
+    expect(
+      enumOf(at('init.json', '/properties/agents/properties/instructions/items/properties/action')),
+    ).toEqual(
+      members<InstructionFile['action']>({
+        created: true,
+        added: true,
+        updated: true,
+        unchanged: true,
+        skipped: true,
+      }),
+    );
+    expectFields(
+      at('init.json', '/properties/agents/properties/skills/items'),
+      fields<SkillFile>({ file: 'required', action: 'required' }),
+    );
+    expect(
+      enumOf(at('init.json', '/properties/agents/properties/skills/items/properties/action')),
+    ).toEqual(members<SkillFile['action']>({ created: true, updated: true, unchanged: true }));
     expectFields(
       at('refs.json', '/properties/references/items'),
       fields<ReferenceAnswer>({

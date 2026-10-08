@@ -2598,17 +2598,35 @@ How `bench/src/verify.ts` checks findings from outside the engine: `bench/README
 (`undo`), and prints. It decides serving roots with the engine's own `servingRootsFor`, so a
 command cannot decide them differently from the measurements behind it.
 
-**`check` is the gate for continuous integration.** It fails (exit 1) on a `broken` finding, and
-on an image some reference uses whose file is larger than `check.maxImageBytes`; it reads no
-pixels. An unused image never fails it: most projects hold some, and a gate that fails on its
-first run is switched off. When the serving root cannot be found it refuses (exit 3), as
-`optimize` does, because the root-relative references cannot be judged. `--changed <ref>` keeps
-what a change could have caused: findings in the files changed since the commit `ref` and `HEAD`
-last shared (`git merge-base`), working tree and untracked files included, or since the last
-commit without a ref. A change breaks a page it never touched by deleting the image the page
-names, so a broken reference whose file name matches a deleted file is kept wherever it sits.
-Everything the verdict leaves out is counted in a sentence: findings outside the change, unused
-images over the limit, files that could not be read, and references whose file cannot be known.
+**`check` is an optional guard for continuous integration.** By default it fails (exit 1) on a
+`broken` finding, and on an image some reference uses whose file is larger than
+`check.maxImageBytes` when that is set, so a config that sets only the limit still fails on it.
+`check.failOn` in the config, or `--fail-on` for one run, names the kinds that fail it (`broken`,
+`too-large`, `possibly-broken`), and `--warn` makes none fail, while a usage or configuration error
+and a refusal keep their own codes. It reads no
+pixels. An unused image is never a kind that fails it: most projects hold some, a gate that fails
+on its first run is switched off, and "unused" is only what Upfly can see.
+
+It also lists, apart from its findings, the **possibly broken paths**: strings an adapter only
+guessed were image paths (`discarded`), that start with `/` and name no file
+(`possiblyBrokenPaths`). Only those starting with `/` are listed, because such a string names a
+place on the site whatever code reads it, while a file name or a relative path in code is most
+often joined to a folder elsewhere, a build tool's own path or a label: on the five validation
+repositories, 211 such strings named 4 missing images, against 14 of 15 sampled that start with
+`/`. The rest are counted in a sentence. The resolver records the image such a string names in
+another letter case, as it does for a broken reference, so the list says which load on Windows and
+macOS and break on a Linux server. A value an adapter declined, such as a component's own prop, is
+in neither, since it was never looked up.
+
+When the serving root cannot be found it refuses (exit 3), as `optimize` does, because the
+root-relative references cannot be judged. `--changed <ref>` keeps what a change could have
+caused: findings and possibly broken paths in the files changed since the commit `ref` and
+`HEAD` last shared (`git merge-base`), working tree and untracked files included, or since the
+last commit without a ref. A change breaks a page it never touched by deleting the image the page
+names, so a path whose file name matches a deleted file is kept wherever it sits. Everything the
+verdict leaves out is counted in a sentence: findings and paths outside the change, strings that
+do not start with `/`, unused images over the limit, files that could not be read, and
+references whose file cannot be known.
 
 **`optimize --only` limits what converts, never what is read.** A scope that limits reading is
 how an excluded page ends up naming a deleted original, so `optimizeProject`'s `only` (exact
@@ -2641,7 +2659,43 @@ schema, the folders and the format, giving each folder's reason: the project fil
 folder sits beside, or the count of root-relative paths that chose an inferred one. With no folder
 found it leaves `publicDirs` out rather than declare the project root. It refuses (exit 3) when
 any configuration file exists, the v2 extension's included, and writes with `wx`, so a file that
-appears while the project is read is never overwritten.
+appears while the project is read is never overwritten. It ends by saying how to point the
+project's agents at Upfly, printed as the person runs Upfly.
+
+#### Pointing agents at Upfly
+
+A model does not reach for a tool it was never trained on; an agent chooses from what is in front
+of it, and the Skill and `AGENTS.md` inside `node_modules/upfly` are where no agent looks. So
+**`init --agents`** writes one block between `<!-- upfly:start -->` and `<!-- upfly:end -->` into
+the instruction files the project's agents read, and copies the Skill into the folders they read
+a project's skills from, committed with the project. It plans every file before writing any, so a
+start marker with no end stops it with nothing written (exit 3, `UPFLY_BLOCK_UNCLOSED`); it
+replaces only what lies between its markers, adds the block at a file's end when there is none,
+keeps the file's line endings, keeps a config that exists, asks nothing, and a second run changes
+nothing. Where each agent reads, from its own documentation (read 2026-10-08):
+
+| agent | instructions it reads in a project | project skills |
+|---|---|---|
+| Claude Code | `CLAUDE.md` or `.claude/CLAUDE.md`; `AGENTS.md` only when neither (nor `CLAUDE.local.md`) exists, or through an `@AGENTS.md` import | `.claude/skills` |
+| Codex | `AGENTS.md`, from the repository's root down | `.agents/skills` |
+| Cursor | `AGENTS.md`, nested too; `.cursor/rules` | `.agents/skills`, `.cursor/skills`, and `.claude/skills` |
+| GitHub Copilot | `AGENTS.md` (the nearest), `.github/copilot-instructions.md`, or a root `CLAUDE.md` or `GEMINI.md` | `.github/skills`, `.claude/skills`, `.agents/skills` |
+| Gemini CLI | `GEMINI.md`; `AGENTS.md` only when its settings name it | `.gemini/skills`, `.agents/skills` |
+| Antigravity | `AGENTS.md` or `GEMINI.md` in each folder; `.agents/rules` | `.agents/skills` |
+| Windsurf | `AGENTS.md`, the root one always | `.devin/skills`, `.windsurf/skills`, `.agents/skills`, and `.claude/skills` when enabled |
+| Cline | the root `AGENTS.md`; `.clinerules`, `.cline/rules` | `.cline/skills`, `.clinerules/skills`, `.claude/skills` |
+| OpenCode | `AGENTS.md`, or `CLAUDE.md` when there is none | `.opencode/skills`, `.claude/skills`, `.agents/skills` |
+| Roo Code | `AGENTS.md`; `.roo/rules` | not measured |
+| Zed | the first of `.rules`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`, `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | not measured |
+| Aider | only what `--read` or its config names | none |
+
+So the block goes into `AGENTS.md`, created when there is none, which all but Claude Code, Gemini
+CLI, Zed and Aider read whatever else is there; into a `CLAUDE.md` already there, unless it imports
+`AGENTS.md`, since Claude Code then reads only that; and into a `GEMINI.md` already there. The Skill
+goes into `.agents/skills/upfly` and `.claude/skills/upfly`, which between them reach every agent
+above that reads skills; an agent that reads both folders sees two copies of one Skill. A file Zed
+picks before `AGENTS.md` is left alone: each of those belongs to another agent that reads
+`AGENTS.md` too.
 
 **The configuration file is `upfly.config.ts` (or `.js` and their module forms), or
 `upfly.config.json`, in the directory the command runs on.** The code forms load through c12 with
@@ -2701,7 +2755,7 @@ rests on colour alone. How many colours the terminal shows is Node's answer for 
 256 where the terminal shows those. Among 16 colours only a red comes near it, so there the
 accent is bold without a colour, and red still means a failure.
 
-**Exit codes** are a contract: 0 the command ran, 1 `check` found findings over its thresholds, 2 the
+**Exit codes** are a contract: 0 the command ran, 1 `check` found something of a kind that fails it, 2 the
 command line or configuration was wrong, 3 Upfly refused to act for safety, 4 something it did not
 anticipate went wrong. A crash is its own code, because it is neither a finding nor a refusal. A
 refusal's `error` line under `--json` also carries a `reason`, a stable name such as

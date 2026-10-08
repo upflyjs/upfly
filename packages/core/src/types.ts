@@ -294,9 +294,17 @@ export type Reference =
       readonly namesIgnoringCase?: string;
     })
   | (RawReference & {
+      readonly resolution: 'discarded';
+      /** Nothing unresolved is ever rewritten, whatever its syntax promised. */
+      readonly confidence: 'unsafe';
+      readonly resolvedPath: null;
+      /** The asset the string names when letter case is ignored, as for a `broken` reference. */
+      readonly namesIgnoringCase?: string;
+    })
+  | (RawReference & {
       readonly resolution: Exclude<
         Resolution,
-        'resolved' | 'resolved-pattern' | 'out-of-scope' | 'broken'
+        'resolved' | 'resolved-pattern' | 'out-of-scope' | 'broken' | 'discarded'
       >;
       /** Nothing unresolved is ever rewritten, whatever its syntax promised. */
       readonly confidence: 'unsafe';

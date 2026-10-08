@@ -102,6 +102,11 @@ user's.
 ## What the words mean
 
 - `broken`: a path written as an image's that points at no file.
+- `possibly-broken`, listed by `check`: a string in code or data that starts with `/` as a
+  path on the site does and names no file, such as an image in a component's list of
+  people. Upfly does not read it as a reference, so whether a page shows it is unknown; a
+  page that does shows no image there. A `note` names the image it names in another letter
+  case, which loads on Windows and macOS and not on a Linux server.
 - `dead`, shown as unreferenced images: nothing references the image, and its name
   appears nowhere Upfly looked.
 - `possibly-dead`, shown as possibly unreferenced: nothing Upfly can follow references
@@ -157,11 +162,15 @@ result, `events.json` for every other line, and `config.json` for `upfly.config.
 
 ## In continuous integration
 
-`npx upfly check` exits 1 when a reference names an image that does not exist. On a pull
-request, `npx upfly check --changed origin/main` keeps only what the change could have
-caused (the checkout needs that branch's history). `check.maxImageBytes` in
-`upfly.config.json` also fails it on an image in use that is larger. An unused image never
-fails it.
+`npx upfly check` is an optional guard. By default it exits 1 when a reference names an
+image that does not exist, and, when `check.maxImageBytes` is set in `upfly.config.json`,
+when an image in use is larger. It also lists, apart from those findings, image paths in
+code or data that name no file (`possiblyBroken` in its `--json`): strings Upfly does not
+read as references, so it cannot tell whether a page shows them. `check.failOn` in the
+config, or `--fail-on` in a workflow, chooses what fails it, from `broken`, `too-large` and
+`possibly-broken`; `--warn` lists everything and exits 0. An unused image never fails it.
+On a pull request, `npx upfly check --changed origin/main` keeps only what the change could
+have caused (the checkout needs that branch's history).
 
 ## Identical copies
 
@@ -180,5 +189,9 @@ is the likeliest reason for a wrong result.
 ## The Agent Skill
 
 The package also ships a short form of this file as an Agent Skill, which an agent loads
-when a task involves the project's images. To install it, copy the folder
-`node_modules/upfly/skill/upfly` into the project's `.claude/skills/` folder.
+when a task involves the project's images. `npx upfly init --agents` puts it in the
+project's `.agents/skills/upfly` and `.claude/skills/upfly` folders, where most coding
+agents look for a project's skills, and adds a short marked block pointing at Upfly to
+`AGENTS.md` (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there.
+It changes nothing outside that block and asks nothing; with the user's yes, commit the
+files it names.

@@ -1,33 +1,69 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "upfly init --json: the result",
-  "description": "The last line upfly init --json prints once it has written upfly.config.json: the settings written, and why. Progress lines come before it (events.json). When a config file already exists, init writes nothing and prints an error line with exit code 3 and reason CONFIG_EXISTS instead (events.json).",
+  "description": "The last line upfly init --json prints once it has written its files: the config written and why, and with --agents what it did with each file it points the coding agents at. Progress lines come before it (events.json). When a config file already exists and --agents was not given, init writes nothing and prints an error line with exit code 3 and reason CONFIG_EXISTS instead (events.json); an instruction file holding an Upfly block with no end stops it the same way, with reason UPFLY_BLOCK_UNCLOSED.",
   "type": "object",
   "required": ["type", "command", "exitCode", "file", "config", "reasons"],
   "additionalProperties": false,
   "properties": {
-    "type": { "const": "result" },
-    "command": { "const": "init" },
-    "exitCode": { "const": 0 },
-    "file": { "description": "The file written.", "const": "upfly.config.json" },
+    "type": {
+      "const": "result"
+    },
+    "command": {
+      "const": "init"
+    },
+    "exitCode": {
+      "const": 0
+    },
+    "file": {
+      "description": "The config file written, or null when --agents found one already there and kept it.",
+      "oneOf": [
+        {
+          "const": "upfly.config.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "config": {
-      "description": "What the file holds.",
-      "allOf": [{ "$ref": "config.json" }, { "type": "object", "required": ["$schema", "format"] }]
+      "description": "What the config file written holds, or null when none was written.",
+      "oneOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "config.json"
+            },
+            {
+              "type": "object",
+              "required": ["$schema", "format"]
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "reasons": {
-      "description": "Why each setting was written, or left out.",
+      "description": "Why each setting was written, or left out; empty when no config was written.",
       "type": "array",
       "items": {
         "type": "object",
         "required": ["setting", "value", "why"],
         "additionalProperties": false,
         "properties": {
-          "setting": { "type": "string", "enum": ["publicDirs", "format"] },
+          "setting": {
+            "type": "string",
+            "enum": ["publicDirs", "format"]
+          },
           "value": {
             "description": "The folder or format written, or null when the setting was left out.",
             "type": ["string", "null"]
           },
-          "why": { "type": "string" }
+          "why": {
+            "type": "string"
+          }
         }
       }
     },
@@ -44,7 +80,61 @@
             "description": "The folder holding the pages whose root-relative paths tie, relative to the project; empty for the project folder itself.",
             "type": "string"
           },
-          "candidates": { "type": "array", "items": { "type": "string" } }
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "agents": {
+      "description": "With --agents: each instruction file and each copy of the Upfly skill it looked at, and what it did. Absent without --agents.",
+      "type": "object",
+      "required": ["instructions", "skills"],
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "description": "AGENTS.md, then a CLAUDE.md and a GEMINI.md the project already had.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "action"],
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "description": "Relative to the project.",
+                "type": "string"
+              },
+              "action": {
+                "description": "created: the file did not exist; added: the block was added at its end; updated: the block between its markers was replaced; unchanged: it already held the current block; skipped: left as it is, with why.",
+                "enum": ["created", "added", "updated", "unchanged", "skipped"]
+              },
+              "why": {
+                "description": "Why a file was skipped, such as a CLAUDE.md that imports AGENTS.md.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "skills": {
+          "description": "The Upfly skill in .agents/skills/upfly and .claude/skills/upfly.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "action"],
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "description": "Relative to the project.",
+                "type": "string"
+              },
+              "action": {
+                "enum": ["created", "updated", "unchanged"]
+              }
+            }
+          }
         }
       }
     }

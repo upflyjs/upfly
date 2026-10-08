@@ -313,24 +313,37 @@ function resolveOne(raw: RawReference, context: ResolveContext): Reference | nul
   // 7. The author said this was an asset and it points at nothing, letter case counted as a
   //    Linux server counts it. An asset it names in another case is recorded, because Windows
   //    and macOS load that file through it.
-  if (raw.asserted) {
-    if (typo !== undefined) return { ...unlinked(raw, 'broken'), note: typo };
+  const namedIgnoringCase = (): string | null => {
     for (const { path: candidate } of lookedUp) {
       const named = index.lookupIgnoringCase(candidate, raw, root, publicDirs);
-      if (named === null) continue;
-      return {
-        ...raw,
-        resolution: 'broken',
-        confidence: 'unsafe',
-        resolvedPath: null,
-        namesIgnoringCase: named,
-      };
+      if (named !== null) return named;
     }
-    return unlinked(raw, 'broken');
+    return null;
+  };
+  if (raw.asserted) {
+    if (typo !== undefined) return { ...unlinked(raw, 'broken'), note: typo };
+    const named = namedIgnoringCase();
+    if (named === null) return unlinked(raw, 'broken');
+    return {
+      ...raw,
+      resolution: 'broken',
+      confidence: 'unsafe',
+      resolvedPath: null,
+      namesIgnoringCase: named,
+    };
   }
 
-  // 8. A path-shaped string that turned out not to be a path. Counted, not a finding.
-  return unlinked(raw, 'discarded');
+  // 8. A path-shaped string that turned out not to be a path. Counted, not a finding; an asset
+  //    it names in another case is recorded as rung 7 records one.
+  const named = namedIgnoringCase();
+  if (named === null) return unlinked(raw, 'discarded');
+  return {
+    ...raw,
+    resolution: 'discarded',
+    confidence: 'unsafe',
+    resolvedPath: null,
+    namesIgnoringCase: named,
+  };
 }
 
 /**

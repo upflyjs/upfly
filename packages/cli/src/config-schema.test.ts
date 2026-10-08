@@ -55,6 +55,10 @@ const ACCEPTED: readonly unknown[] = [
   { check: {} },
   { check: { maxImageBytes: 1 } },
   { check: { maxImageBytes: 500000 } },
+  { check: { failOn: [] } },
+  { check: { failOn: ['broken'] } },
+  { check: { failOn: ['possibly-broken', 'broken', 'broken'] } },
+  { check: { maxImageBytes: 500000, failOn: ['too-large'] } },
   {
     $schema: CONFIG_SCHEMA,
     publicDirs: ['public'],
@@ -107,6 +111,11 @@ const REFUSED: readonly unknown[] = [
   { check: { maxImageBytes: '500000' } },
   { check: { maxImageBytes: true } },
   { check: { maxImageBytes: null } },
+  { check: { failOn: 'broken' } },
+  { check: { failOn: null } },
+  { check: { failOn: [1] } },
+  { check: { failOn: ['unused'] } },
+  { check: { failOn: ['broken', 'too-large'] } },
 ];
 
 describe('the config schema and the config reader agree', () => {
