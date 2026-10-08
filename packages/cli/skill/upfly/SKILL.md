@@ -63,7 +63,9 @@ which folder the site is served from and pass it with `--public <dir>`.
 ## Other commands
 
 - `npx upfly audit --json`: the whole project's report, which can be large.
-- `npx upfly check`: exits 1 when a reference names an image that does not exist.
+- `npx upfly check`: an optional guard. It exits 1 when a reference names an image that
+  does not exist, and lists apart, without failing, image paths in code or data that name
+  no file; `check.failOn` in the config chooses what fails it.
 - `npx upfly dedupe`: plans pointing references to identical copies at one copy. Apply
   it only with the user's yes, as `npx upfly dedupe --apply --commit`; it deletes nothing.
 - `npx upfly init`: writes `upfly.config.json` with the folders the site is served from.

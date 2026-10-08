@@ -446,13 +446,93 @@ async function brokenFindings(options: AuditOptions): Promise<{
 }
 
 /**
- * The note for a broken path that names an image in another letter case, or `null` when it
- * names none: what the resolver found with case ignored.
+ * The note for a path to nothing that names an image in another letter case, or `null` when
+ * it names none: what the resolver found with case ignored.
  */
 function inAnotherCase(reference: Reference, root: string): string | null {
-  if (reference.resolution !== 'broken' || reference.namesIgnoringCase === undefined) return null;
+  if (reference.resolution !== 'broken' && reference.resolution !== 'discarded') return null;
+  if (reference.namesIgnoringCase === undefined) return null;
   const image = relativePath(root, reference.namesIgnoringCase);
   return `names \`${image}\` as \`${reference.rawPath}\`: it loads on Windows and macOS and breaks on a Linux server; fix the letter case`;
+}
+
+/**
+ * A string in code or data that looks like a path on the site and names no file, such as
+ * `"/img/team.jpg"` in a component's list of people. An adapter only guessed that it is a path,
+ * so it is no broken finding: a page that shows it shows no image, but whether a page does is
+ * more than Upfly can see.
+ */
+export interface PossiblyBrokenPath {
+  /** POSIX-relative path of the source file. */
+  readonly file: string;
+  /** One-based line, or `null` if the file could not be re-read. */
+  readonly line: number | null;
+  /** `file:line`, or the file alone when the line is unknown. */
+  readonly where: string;
+  /** The string exactly as written. */
+  readonly rawPath: string;
+  /** The image it names in another letter case, when it names one. */
+  readonly note?: string;
+}
+
+/** The possibly broken paths in a project, and how many such strings were not listed. */
+export interface PossiblyBrokenPaths {
+  /** By file, then line. */
+  readonly paths: readonly PossiblyBrokenPath[];
+  /**
+   * Strings guessed to be paths that name no file and do not start with `/`, such as a file
+   * name a component joins to a folder, or a path a build tool writes to: not cited, since a
+   * caller only counts them.
+   */
+  readonly unlisted: readonly { readonly file: string; readonly rawPath: string }[];
+  /** Source files that could not be re-read to cite a line, sorted. */
+  readonly unreadableSources: AuditResult['unreadableSources'];
+}
+
+/**
+ * The strings an adapter guessed were image paths that name no file, each cited. Only those
+ * that start with `/` are listed: such a string names a place on the site whatever code reads
+ * it, while a file name or a relative path in code is most often joined to a folder elsewhere,
+ * a build tool's own path or a label. A value an adapter declined, such as a component's own
+ * prop, is in neither, since it was never looked up.
+ *
+ * @param options the graph, and the port that re-reads a source file to cite a line
+ * @returns the listed paths, and the strings left unlisted
+ */
+export async function possiblyBrokenPaths(options: {
+  readonly graph: Graph;
+  readonly readFile: ReadFilePort;
+}): Promise<PossiblyBrokenPaths> {
+  const { graph } = options;
+  const guessed = graph.byResolution.discarded.filter((reference) => reference.declined !== true);
+  const listed = guessed.filter((reference) => dependsOnServingRoot(provenPath(reference)));
+  const { citations, unreadable } = await citeReferences({
+    references: listed,
+    root: graph.root,
+    readFile: options.readFile,
+  });
+
+  const paths = listed.map((reference): PossiblyBrokenPath => {
+    const citation = citations.get(reference);
+    const note = inAnotherCase(reference, graph.root);
+    return {
+      file: citation?.file ?? reference.file,
+      line: citation?.line ?? null,
+      where: citation?.where ?? reference.file,
+      rawPath: reference.rawPath,
+      ...(note === null ? {} : { note }),
+    };
+  });
+  return {
+    paths: paths.sort(byFileAndLine),
+    unlisted: guessed
+      .filter((reference) => !dependsOnServingRoot(provenPath(reference)))
+      .map((reference) => ({
+        file: relativePath(graph.root, reference.file),
+        rawPath: reference.rawPath,
+      })),
+    unreadableSources: unreadable,
+  };
 }
 
 /** `oversized` and `format-opportunity`, the two that need pixels. */

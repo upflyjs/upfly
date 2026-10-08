@@ -176,6 +176,23 @@ describe('parseCommandLine', () => {
     });
   });
 
+  it('reads what fails a check from --fail-on, repeated or split by commas, in one order', () => {
+    const check = (argv: string[]) => {
+      const parsed = parseCommandLine(argv);
+      return parsed.kind === 'run' && parsed.options.command === 'check' ? parsed.options : null;
+    };
+
+    expect(check(['check'])).toMatchObject({ failOn: null, warn: false });
+    expect(
+      check(['check', '--fail-on', 'possibly-broken, broken', '--fail-on', 'broken']),
+    ).toMatchObject({ failOn: ['broken', 'possibly-broken'], warn: false });
+    expect(check(['check', 'site', '--warn'])).toMatchObject({
+      dir: 'site',
+      failOn: null,
+      warn: true,
+    });
+  });
+
   it('runs an undo, which takes only a directory and the output flags', () => {
     expect(parseCommandLine(['undo', 'site', '--json'])).toEqual({
       kind: 'run',
@@ -244,6 +261,22 @@ describe('parseCommandLine', () => {
       '--full and --json cannot be used together: --full prints the full text, and --json prints JSON instead',
     ],
     [['check', '--full'], 'unknown option `--full`'],
+    [
+      ['check', '--fail-on', 'broken,unused'],
+      '--fail-on takes broken, too-large or possibly-broken, separated by commas; got `unused`, and an unused image never fails the check',
+    ],
+    [
+      ['check', '--fail-on', 'size'],
+      '--fail-on takes broken, too-large or possibly-broken, separated by commas; got `size`',
+    ],
+    [
+      ['check', '--fail-on', ' , '],
+      '--fail-on needs at least one of broken, too-large and possibly-broken; --warn makes nothing fail',
+    ],
+    [
+      ['check', '--warn', '--fail-on', 'broken'],
+      '--warn and --fail-on cannot be used together: --warn makes nothing fail',
+    ],
     [
       ['move', 'a.png'],
       'move needs the image or folder to move and where it goes, such as `npx upfly move public/hero.png public/img/hero.png`',

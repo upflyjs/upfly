@@ -2581,17 +2581,35 @@ How `bench/src/verify.ts` checks findings from outside the engine: `bench/README
 (`undo`), and prints. It decides serving roots with the engine's own `servingRootsFor`, so a
 command cannot decide them differently from the measurements behind it.
 
-**`check` is the gate for continuous integration.** It fails (exit 1) on a `broken` finding, and
-on an image some reference uses whose file is larger than `check.maxImageBytes`; it reads no
-pixels. An unused image never fails it: most projects hold some, and a gate that fails on its
-first run is switched off. When the serving root cannot be found it refuses (exit 3), as
-`optimize` does, because the root-relative references cannot be judged. `--changed <ref>` keeps
-what a change could have caused: findings in the files changed since the commit `ref` and `HEAD`
-last shared (`git merge-base`), working tree and untracked files included, or since the last
-commit without a ref. A change breaks a page it never touched by deleting the image the page
-names, so a broken reference whose file name matches a deleted file is kept wherever it sits.
-Everything the verdict leaves out is counted in a sentence: findings outside the change, unused
-images over the limit, files that could not be read, and references whose file cannot be known.
+**`check` is an optional guard for continuous integration.** By default it fails (exit 1) on a
+`broken` finding, and on an image some reference uses whose file is larger than
+`check.maxImageBytes` when that is set, so a config that sets only the limit still fails on it.
+`check.failOn` in the config, or `--fail-on` for one run, names the kinds that fail it (`broken`,
+`too-large`, `possibly-broken`), and `--warn` makes none fail, while a usage or configuration error
+and a refusal keep their own codes. It reads no
+pixels. An unused image is never a kind that fails it: most projects hold some, a gate that fails
+on its first run is switched off, and "unused" is only what Upfly can see.
+
+It also lists, apart from its findings, the **possibly broken paths**: strings an adapter only
+guessed were image paths (`discarded`), that start with `/` and name no file
+(`possiblyBrokenPaths`). Only those starting with `/` are listed, because such a string names a
+place on the site whatever code reads it, while a file name or a relative path in code is most
+often joined to a folder elsewhere, a build tool's own path or a label: on the five validation
+repositories, 211 such strings named 4 missing images, against 14 of 15 sampled that start with
+`/`. The rest are counted in a sentence. The resolver records the image such a string names in
+another letter case, as it does for a broken reference, so the list says which load on Windows and
+macOS and break on a Linux server. A value an adapter declined, such as a component's own prop, is
+in neither, since it was never looked up.
+
+When the serving root cannot be found it refuses (exit 3), as `optimize` does, because the
+root-relative references cannot be judged. `--changed <ref>` keeps what a change could have
+caused: findings and possibly broken paths in the files changed since the commit `ref` and
+`HEAD` last shared (`git merge-base`), working tree and untracked files included, or since the
+last commit without a ref. A change breaks a page it never touched by deleting the image the page
+names, so a path whose file name matches a deleted file is kept wherever it sits. Everything the
+verdict leaves out is counted in a sentence: findings and paths outside the change, strings that
+do not start with `/`, unused images over the limit, files that could not be read, and
+references whose file cannot be known.
 
 **`optimize --only` limits what converts, never what is read.** A scope that limits reading is
 how an excluded page ends up naming a deleted original, so `optimizeProject`'s `only` (exact
@@ -2684,7 +2702,7 @@ rests on colour alone. How many colours the terminal shows is Node's answer for 
 256 where the terminal shows those. Among 16 colours only a red comes near it, so there the
 accent is bold without a colour, and red still means a failure.
 
-**Exit codes** are a contract: 0 the command ran, 1 `check` found findings over its thresholds, 2 the
+**Exit codes** are a contract: 0 the command ran, 1 `check` found something of a kind that fails it, 2 the
 command line or configuration was wrong, 3 Upfly refused to act for safety, 4 something it did not
 anticipate went wrong. A crash is its own code, because it is neither a finding nor a refusal. A
 refusal's `error` line under `--json` also carries a `reason`, a stable name such as

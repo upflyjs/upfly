@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from 'node:util';
-import { normaliseServedDir } from './config.js';
+import { CHECK_KINDS, type CheckKind, normaliseServedDir } from './config.js';
 import type { UpflyCommand } from './invocation.js';
 
 export type CommandName =
@@ -86,6 +86,10 @@ export interface CheckOptions extends CommonOptions, ScopeOptions {
    * the change is measured from, or `null` for the uncommitted changes. `null` without the flag.
    */
   readonly changed: { readonly against: string | null } | null;
+  /** `--fail-on`: what fails the check in this run, over the config's; `null` without it. */
+  readonly failOn: readonly CheckKind[] | null;
+  /** `--warn`: list everything and exit 0 whatever is found. */
+  readonly warn: boolean;
 }
 
 export interface InitOptions extends CommonOptions {
@@ -225,6 +229,8 @@ const CHECK = {
   ...COMMON,
   ...SCOPE,
   changed: { type: 'string' },
+  'fail-on': { type: 'string', multiple: true },
+  warn: { type: 'boolean' },
 } as const;
 
 const REFS = { ...COMMON, ...SCOPE } as const;
@@ -437,6 +443,8 @@ function parseCheck(args: readonly string[]): Parsed {
   if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
   const scope = scopeOf(values);
   if (typeof scope === 'string') return { kind: 'usage-error', command, message: scope };
+  const failOn = failOnOf(values['fail-on'], values.warn === true);
+  if (typeof failOn === 'string') return { kind: 'usage-error', command, message: failOn };
   const changed = values.changed;
 
   return {
@@ -447,9 +455,31 @@ function parseCheck(args: readonly string[]): Parsed {
       json: values.json === true,
       noColor: values['no-color'] === true,
       changed: changed === undefined ? null : { against: changed === '' ? null : changed },
+      failOn,
+      warn: values.warn === true,
       ...scope,
     },
   };
+}
+
+/** What `--fail-on` names, each flag holding one kind or a list split by commas. */
+function failOnOf(
+  written: readonly string[] | undefined,
+  warn: boolean,
+): readonly CheckKind[] | null | string {
+  if (written === undefined) return null;
+  if (warn) return '--warn and --fail-on cannot be used together: --warn makes nothing fail';
+  const named = written.flatMap((value) => value.split(',').map((kind) => kind.trim()));
+  const kinds = named.filter((kind) => kind !== '');
+  if (kinds.length === 0) {
+    return '--fail-on needs at least one of broken, too-large and possibly-broken; --warn makes nothing fail';
+  }
+  const unknown = kinds.find((kind) => !(CHECK_KINDS as readonly string[]).includes(kind));
+  if (unknown !== undefined) {
+    const unused = unknown === 'unused' ? ', and an unused image never fails the check' : '';
+    return `--fail-on takes broken, too-large or possibly-broken, separated by commas; got \`${unknown}\`${unused}`;
+  }
+  return CHECK_KINDS.filter((kind) => kinds.includes(kind));
 }
 
 function parseCheckArgs(args: readonly string[]) {

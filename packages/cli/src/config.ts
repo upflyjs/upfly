@@ -38,6 +38,16 @@ export interface UpflyConfig {
   readonly check?: CheckSettings;
 }
 
+/**
+ * What `upfly check` can fail on: `broken`, a reference to an image that does not exist;
+ * `too-large`, an image in use larger than `maxImageBytes`; `possibly-broken`, an image path in
+ * code or data that names no file.
+ */
+export type CheckKind = 'broken' | 'too-large' | 'possibly-broken';
+
+/** Every kind the check can fail on, in the order it reports them. */
+export const CHECK_KINDS: readonly CheckKind[] = ['broken', 'too-large', 'possibly-broken'];
+
 /** The limits `upfly check` holds a project to. */
 export interface CheckSettings {
   /**
@@ -45,6 +55,12 @@ export interface CheckSettings {
    * when its file is larger; an image nothing uses never does.
    */
   readonly maxImageBytes?: number;
+  /**
+   * What fails the check. Unset, it fails on `broken`, and on `too-large` when
+   * `maxImageBytes` is set; an empty list makes it fail on nothing. An unused image is never
+   * one of them. `--fail-on` overrides it for one run.
+   */
+  readonly failOn?: readonly CheckKind[];
 }
 
 /** Returns its argument, typed, for an `upfly.config.ts` that wants editor completion. */
@@ -85,7 +101,7 @@ export const V2_EXTENSION_KEYS: readonly string[] = [
 const KEYS = ['$schema', 'publicDirs', 'publicPolicy', 'format', 'exclude', 'check'] as const;
 // `format` is not here: the v2 extension's settings use the same name.
 const V3_ONLY_KEYS = new Set(['publicDirs', 'publicPolicy', 'exclude', 'check']);
-const CHECK_KEYS = ['maxImageBytes'] as const;
+const CHECK_KEYS = ['maxImageBytes', 'failOn'] as const;
 
 export type ConfigOutcome =
   | { readonly kind: 'none' }
@@ -312,9 +328,32 @@ const FIELDS: Record<(typeof KEYS)[number], (value: unknown) => FieldRead> = {
         problem: '`check.maxImageBytes` must be a whole number of bytes above 0, such as 500000.',
       };
     }
-    return { value: max === undefined ? {} : { maxImageBytes: max } };
+    const failOn = value.failOn === undefined ? undefined : readFailOn(value.failOn, max);
+    if (typeof failOn === 'string') return { problem: failOn };
+    return {
+      value: {
+        ...(max === undefined ? {} : { maxImageBytes: max }),
+        ...(failOn === undefined ? {} : { failOn }),
+      },
+    };
   },
 };
+
+/** `check.failOn` in the order the check reports its kinds, or why it cannot be used. */
+function readFailOn(value: unknown, max: unknown): readonly CheckKind[] | string {
+  const kinds = stringList(value);
+  if (kinds === undefined) {
+    return '`check.failOn` must be a list of what fails the check, such as ["broken", "possibly-broken"].';
+  }
+  const unknown = kinds.find((kind) => !(CHECK_KINDS as readonly string[]).includes(kind));
+  if (unknown !== undefined) {
+    return `\`check.failOn\` holds \`${unknown}\`, which the check cannot fail on: the choices are ${list(CHECK_KINDS.map((kind) => `\`${kind}\``))}, and an unused image never fails the check.`;
+  }
+  if (kinds.includes('too-large') && max === undefined) {
+    return '`check.failOn` names `too-large`, which needs `check.maxImageBytes`, the largest an image in use may be.';
+  }
+  return CHECK_KINDS.filter((kind) => kinds.includes(kind));
+}
 
 /**
  * A served folder as the engine spells it: POSIX, relative, no trailing slash, and `''`

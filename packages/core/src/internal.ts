@@ -12,8 +12,8 @@ export { buildGraph } from './graph/graph.js';
 export type { AssetNode, Graph } from './graph/graph.js';
 export { probeAssets } from './probe/probe.js';
 export type { AssetProbe, ProbeDiagnostic } from './probe/probe.js';
-export { audit, byFileAndLine } from './audit/audit.js';
-export type { AuditResult } from './audit/audit.js';
+export { audit, byFileAndLine, possiblyBrokenPaths } from './audit/audit.js';
+export type { AuditResult, PossiblyBrokenPath, PossiblyBrokenPaths } from './audit/audit.js';
 export { CONVENTIONAL_SERVING_ROOTS, resolveReferences } from './resolve/resolve.js';
 export { DEFAULT_IGNORED_DIRECTORIES, discover } from './discover/discover.js';
 export {

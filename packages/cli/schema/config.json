@@ -39,14 +39,28 @@
       }
     },
     "check": {
-      "description": "What upfly check fails on, besides a reference to an image that does not exist.",
+      "description": "What upfly check holds the project to, and what fails it.",
       "type": "object",
       "properties": {
         "maxImageBytes": {
-          "description": "The largest an image in use may be, in bytes, such as 500000. upfly check fails when an image a reference uses is larger; an image nothing uses never fails it.",
+          "description": "The largest an image in use may be, in bytes, such as 500000. upfly check fails when an image a reference uses is larger, unless failOn leaves too-large out; an image nothing uses never fails it.",
           "type": "integer",
           "minimum": 1
+        },
+        "failOn": {
+          "description": "What fails upfly check: \"broken\", a reference to an image that does not exist; \"too-large\", an image in use larger than maxImageBytes; \"possibly-broken\", an image path in code or data that names no file. Unset, it fails on broken, and on too-large when maxImageBytes is set; [] makes it fail on nothing. An unused image never fails it. --fail-on replaces it for one run, and --warn makes nothing fail.",
+          "type": "array",
+          "items": { "type": "string", "enum": ["broken", "too-large", "possibly-broken"] },
+          "examples": [["broken"], ["broken", "possibly-broken"]]
         }
+      },
+      "if": {
+        "required": ["failOn"],
+        "properties": { "failOn": { "type": "array", "contains": { "const": "too-large" } } }
+      },
+      "then": {
+        "required": ["maxImageBytes"],
+        "properties": { "maxImageBytes": { "type": "integer" } }
       },
       "additionalProperties": false
     }

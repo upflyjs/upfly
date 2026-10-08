@@ -1,10 +1,12 @@
 /**
- * `upfly check`: the gate for continuous integration. It fails when a reference names an image
- * that does not exist, or an image in use is larger than the config allows, and never because
- * an image is unused: most projects hold some, and a gate that fails on its first run is
- * switched off. It reads no pixels and writes nothing.
+ * `upfly check`: an optional guard for continuous integration. By default it fails when a
+ * reference names an image that does not exist, or an image in use is larger than the config
+ * allows; `check.failOn` and `--fail-on` choose what fails, and `--warn` lists everything
+ * without failing. It never fails because an image is unused: most projects hold some, and
+ * a gate that fails on its first run is switched off. It reads no pixels and writes nothing.
  */
 
+import { readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import {
   type BrokenFinding,
@@ -13,10 +15,18 @@ import {
   runPipeline,
   servingRootsFor,
 } from 'upfly-core';
-import { byFileAndLine, fewResolvedIn, formatBytes, relativePath } from 'upfly-core/internal';
+import {
+  type PossiblyBrokenPath,
+  type PossiblyBrokenPaths,
+  byFileAndLine,
+  fewResolvedIn,
+  formatBytes,
+  possiblyBrokenPaths,
+  relativePath,
+} from 'upfly-core/internal';
 import type { CheckOptions } from './args.js';
 import { isDirectory } from './audit.js';
-import { loadConfig } from './config.js';
+import { CHECK_KINDS, type CheckKind, loadConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { changedFiles } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
@@ -33,8 +43,11 @@ export interface TooLargeFinding {
   readonly bytes: number;
 }
 
-/** What fails the check. */
+/** What the check finds, listed whether or not its kind fails the check. */
 export type CheckFinding = BrokenFinding | TooLargeFinding;
+
+/** Where this run's list of what fails the check came from. */
+type FailOnSource = 'default' | 'config' | 'flag' | 'warn';
 
 /** The files a change touched, from `--changed`, and the file names it deleted. */
 interface ChangeScope {
@@ -48,9 +61,9 @@ interface ChangeScope {
  *
  * @param options the parsed command line
  * @param io the streams and environment to use
- * @returns 0 when it passed, 1 when a finding failed it, 2 for a usage or configuration error,
- * 3 when no folder was named and it could not tell where the site is served from, or the config
- * is another tool's
+ * @returns 0 when it passed, or under `--warn`; 1 when something of a kind that fails it was
+ * found; 2 for a usage or configuration error; 3 when no folder was named and it could not tell
+ * where the site is served from, or the config is another tool's
  */
 export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode> {
   const root = resolve(options.dir);
@@ -65,6 +78,16 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
     return stopWith(io, options, EXIT_CODES.USAGE, `${config.file} ${config.message}`);
   }
   const settings = config.kind === 'loaded' ? config.config : {};
+  const limit = settings.check?.maxImageBytes ?? null;
+  const fails = failOnFor(options, settings.check?.failOn, limit);
+  if (fails.kinds.includes('too-large') && limit === null) {
+    return stopWith(
+      io,
+      options,
+      EXIT_CODES.USAGE,
+      '--fail-on too-large needs check.maxImageBytes in the config file, the largest an image in use may be',
+    );
+  }
 
   // Asked before the project is read, so a ref git does not know stops the run at once.
   const upfly = upflyCommand(io.env, io.script);
@@ -109,8 +132,12 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
           said: fewResolvedIn(unknown, output.servingRoots.dirs),
         };
 
-  const verdict = judge(output, settings.check?.maxImageBytes ?? null, scope, unknown);
-  const exitCode = verdict.findings.length === 0 ? EXIT_CODES.OK : EXIT_CODES.FINDINGS;
+  const listed = await possiblyBrokenPaths({
+    graph: output.graph,
+    readFile: (file) => readFile(file, 'utf8'),
+  });
+  const verdict = judge(output, { limit, fails, scope, unknown, listed });
+  const exitCode = failingCount(verdict) === 0 ? EXIT_CODES.OK : EXIT_CODES.FINDINGS;
   if (options.json) {
     for (const diagnostic of output.scanDiagnostics) {
       emit(io, { type: 'diagnostic', command: 'check', source: 'parser', ...diagnostic });
@@ -120,7 +147,13 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
       command: 'check',
       exitCode,
       passed: exitCode === EXIT_CODES.OK,
+      failOn: verdict.fails.kinds,
       findings: verdict.findings,
+      possiblyBroken: {
+        paths: verdict.possiblyBroken,
+        leftOut: verdict.possiblyBrokenLeftOut,
+        unlisted: verdict.unlisted,
+      },
       maxImageBytes: verdict.limit,
       changed: scope === null ? null : { against: scope.against, files: scope.paths.size },
       leftOut: verdict.leftOut,
@@ -175,11 +208,40 @@ function changeScope(
   }
 }
 
+/** The kinds that fail this run, and what chose them. */
+interface FailOn {
+  readonly kinds: readonly CheckKind[];
+  readonly source: FailOnSource;
+}
+
+/**
+ * `--warn` first, then `--fail-on`, then the config's `check.failOn`; with none of them,
+ * `broken`, and `too-large` when a limit is set, so a config that sets only the limit still
+ * fails on it.
+ */
+function failOnFor(
+  options: CheckOptions,
+  configured: readonly CheckKind[] | undefined,
+  limit: number | null,
+): FailOn {
+  if (options.warn) return { kinds: [], source: 'warn' };
+  if (options.failOn !== null) return { kinds: options.failOn, source: 'flag' };
+  if (configured !== undefined) return { kinds: configured, source: 'config' };
+  return { kinds: limit === null ? ['broken'] : ['broken', 'too-large'], source: 'default' };
+}
+
 interface Verdict {
   readonly findings: readonly CheckFinding[];
+  /** Image paths in code or data that name no file, listed apart from the findings. */
+  readonly possiblyBroken: readonly PossiblyBrokenPath[];
+  readonly fails: FailOn;
   readonly limit: number | null;
   /** Findings `--changed` left out, since the change did not touch their files. */
   readonly leftOut: number;
+  /** Possibly broken paths `--changed` left out, the same way. */
+  readonly possiblyBrokenLeftOut: number;
+  /** Strings that name no file and do not start with `/`, counted, not listed. */
+  readonly unlisted: number;
   /** Images over the limit that no reference uses, which never fail the check. */
   readonly unusedOverLimit: number;
   /** References whose file Upfly cannot know, so they could not be checked. */
@@ -188,14 +250,30 @@ interface Verdict {
   readonly unread: number;
 }
 
-function judge(
-  output: PipelineOutput,
-  limit: number | null,
-  scope: ChangeScope | null,
-  unknown: ServingRootUnknownFinding | undefined,
-): Verdict {
+/** How many of what was found are of a kind that fails this run. */
+function failingCount(verdict: Verdict): number {
+  return (
+    verdict.findings.filter((finding) => verdict.fails.kinds.includes(finding.kind)).length +
+    (verdict.fails.kinds.includes('possibly-broken') ? verdict.possiblyBroken.length : 0)
+  );
+}
+
+interface Judged {
+  readonly limit: number | null;
+  readonly fails: FailOn;
+  readonly scope: ChangeScope | null;
+  readonly unknown: ServingRootUnknownFinding | undefined;
+  readonly listed: PossiblyBrokenPaths;
+}
+
+function judge(output: PipelineOutput, judged: Judged): Verdict {
+  const { limit, scope, unknown, listed } = judged;
   const { root } = output.graph;
   const inScope = (path: string): boolean => scope === null || scope.paths.has(path);
+  // A change breaks a page it never touched by deleting or renaming the image the page names,
+  // so a path naming a file the change deleted is kept wherever it sits.
+  const kept = (file: string, rawPath: string): boolean =>
+    inScope(projectPath(root, file)) || (scope?.deletedNames.has(nameOf(rawPath)) ?? false);
 
   // The references a named folder did not resolve join the rest, in the audit's own order.
   const broken = [
@@ -217,14 +295,10 @@ function judge(
     );
   const all: CheckFinding[] = [...broken, ...tooLarge];
 
-  // A change breaks a page it never touched by deleting or renaming the image the page names,
-  // so a reference to a name the change deleted is kept wherever it sits.
   const findings = all.filter((finding) =>
-    finding.kind === 'too-large'
-      ? inScope(finding.asset)
-      : inScope(projectPath(root, finding.file)) ||
-        (scope?.deletedNames.has(nameOf(finding.rawPath)) ?? false),
+    finding.kind === 'too-large' ? inScope(finding.asset) : kept(finding.file, finding.rawPath),
   );
+  const possiblyBroken = listed.paths.filter((path) => kept(path.file, path.rawPath));
   const unchecked = [
     ...output.graph.byResolution.dynamic,
     ...output.graph.byResolution['unresolved-alias'],
@@ -232,8 +306,12 @@ function judge(
 
   return {
     findings,
+    possiblyBroken,
+    fails: judged.fails,
     limit,
     leftOut: all.length - findings.length,
+    possiblyBrokenLeftOut: listed.paths.length - possiblyBroken.length,
+    unlisted: listed.unlisted.filter((entry) => kept(entry.file, entry.rawPath)).length,
     unusedOverLimit: overLimit.filter(
       (node) => node.references.length === 0 && inScope(node.asset.relative),
     ).length,
@@ -244,8 +322,9 @@ function judge(
 
 /**
  * The verdict as text: the headline, the line that says whether it passed with how little
- * resolved under it when that was too little in a folder that was named, then the findings.
- * In a terminal the verdict's first word is a label, in red when it failed.
+ * resolved under it when that was too little in a folder that was named, then the findings,
+ * then the possibly broken paths. In a terminal the verdict's first word is a label, in red
+ * when it failed.
  */
 function render(
   verdict: Verdict,
@@ -256,9 +335,8 @@ function render(
 ): string {
   const broken = verdict.findings.filter((f): f is BrokenFinding => f.kind === 'broken');
   const tooLarge = verdict.findings.filter((f): f is TooLargeFinding => f.kind === 'too-large');
-  const said = verdictLine(broken.length, tooLarge.length, verdict.limit);
-  const [word = '', ...rest] = said.split(' ');
-  const line = [verdict.findings.length === 0 ? styles.accent(word) : styles.red(word), ...rest];
+  const [word = '', ...rest] = verdictLine(verdict).split(' ');
+  const line = [failingCount(verdict) === 0 ? styles.accent(word) : styles.red(word), ...rest];
   const sections = [
     headline(styles, 'check'),
     fewResolved === null
@@ -270,10 +348,7 @@ function render(
     sections.push(
       [
         styles.accent(`References to images that do not exist (${broken.length})`),
-        ...broken.flatMap((finding) => [
-          `    ${finding.where}  ${finding.rawPath}`,
-          ...(finding.note === undefined ? [] : [`      ${finding.note}`]),
-        ]),
+        ...broken.flatMap((finding) => cited(finding)),
       ].join('\n'),
     );
   }
@@ -285,51 +360,131 @@ function render(
       ].join('\n'),
     );
   }
+  if (verdict.possiblyBroken.length > 0) {
+    sections.push(
+      [
+        styles.accent(
+          `Possibly broken: image paths in code or data that name no file (${verdict.possiblyBroken.length})`,
+        ),
+        ...verdict.possiblyBroken.flatMap((path) => cited(path)),
+      ].join('\n'),
+    );
+  }
 
   const notes = notesFor(verdict, scope, upfly);
   if (notes.length > 0) sections.push(notes.map(styles.dim).join('\n'));
   return `${sections.join('\n\n')}\n`;
 }
 
-/** The one line that says whether the check passed and why. */
-function verdictLine(broken: number, tooLarge: number, limit: number | null): string {
-  const limitText = `check.maxImageBytes, ${limit} bytes`;
-  if (broken === 0 && tooLarge === 0) {
-    return limit === null
-      ? 'Passed: no reference names a missing image.'
-      : `Passed: no reference names a missing image, and no image in use is larger than ${limitText}.`;
+/** A path where it is written, with what more is known about it on the line below. */
+function cited(path: {
+  readonly where: string;
+  readonly rawPath: string;
+  readonly note?: string;
+}): string[] {
+  return [
+    `    ${path.where}  ${path.rawPath}`,
+    ...(path.note === undefined ? [] : [`      ${path.note}`]),
+  ];
+}
+
+/**
+ * The one line that says whether the check passed and why: what failed it; or, when nothing
+ * did, what was found that the kinds failing this run leave out; or what held.
+ */
+function verdictLine(verdict: Verdict): string {
+  const found: Record<CheckKind, number> = {
+    broken: verdict.findings.filter((finding) => finding.kind === 'broken').length,
+    'too-large': verdict.findings.filter((finding) => finding.kind === 'too-large').length,
+    'possibly-broken': verdict.possiblyBroken.length,
+  };
+  const { kinds, source } = verdict.fails;
+  const said = (list: readonly CheckKind[]) =>
+    clauses(list.map((kind) => foundClause(kind, found[kind], verdict.limit)));
+
+  const failing = CHECK_KINDS.filter((kind) => kinds.includes(kind) && found[kind] > 0);
+  if (failing.length > 0) return `Failed: ${said(failing)}.`;
+
+  // A path in code or data is listed apart by design, so only a finding that would fail by
+  // default turns the line into a warning.
+  const quiet = CHECK_KINDS.filter((kind) => kind !== 'possibly-broken' && found[kind] > 0);
+  if (quiet.length > 0) {
+    if (source === 'warn') return `Warning: ${said(quiet)}. --warn keeps the exit code at 0.`;
+    const one = quiet.length === 1 && found[quiet[0] as CheckKind] === 1;
+    return `Warning: ${said(quiet)}; ${source === 'flag' ? '--fail-on' : 'check.failOn'} does not name ${quiet.join(' or ')}, so ${one ? 'it does' : 'they do'} not fail the check.`;
   }
-  const reasons: string[] = [];
-  if (broken > 0) {
-    reasons.push(
-      `${count(broken, 'reference')} ${broken === 1 ? 'names' : 'name'} an image that does not exist`,
-    );
+
+  return `Passed: ${clauses([
+    'no reference names a missing image',
+    ...(verdict.limit === null
+      ? []
+      : [`no image in use is larger than check.maxImageBytes, ${verdict.limit} bytes`]),
+    ...(kinds.includes('possibly-broken') ? ['no path in code or data names a missing image'] : []),
+  ])}.`;
+}
+
+/** What was found of one kind, in words. */
+function foundClause(kind: CheckKind, found: number, limit: number | null): string {
+  const one = found === 1;
+  switch (kind) {
+    case 'broken':
+      return `${count(found, 'reference')} ${one ? 'names' : 'name'} an image that does not exist`;
+    case 'too-large':
+      return `${count(found, 'image')} in use ${one ? 'is' : 'are'} larger than check.maxImageBytes, ${limit} bytes`;
+    case 'possibly-broken':
+      return `${count(found, 'image path')} in code or data ${one ? 'names' : 'name'} no file`;
   }
-  if (tooLarge > 0) {
-    reasons.push(
-      `${count(tooLarge, 'image')} in use ${tooLarge === 1 ? 'is' : 'are'} larger than ${limitText}`,
-    );
-  }
-  return `Failed: ${reasons.join(', and ')}.`;
+}
+
+/** Clauses joined as a sentence lists them: `a`, `a, and b`, `a, b, and c`. */
+function clauses(parts: readonly string[]): string {
+  return parts.length <= 1
+    ? parts.join('')
+    : `${parts.slice(0, -1).join(', ')}, and ${parts.at(-1)}`;
 }
 
 /** What the verdict leaves out, each in a sentence, so nothing is skipped without a word. */
 function notesFor(verdict: Verdict, scope: ChangeScope | null, upfly: UpflyCommand): string[] {
   return [
-    scope === null ? null : changeNote(scope, verdict.leftOut),
+    scope === null ? null : changeNote(scope, verdict),
+    possiblyBrokenNote(verdict),
+    unlistedNote(verdict, upfly),
     unusedNote(verdict.unusedOverLimit),
     unreadNote(verdict.unread, upfly),
     uncheckedNote(verdict.unchecked, upfly),
   ].filter((note): note is string => note !== null);
 }
 
-function changeNote(scope: ChangeScope, leftOut: number): string {
+function changeNote(scope: ChangeScope, verdict: Verdict): string {
   const since = scope.against === null ? 'since the last commit' : `against ${scope.against}`;
+  const { leftOut, possiblyBrokenLeftOut } = verdict;
+  const parts = [
+    ...(leftOut === 0 ? [] : [count(leftOut, 'finding')]),
+    ...(possiblyBrokenLeftOut === 0 ? [] : [count(possiblyBrokenLeftOut, 'possibly broken path')]),
+  ];
   const left =
-    leftOut === 0
+    parts.length === 0
       ? '.'
-      : `; ${count(leftOut, 'finding')} in files this change did not touch ${leftOut === 1 ? 'was' : 'were'} left out.`;
+      : `; ${parts.join(' and ')} in files this change did not touch ${leftOut + possiblyBrokenLeftOut === 1 ? 'was' : 'were'} left out.`;
   return `Checked the ${count(scope.paths.size, 'file')} changed ${since}${left}`;
+}
+
+function possiblyBrokenNote(verdict: Verdict): string | null {
+  if (verdict.possiblyBroken.length === 0) return null;
+  const what =
+    'A possibly broken path is a string Upfly does not read as a reference: a page that shows it shows no image, but Upfly cannot tell whether a page does.';
+  return verdict.fails.kinds.includes('possibly-broken')
+    ? what
+    : `${what} Such paths fail the check only when check.failOn or --fail-on names possibly-broken.`;
+}
+
+function unlistedNote(verdict: Verdict, upfly: UpflyCommand): string | null {
+  const { unlisted } = verdict;
+  if (unlisted === 0) return null;
+  const more = verdict.possiblyBroken.length === 0 ? '' : 'more ';
+  return unlisted === 1
+    ? `1 ${more}string ends in an image extension and names no file, but does not start with / as a path on the site does; \`${upfly} audit --include-discarded\` lists it.`
+    : `${unlisted} ${more}strings end in an image extension and name no file, but do not start with / as a path on the site does; \`${upfly} audit --include-discarded\` lists them.`;
 }
 
 function unusedNote(unused: number): string | null {

@@ -34,6 +34,7 @@ import type { DedupeCopy, DedupePlan, DedupeSet, KeptBecause, StayingReference }
 import type { Move, MovePlan, RefusalCode, RefusedMove } from 'upfly-core/internal';
 import type {
   Mention,
+  PossiblyBrokenPath,
   ProbeDiagnostic,
   ScanDiagnostic,
   ServingRootDecision,
@@ -43,6 +44,7 @@ import type {
 } from 'upfly-core/internal';
 import { describe, expect, it } from 'vitest';
 import type { TooLargeFinding } from './check.js';
+import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
 import type { MoveRun, UnfollowedOldPath } from './move.js';
 import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
@@ -755,6 +757,22 @@ describe('the command schemas and the types each command prints agree', () => {
     expectFields(
       at('check.json', '/definitions/tooLargeFinding'),
       fields<TooLargeFinding>({ kind: 'required', asset: 'required', bytes: 'required' }),
+    );
+    expectFields(
+      at('check.json', '/definitions/possiblyBrokenPath'),
+      fields<PossiblyBrokenPath>({
+        file: 'required',
+        line: 'required',
+        where: 'required',
+        rawPath: 'required',
+        note: 'optional',
+      }),
+    );
+    expect(enumOf(at('check.json', '/definitions/checkKind'))).toEqual(
+      members<CheckKind>({ broken: true, 'too-large': true, 'possibly-broken': true }),
+    );
+    expect(enumOf(at('config.json', '/properties/check/properties/failOn/items'))).toEqual(
+      members<CheckKind>({ broken: true, 'too-large': true, 'possibly-broken': true }),
     );
     expectFields(
       at('refs.json', '/properties/references/items'),

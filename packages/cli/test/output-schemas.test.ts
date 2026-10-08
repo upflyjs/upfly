@@ -82,6 +82,15 @@ const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] =
   ['audit no savings', (line) => line.command === 'audit' && line.savings === null],
   ['check --changed', (line) => line.command === 'check' && line.changed !== null],
   ['check unread', (line) => line.command === 'check' && line.unread !== undefined],
+  [
+    'check possibly broken with a note',
+    (line) =>
+      line.command === 'check' &&
+      (line.possiblyBroken as { paths: { note?: string }[] }).paths.some(
+        (path) => path.note !== undefined,
+      ),
+  ],
+  ['check under --warn', (line) => line.command === 'check' && (line.failOn as []).length === 0],
   ['init ties', (line) => line.command === 'init' && line.ties !== undefined],
   ['optimize --only', (line) => line.command === 'optimize' && line.only !== null],
   ['optimize applied', (line) => line.command === 'optimize' && line.run !== null],
@@ -295,6 +304,20 @@ describe('every --json line validates against the published schemas', () => {
     for (const n of [1, 2]) write(named, `public/img/photo-${n}.png`, 'not decoded');
     const few = result(upfly(['check', named, '--json', '--public', 'public']));
     expect(few.fewResolved).toEqual({ folders: ['public'], linked: 2, checkable: 12 });
+
+    // Paths in data that name no file, one in another letter case, failing when named.
+    const data = tempFolder(roots, 'upfly-schema-check-');
+    write(data, 'public/img/logo.png', 'not decoded');
+    write(
+      data,
+      'src/team.js',
+      'export const team = [{ image: "/img/Logo.png" }, { image: "/img/a.png" }];\n',
+    );
+    const failing = result(
+      upfly(['check', data, '--json', '--public', 'public', '--fail-on', 'possibly-broken']),
+    );
+    expect(failing.exitCode).toBe(1);
+    result(upfly(['check', data, '--json', '--public', 'public', '--warn']));
   }, 120_000);
 
   it('refs, one image per verdict', () => {
@@ -410,6 +433,8 @@ describe('every --json line validates against the published schemas', () => {
       'check too-large',
       'check --changed',
       'check unread',
+      'check possibly broken with a note',
+      'check under --warn',
       'init ties',
       'optimize --only',
       'optimize applied',
