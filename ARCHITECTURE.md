@@ -2706,7 +2706,8 @@ picks before `AGENTS.md` is left alone: each of those belongs to another agent t
 #### `upfly mcp`
 
 For an app that reaches tools only through MCP, `upfly mcp` serves the commands over standard input
-and output (`@modelcontextprotocol/server`, which brings no web server and no login code). It adds
+and output (`@modelcontextprotocol/server`, which brings no web server and no login code), to a
+client that opens the 2025 way and to one that opens the 2026-07-28 way alike. It adds
 nothing a command does not do: **each tool runs `upfly <command> --json` as a child process whose
 working folder is the project, and answers with the line it printed last**, so the parsing, the
 refusals and the JSON are the command's own by construction, and a run that crashes ends its own

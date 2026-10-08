@@ -178,6 +178,37 @@ describe('upfly mcp', () => {
   });
 });
 
+describe('a client that opens the 2026-07-28 way', () => {
+  it('is served the same tools and answers, with nothing to fall back on', async () => {
+    const project = copyFixture('vite-react', tempFolder(roots, 'upfly-mcp-modern-'));
+    commitAll(project);
+    const modern = new Client(
+      { name: 'upfly-test', version: '1.0.0' },
+      { versionNegotiation: { mode: { pin: '2026-07-28' } } },
+    );
+    await modern.connect(
+      new StdioClientTransport({
+        command: process.execPath,
+        args: [BIN, 'mcp', project],
+        env: commandEnvironment(),
+        stderr: 'pipe',
+      }),
+    );
+    try {
+      const { tools } = await modern.listTools();
+      const answer = await modern.callTool({ name: 'check', arguments: {} });
+      const [first] = answer.content as { type: string; text?: string }[];
+
+      expect(tools).toHaveLength(7);
+      expect(JSON.parse(first?.text ?? 'null')).toEqual(
+        jsonLines(upfly(['check', '--json'], { cwd: project }).stdout).at(-1),
+      );
+    } finally {
+      await modern.close();
+    }
+  });
+});
+
 describe('the MCP library', () => {
   it('is loaded by upfly mcp and by no other command', () => {
     const log = (args: readonly string[]) => {
