@@ -2740,8 +2740,11 @@ The promise is that the run's changes are the only ones a reviewer has to look a
   `git commit` made in any of those states finishes it: a merge would gain the other branch as a
   second parent and carry the user's half-finished resolution. Git decides the same question from
   the same files (`MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply`)
-  and refused a commit of named paths in every one of them, so the commit refuses too: the files
-  stay written, and the message says to commit them by hand or to undo the run.
+  and refused a commit of named paths in every one of them. The state is known before anything is
+  written, so `optimize`, `dedupe` and `move` ask it with the other things a commit needs (a clean
+  folder, a name and email to commit as) and refuse with exit 3, nothing written. The commit asks
+  again as the last guard: the files stay written, and the message says to commit them by hand or
+  to undo the run.
 - **A moved file keeps its executable mark in the commit.** `git commit --only` would build the
   same commit, but it gives a path new to HEAD the mode on disk, and Windows (`core.filemode`
   false) keeps no executable bit there, so `move --commit` dropped it. The moved path now takes the

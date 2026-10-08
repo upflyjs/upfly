@@ -4,6 +4,7 @@
  * lines left naming an old path, and the refusals.
  */
 
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -258,5 +259,35 @@ describe('upfly move', () => {
       message: expect.stringContaining('public/icons/a.png already exists'),
     });
     expect(result(dirty.stdout)).toMatchObject({ exitCode: 3, reason: 'UNCOMMITTED_CHANGES' });
+  });
+
+  it('refuses --commit during a rebase stopped with a clean tree, before writing anything', () => {
+    // A commit made now would join the rebase, so it is refused while nothing is written,
+    // as a commit that could not hold the run is.
+    const root = site();
+    commitAll(root);
+    write(root, 'notes.txt', 'two\n');
+    git(root, 'add', 'notes.txt');
+    git(root, 'commit', '--quiet', '-m', 'two');
+    // `--exec false` stops the rebase after its pick, with nothing to resolve.
+    spawnSync('git', ['rebase', '--exec', 'false', 'HEAD~1'], { cwd: root, encoding: 'utf8' });
+    const head = git(root, 'rev-parse', 'HEAD').trim();
+    const before = snapshot(root, ['.git']);
+
+    const run = upfly(
+      ['move', 'public/hero.png', 'public/img/hero.png', '--apply', '--commit', '--json'],
+      { cwd: root },
+    );
+
+    expect(run.status).toBe(3);
+    expect(result(run.stdout)).toMatchObject({
+      type: 'error',
+      exitCode: 3,
+      reason: 'GIT_OPERATION_IN_PROGRESS',
+      message: expect.stringContaining('part way through a rebase'),
+    });
+    expect(snapshot(root, ['.git'])).toEqual(before);
+    expect(git(root, 'rev-parse', 'HEAD').trim()).toBe(head);
+    expect(git(root, 'status')).toContain('rebase');
   });
 });

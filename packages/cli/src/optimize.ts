@@ -39,6 +39,7 @@ import {
   ignoredFolders,
   ignoredPaths,
   insideRepository,
+  operationInProgress,
 } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
@@ -327,17 +328,30 @@ export function gitRefusal(
     };
   }
 
-  if (options.commit) {
-    const identity = identityProblem(root);
-    if (identity !== null) {
-      return {
-        code: EXIT_CODES.USAGE,
-        reason: 'NO_GIT_IDENTITY',
-        message: `git has no name and email to commit with (${identity}). Set user.name and user.email with git config, or run without --commit.`,
-      };
-    }
+  return options.commit ? commitRefusal(root) : null;
+}
+
+/**
+ * Why git could not make the run's commit, asked before anything is written: no identity to
+ * commit as, or a merge, a rebase, a cherry-pick or a revert the commit would become part of.
+ * `commitPaths` refuses the second again when it commits, as the last guard.
+ */
+function commitRefusal(root: string): Refusal | null {
+  const identity = identityProblem(root);
+  if (identity !== null) {
+    return {
+      code: EXIT_CODES.USAGE,
+      reason: 'NO_GIT_IDENTITY',
+      message: `git has no name and email to commit with (${identity}). Set user.name and user.email with git config, or run without --commit.`,
+    };
   }
-  return null;
+  const started = operationInProgress(root);
+  if (started === null) return null;
+  return {
+    code: EXIT_CODES.ABORTED,
+    reason: 'GIT_OPERATION_IN_PROGRESS',
+    message: `This repository is part way through a ${started}, and a commit made now would become part of it, so nothing was written. Finish it with \`git ${started} --continue\` or stop it with \`git ${started} --abort\`, then run this again, or run without --commit.`,
+  };
 }
 
 /** Why git offers this folder no protection, as a clause. */

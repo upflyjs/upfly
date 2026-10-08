@@ -3,6 +3,7 @@
  * plan, an applied and committed run that `upfly undo` reverses, `--keep`, and the refusals.
  */
 
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -153,5 +154,30 @@ describe('upfly dedupe', () => {
     expect(run.status).toBe(3);
     expect(result(run.stdout)).toMatchObject({ reason: 'UNCOMMITTED_CHANGES' });
     expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('img/logo.png');
+  });
+
+  it('refuses --commit while a cherry-pick is part way through, before writing anything', () => {
+    // A pick whose change this branch already holds stops with nothing left uncommitted.
+    const root = site();
+    commitAll(root);
+    git(root, 'checkout', '--quiet', '-b', 'theirs');
+    write(root, 'notes.txt', 'the same\n');
+    git(root, 'add', 'notes.txt');
+    git(root, 'commit', '--quiet', '-m', 'theirs');
+    git(root, 'checkout', '--quiet', '-');
+    write(root, 'notes.txt', 'the same\n');
+    git(root, 'add', 'notes.txt');
+    git(root, 'commit', '--quiet', '-m', 'ours');
+    spawnSync('git', ['cherry-pick', 'theirs'], { cwd: root, encoding: 'utf8' });
+    const before = snapshot(root, ['.git']);
+
+    const run = upfly(['dedupe', root, '--apply', '--commit', '--json']);
+
+    expect(run.status).toBe(3);
+    expect(result(run.stdout)).toMatchObject({
+      reason: 'GIT_OPERATION_IN_PROGRESS',
+      message: expect.stringContaining('part way through a cherry-pick'),
+    });
+    expect(snapshot(root, ['.git'])).toEqual(before);
   });
 });

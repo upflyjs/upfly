@@ -20,6 +20,7 @@ import {
   identityProblem,
   ignoredFolders,
   ignoredPaths,
+  operationInProgress,
 } from './git.js';
 
 // The long form of the path: on some machines the temporary folder is named in the short
@@ -273,6 +274,18 @@ describe('commitPaths', () => {
 
     expect(git(root, 'rev-parse', 'HEAD').trim()).toBe(before);
     expect(git(root, 'rev-parse', '--verify', 'MERGE_HEAD').trim()).not.toBe('');
+  });
+
+  it('says what the repository is part way through, a revert among them, and nothing otherwise', () => {
+    const root = repository({ 'shared.txt': 'one\n' });
+    expect(operationInProgress(root)).toBeNull();
+    write(root, 'shared.txt', 'two\n');
+    git(root, 'commit', '--quiet', '-am', 'two');
+    write(root, 'shared.txt', 'three\n');
+    git(root, 'commit', '--quiet', '-am', 'three');
+    spawnSync('git', ['revert', '--no-edit', 'HEAD~1'], { cwd: root, encoding: 'utf8' });
+
+    expect(operationInProgress(root)).toBe('revert');
   });
 
   it('never ends a cherry-pick the person started', () => {

@@ -4,6 +4,7 @@
  * one under both policies, and each refusal.
  */
 
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -411,6 +412,32 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
       message: expect.stringMatching(/Run without --commit, or change what git ignores\.$/),
     });
     expect(snapshot(root, ['.git'])).toEqual(before);
+  });
+
+  it('with --commit, before writing anything, while a merge is part way through', () => {
+    // A commit made now would end the merge, taking the other branch as a second parent. A
+    // merge that keeps this branch's files leaves nothing uncommitted for the other check.
+    const root = standalone();
+    git(root, 'checkout', '--quiet', '-b', 'theirs');
+    write(root, 'notes.txt', 'theirs\n');
+    git(root, 'add', 'notes.txt');
+    git(root, 'commit', '--quiet', '-m', 'theirs');
+    git(root, 'checkout', '--quiet', '-');
+    spawnSync('git', ['merge', '--strategy', 'ours', '--no-commit', 'theirs'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    const before = snapshot(root, ['.git']);
+
+    const run = upfly(['optimize', root, '--apply', '--commit', '--json']);
+
+    expect(run.status).toBe(3);
+    expect(result(run.stdout)).toMatchObject({
+      reason: 'GIT_OPERATION_IN_PROGRESS',
+      message: expect.stringContaining('part way through a merge'),
+    });
+    expect(snapshot(root, ['.git'])).toEqual(before);
+    expect(git(root, 'rev-parse', '--verify', 'MERGE_HEAD').trim()).not.toBe('');
   });
 
   it('with --commit on a site built before the run, naming the ignored build folder to leave out, and that advice gives a correct run', () => {

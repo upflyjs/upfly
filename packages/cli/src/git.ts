@@ -243,6 +243,17 @@ export function identityProblem(root: string): string | null {
 }
 
 /**
+ * What the repository is part way through, in a word: `merge`, `rebase`, `cherry-pick` or
+ * `revert`; null when it is none of them. A commit made now would become part of it, so a run
+ * that commits asks this before it writes, by the files `commitPaths` reads to refuse.
+ *
+ * @param root the project directory, inside a git work tree
+ */
+export function operationInProgress(root: string): string | null {
+  return groundFor(root).started;
+}
+
+/**
  * Commits exactly `paths`, as they are on disk, and returns the new commit's hash. A path
  * that no longer exists is committed as a deletion. Changes staged for any other path stay
  * staged and out of the commit. A moved file keeps the executable mark its old path had.
