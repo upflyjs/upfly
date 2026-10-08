@@ -11,8 +11,8 @@ never deletes an image that nothing uses. By default it removes a converted imag
 original once no file it reads still names it, wherever the image sits; `--keep-originals`
 keeps every original. It makes no network calls.
 
-Run it as `npx upfly <command>` in the project folder. The full guide is
-`node_modules/upfly/AGENTS.md`.
+Run it as `npx upfly <command>` in the project folder. When Upfly is installed in the
+project, the full guide is `node_modules/upfly/AGENTS.md`.
 
 ## One image: where is it used, and can it go?
 
@@ -69,4 +69,5 @@ which folder the site is served from and pass it with `--public <dir>`.
 - `npx upfly dedupe`: plans pointing references to identical copies at one copy. Apply
   it only with the user's yes, as `npx upfly dedupe --apply --commit`; it deletes nothing.
 - `npx upfly init`: writes `upfly.config.json` with the folders the site is served from.
-  Show the user the file.
+  Show the user the file. `npx upfly init --agents` also points the project's agents at
+  Upfly; it keeps a config that exists.

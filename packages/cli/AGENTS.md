@@ -189,5 +189,9 @@ is the likeliest reason for a wrong result.
 ## The Agent Skill
 
 The package also ships a short form of this file as an Agent Skill, which an agent loads
-when a task involves the project's images. To install it, copy the folder
-`node_modules/upfly/skill/upfly` into the project's `.claude/skills/` folder.
+when a task involves the project's images. `npx upfly init --agents` puts it in the
+project's `.agents/skills/upfly` and `.claude/skills/upfly` folders, where most coding
+agents look for a project's skills, and adds a short marked block pointing at Upfly to
+`AGENTS.md` (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there.
+It changes nothing outside that block and asks nothing; with the user's yes, commit the
+files it names.

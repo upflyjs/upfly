@@ -16,7 +16,8 @@ Commands:
   undo [dir]       Put back every file the last optimize, dedupe or move --apply changed.
   check [dir]      An optional guard for continuous integration: fail when a reference
                    names an image that does not exist. Changes nothing.
-  init [dir]       Write upfly.config.json with the folders Upfly works out, and say why.
+  init [dir]       Write upfly.config.json with the folders Upfly works out, and say why;
+                   with --agents, point the project's coding agents at Upfly too.
   refs <image> [dir]
                    List every line that names one image: the references, whether Upfly
                    could rewrite each, the lines it does not follow and why, and what
@@ -174,10 +175,18 @@ Read it, correct what is wrong, and every command uses it from then on. It never
 a configuration file that already exists.
 
 Options:
+  --agents               Also point the project's coding agents at Upfly: add a marked
+                         block to AGENTS.md, created when there is none, and to a CLAUDE.md
+                         or GEMINI.md already there, and put the Upfly skill in
+                         .agents/skills and .claude/skills. It changes nothing outside its
+                         block, keeps a configuration file that exists, and a second run
+                         changes nothing
   --json                 Print one JSON object per line: progress, then the result
 
-Exit status: 0 when the file was written; 2 for a usage error; 3 when a configuration
-file already exists, which the message names; 4 for a failure Upfly did not anticipate.
+Exit status: 0 when the files were written; 2 for a usage error; 3 when a configuration
+file already exists and --agents was not given, which the message names, or an
+instruction file holds an Upfly block with no end; 4 for a failure Upfly did not
+anticipate.
 `;
 
 const REFS = `Usage: upfly refs <image> [dir] [options]

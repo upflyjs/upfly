@@ -2642,7 +2642,43 @@ schema, the folders and the format, giving each folder's reason: the project fil
 folder sits beside, or the count of root-relative paths that chose an inferred one. With no folder
 found it leaves `publicDirs` out rather than declare the project root. It refuses (exit 3) when
 any configuration file exists, the v2 extension's included, and writes with `wx`, so a file that
-appears while the project is read is never overwritten.
+appears while the project is read is never overwritten. It ends by saying how to point the
+project's agents at Upfly, printed as the person runs Upfly.
+
+#### Pointing agents at Upfly
+
+A model does not reach for a tool it was never trained on; an agent chooses from what is in front
+of it, and the Skill and `AGENTS.md` inside `node_modules/upfly` are where no agent looks. So
+**`init --agents`** writes one block between `<!-- upfly:start -->` and `<!-- upfly:end -->` into
+the instruction files the project's agents read, and copies the Skill into the folders they read
+a project's skills from, committed with the project. It plans every file before writing any, so a
+start marker with no end stops it with nothing written (exit 3, `UPFLY_BLOCK_UNCLOSED`); it
+replaces only what lies between its markers, adds the block at a file's end when there is none,
+keeps the file's line endings, keeps a config that exists, asks nothing, and a second run changes
+nothing. Where each agent reads, from its own documentation (read 2026-10-08):
+
+| agent | instructions it reads in a project | project skills |
+|---|---|---|
+| Claude Code | `CLAUDE.md` or `.claude/CLAUDE.md`; `AGENTS.md` only when neither (nor `CLAUDE.local.md`) exists, or through an `@AGENTS.md` import | `.claude/skills` |
+| Codex | `AGENTS.md`, from the repository's root down | `.agents/skills` |
+| Cursor | `AGENTS.md`, nested too; `.cursor/rules` | `.agents/skills`, `.cursor/skills`, and `.claude/skills` |
+| GitHub Copilot | `AGENTS.md` (the nearest), `.github/copilot-instructions.md`, or a root `CLAUDE.md` or `GEMINI.md` | `.github/skills`, `.claude/skills`, `.agents/skills` |
+| Gemini CLI | `GEMINI.md`; `AGENTS.md` only when its settings name it | `.gemini/skills`, `.agents/skills` |
+| Antigravity | `AGENTS.md` or `GEMINI.md` in each folder; `.agents/rules` | `.agents/skills` |
+| Windsurf | `AGENTS.md`, the root one always | `.devin/skills`, `.windsurf/skills`, `.agents/skills`, and `.claude/skills` when enabled |
+| Cline | the root `AGENTS.md`; `.clinerules`, `.cline/rules` | `.cline/skills`, `.clinerules/skills`, `.claude/skills` |
+| OpenCode | `AGENTS.md`, or `CLAUDE.md` when there is none | `.opencode/skills`, `.claude/skills`, `.agents/skills` |
+| Roo Code | `AGENTS.md`; `.roo/rules` | not measured |
+| Zed | the first of `.rules`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.github/copilot-instructions.md`, `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | not measured |
+| Aider | only what `--read` or its config names | none |
+
+So the block goes into `AGENTS.md`, created when there is none, which all but Claude Code, Gemini
+CLI, Zed and Aider read whatever else is there; into a `CLAUDE.md` already there, unless it imports
+`AGENTS.md`, since Claude Code then reads only that; and into a `GEMINI.md` already there. The Skill
+goes into `.agents/skills/upfly` and `.claude/skills/upfly`, which between them reach every agent
+above that reads skills; an agent that reads both folders sees two copies of one Skill. A file Zed
+picks before `AGENTS.md` is left alone: each of those belongs to another agent that reads
+`AGENTS.md` too.
 
 **The configuration file is `upfly.config.ts` (or `.js` and their module forms), or
 `upfly.config.json`, in the directory the command runs on.** The code forms load through c12 with

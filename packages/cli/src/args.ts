@@ -94,6 +94,8 @@ export interface CheckOptions extends CommonOptions, ScopeOptions {
 
 export interface InitOptions extends CommonOptions {
   readonly command: 'init';
+  /** `--agents`: point the project's coding agents at Upfly, whether or not a config exists. */
+  readonly agents: boolean;
 }
 
 export interface DedupeOptions extends CommonOptions, ScopeOptions {
@@ -235,6 +237,8 @@ const CHECK = {
 
 const REFS = { ...COMMON, ...SCOPE } as const;
 
+const INIT = { ...COMMON, agents: { type: 'boolean' } } as const;
+
 const DEDUPE = {
   ...COMMON,
   ...SCOPE,
@@ -288,6 +292,7 @@ export function parseCommandLine(
   if (command === 'refs') return parseRefs(rest, upfly);
   if (command === 'dedupe') return parseDedupe(rest);
   if (command === 'move') return parseMove(rest, upfly);
+  if (command === 'init') return parseInit(rest);
   return parseCommonOnly(command, rest);
 }
 
@@ -662,8 +667,36 @@ function fullConflict(full: boolean | undefined, json: boolean | undefined): str
     : null;
 }
 
+function parseInit(args: readonly string[]): Parsed {
+  const command = 'init';
+  let parsed: ReturnType<typeof parseInitArgs>;
+  try {
+    parsed = parseInitArgs(args);
+  } catch (error) {
+    return { kind: 'usage-error', command, message: plainParseError(error) };
+  }
+  const { values, positionals } = parsed;
+  if (values.help === true) return { kind: 'help', command };
+  const dir = directoryOf(positionals);
+  if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
+  return {
+    kind: 'run',
+    options: {
+      command,
+      dir: dir.value,
+      json: values.json === true,
+      noColor: values['no-color'] === true,
+      agents: values.agents === true,
+    },
+  };
+}
+
+function parseInitArgs(args: readonly string[]) {
+  return parseArgs({ args: [...args], options: INIT, allowPositionals: true, strict: true });
+}
+
 /** A command that takes a folder and only the options every command takes. */
-function parseCommonOnly(command: 'undo' | 'init', args: readonly string[]): Parsed {
+function parseCommonOnly(command: 'undo', args: readonly string[]): Parsed {
   let parsed: ReturnType<typeof parseCommonArgs>;
   try {
     parsed = parseCommonArgs(args);

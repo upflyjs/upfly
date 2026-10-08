@@ -72,6 +72,8 @@ describe('upfly init', () => {
         '',
         'Every Upfly command in this folder now reads it. Edit it to change what Upfly treats as the site.',
         '',
+        "To point this project's coding agents at Upfly, run `npx upfly init --agents`.",
+        '',
       ].join('\n'),
     );
     expect(Object.keys(snapshot(root))).toEqual(
@@ -191,5 +193,129 @@ describe('upfly init', () => {
         },
       ],
     });
+  });
+});
+
+describe('upfly init --agents', () => {
+  const SKILL = readFileSync(new URL('../skill/upfly/SKILL.md', import.meta.url), 'utf8');
+  const SKILLS = ['.agents/skills/upfly/SKILL.md', '.claude/skills/upfly/SKILL.md'];
+
+  function text(root: string, path: string): string {
+    return readFileSync(join(root, path), 'utf8');
+  }
+
+  it('creates AGENTS.md with its block, adds the block to a CLAUDE.md there, and puts the Skill in both folders', () => {
+    const root = framework();
+    write(root, 'CLAUDE.md', '# Notes\r\n\r\nUse pnpm.\r\n');
+
+    const run = upfly(['init', root, '--agents']);
+
+    expect(run.status).toBe(0);
+    expect(text(root, 'AGENTS.md')).toMatch(
+      /^<!-- upfly:start -->\n## Images\n[\s\S]*\n<!-- upfly:end -->\n$/,
+    );
+    expect(text(root, 'AGENTS.md')).toContain('npx upfly refs <image> --json');
+    expect(text(root, 'CLAUDE.md')).toBe(
+      `# Notes\r\n\r\nUse pnpm.\r\n\r\n${text(root, 'AGENTS.md').replaceAll('\n', '\r\n')}`,
+    );
+    for (const skill of SKILLS) expect(text(root, skill)).toBe(SKILL);
+    expect(existsSync(join(root, 'upfly.config.json'))).toBe(true);
+    expect(run.stdout).toContain('AGENTS.md  created, with the Upfly block');
+    expect(run.stdout).toContain('CLAUDE.md  the Upfly block added at the end');
+  });
+
+  it('changes nothing on a second run, and says so', () => {
+    const root = framework();
+    upfly(['init', root, '--agents']);
+    const before = snapshot(root);
+
+    const again = upfly(['init', root, '--agents', '--json']);
+
+    expect(again.status).toBe(0);
+    expect(snapshot(root)).toEqual(before);
+    expect(jsonLines(again.stdout).at(-1)).toMatchObject({
+      file: null,
+      config: null,
+      agents: {
+        instructions: [{ file: 'AGENTS.md', action: 'unchanged' }],
+        skills: SKILLS.map((file) => ({ file, action: 'unchanged' })),
+      },
+    });
+  });
+
+  it('replaces only what lies between its markers, leaving every other line as it was', () => {
+    const root = framework();
+    const before = '# Agents\n\nRun the tests.\n\n';
+    const after = '\n## Deploys\n\nNever on Fridays.\n';
+    write(
+      root,
+      'AGENTS.md',
+      `${before}<!-- upfly:start -->\nold words\n<!-- upfly:end -->\n${after}`,
+    );
+
+    const run = upfly(['init', root, '--agents']);
+    const written = text(root, 'AGENTS.md');
+
+    expect(run.status).toBe(0);
+    expect(written.startsWith(`${before}<!-- upfly:start -->\n## Images\n`)).toBe(true);
+    expect(written.endsWith(`<!-- upfly:end -->\n${after}`)).toBe(true);
+    expect(written).not.toContain('old words');
+  });
+
+  it('works on a project that already has a config, leaving the config as it is', () => {
+    const root = framework();
+    write(root, 'upfly.config.json', '{ "publicDirs": ["public"] }\n');
+
+    const run = upfly(['init', root, '--agents']);
+
+    expect(run.status).toBe(0);
+    expect(text(root, 'upfly.config.json')).toBe('{ "publicDirs": ["public"] }\n');
+    expect(run.stdout).toContain('Kept upfly.config.json, which was already there.');
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+  });
+
+  it('leaves a CLAUDE.md that imports AGENTS.md as it is, and a GEMINI.md gets the block', () => {
+    const root = framework();
+    write(root, 'CLAUDE.md', '@AGENTS.md\n');
+    write(root, 'GEMINI.md', 'Be brief.\n');
+
+    const json = jsonLines(upfly(['init', root, '--agents', '--json']).stdout).at(-1);
+
+    expect(text(root, 'CLAUDE.md')).toBe('@AGENTS.md\n');
+    expect(text(root, 'GEMINI.md')).toContain('Be brief.\n\n<!-- upfly:start -->\n');
+    expect(json).toMatchObject({
+      agents: {
+        instructions: [
+          { file: 'AGENTS.md', action: 'created' },
+          { file: 'CLAUDE.md', action: 'skipped' },
+          { file: 'GEMINI.md', action: 'added' },
+        ],
+      },
+    });
+  });
+
+  it('refuses a start marker with no end, before writing anything', () => {
+    const root = framework();
+    write(root, 'AGENTS.md', '# Agents\n<!-- upfly:start -->\nhalf a block\n');
+    const before = snapshot(root);
+
+    const run = upfly(['init', root, '--agents', '--json']);
+
+    expect(run.status).toBe(3);
+    expect(snapshot(root)).toEqual(before);
+    expect(jsonLines(run.stdout).at(-1)).toMatchObject({
+      type: 'error',
+      reason: 'UPFLY_BLOCK_UNCLOSED',
+    });
+  });
+
+  it('ends a plain init with how to point the project agent at Upfly', () => {
+    const root = framework();
+
+    const run = upfly(['init', root]);
+
+    expect(run.stdout.trimEnd().split('\n').at(-1)).toBe(
+      "To point this project's coding agents at Upfly, run `npx upfly init --agents`.",
+    );
   });
 });
