@@ -111,6 +111,27 @@ describe('mapInOrder', () => {
     expect(started).toEqual(['a']);
   });
 
+  it('rejects with the error of the earliest item that failed, whichever failed first', async () => {
+    let failA = (): void => {};
+    const outcome = mapInOrder(['a', 'b', 'c'], 3, (item) => {
+      if (item === 'a') {
+        return new Promise<string>((_, reject) => {
+          failA = () => reject(new Error('a failed'));
+        });
+      }
+      return item === 'b' ? Promise.reject(new Error('b failed')) : Promise.resolve('C');
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    // 'b' has failed and 'a' is still running; then 'a' fails too. One at a time, the run
+    // would have stopped at 'a', so the same two failures give its error whichever was quicker.
+    await settle();
+    failA();
+    expect(await outcome).toEqual(new Error('a failed'));
+  });
+
   it('treats a call that throws before returning a promise as one that failed', async () => {
     const { work, started, finish } = gatedWork();
     const outcome = mapInOrder(['a', 'b', 'c'], 3, (item) => {

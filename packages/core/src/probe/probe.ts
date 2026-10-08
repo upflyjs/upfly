@@ -307,7 +307,11 @@ export interface ProbeOptions {
   readonly onMeasured?: (done: number, total: number) => void;
 }
 
-const DEFAULT_CONCURRENCY = 4;
+/**
+ * Images encoded at once, by measuring and by an applied run's staging: the size of Node's
+ * thread pool, which sharp's work runs on, so more at once would only queue there.
+ */
+export const ENCODES_AT_ONCE = 4;
 
 /** What the report says when a measurement failed: one fixed sentence per code. */
 const FAILURE_REASON: Record<
@@ -382,7 +386,7 @@ export async function probeAssets(
   // The next asset starts as soon as any finishes, so one large image never holds back the
   // rest. The output follows the asset list, not which encode finished first, and the cap
   // changes which assets are encoded, never the order they come back in.
-  return mapInOrder(assets, options.concurrency ?? DEFAULT_CONCURRENCY, async (asset) => {
+  return mapInOrder(assets, options.concurrency ?? ENCODES_AT_ONCE, async (asset) => {
     const probe = await probeOne(asset, options, withinCap);
     done += 1;
     options.onMeasured?.(done, assets.length);

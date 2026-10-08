@@ -4,9 +4,12 @@
  *
  * The next item starts the moment any call finishes, so one slow item never holds back the
  * others the way a group that waits for its slowest does. After a call fails, by rejecting
- * or by throwing, no further item starts, and the promise rejects with the first error once
- * the calls already started have finished: nothing it started is still running when the
- * caller hears of the failure.
+ * or by throwing, no further item starts, and the promise rejects once the calls already
+ * started have finished: nothing it started is still running when the caller hears of the
+ * failure. It rejects with the error of the earliest item that failed, in the items' order,
+ * so the same failures give the same error whichever call was quicker. Every item before
+ * the first to fail has started by then, so it is the error running them one at a time
+ * would have stopped at.
  *
  * @param items the inputs, in the order the results are wanted
  * @param limit the most calls in progress at once; below 1 counts as 1
@@ -24,7 +27,10 @@ export function mapInOrder<Item, Result>(
   const results = new Array<Result>(items.length);
   let next = 0;
   let running = 0;
-  let failure: { readonly error: unknown } | null = null;
+  let failure: { readonly index: number; readonly error: unknown } | null = null;
+  const failed = (index: number, error: unknown): void => {
+    if (failure === null || index < failure.index) failure = { index, error };
+  };
 
   return new Promise((resolve, reject) => {
     const finished = (): void => {
@@ -47,7 +53,7 @@ export function mapInOrder<Item, Result>(
         try {
           call = work(items[index] as Item, index);
         } catch (error) {
-          failure = { error };
+          failed(index, error);
           finished();
           return;
         }
@@ -57,7 +63,7 @@ export function mapInOrder<Item, Result>(
             finished();
           },
           (error: unknown) => {
-            failure ??= { error };
+            failed(index, error);
             finished();
           },
         );

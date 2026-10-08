@@ -2051,7 +2051,10 @@ actually there. `revert` checks the same backups before its first write and refu
 gone since, so an undo never stops part way through putting originals back. **The run directory
 therefore survives commit**: deleting it would throw away the only copy of anything the `replace`
 policy removed. A run refused before it writes, while staging or in `prepare`, is the opposite
-case: nothing will ever read what it staged, so its encodes and backups are removed. And once a
+case: nothing will ever read what it staged, so its encodes and backups are removed. Staging
+encodes four images at a time and records each staged path before the step that writes it; the
+original is hashed before its encode and checked after each step that reads it; the operations
+keep the plan's order whichever encode finished first. And once a
 run commits, every earlier run's directory is removed: `undo` restores only the run the manifest
 names, and the committed manifest has just replaced the last one, so nothing can restore from an
 earlier directory again. A run that stops part way removes none, its own included.
@@ -2452,9 +2455,12 @@ to **4** (`probe.ts`), a measured default: `os.cpus() - 1` was about 21% worse. 
 about one core busy whatever libvips is allowed, so the parallelism is across images, and sharp's
 work runs on Node's thread pool, four threads unless `UV_THREADPOOL_SIZE` is set before Node starts
 (setting it from inside the program has no effect on Windows). Both bounds are kept full: the next
-file or image starts the moment any finishes (`mapInOrder`, used by the walk, the sizing, the scan
-and the probe), since a group that waits for its slowest member leaves most of its slots idle while
-one large image encodes.
+file or image starts the moment any finishes (`mapInOrder`, used by the walk, the sizing, the scan,
+the probe and an applied run's staging), since a group that waits for its slowest member leaves
+most of its slots idle while one large image encodes. After a failure `mapInOrder` starts nothing
+more and waits for the calls in progress, so a refused run's staged files are all written before
+they are removed, and it rejects with the error of the earliest item that failed, in the items'
+order, so the same failures report the same error whichever call was quicker.
 
 `bench/` is checked in and runs in CI against a fixed fixture, so a regression shows up as a
 number rather than a feeling. **Any performance claim in the README must come from a number `bench/`

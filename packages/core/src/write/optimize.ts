@@ -13,6 +13,7 @@ import type { Mention } from '../audit/sweep.js';
 import { UpflyError } from '../errors.js';
 import type { Graph } from '../graph/graph.js';
 import { isBinaryExtension } from '../graph/unscanned.js';
+import { mapInOrder } from '../map-in-order.js';
 import { compareStrings, extensionOf } from '../paths.js';
 import type { ProjectBuilds } from '../plan/builds.js';
 import { type CommentEdit, commentEditsFor, editsByFile } from '../plan/comment-edits.js';
@@ -28,6 +29,7 @@ import {
   MENTION_SURVIVES,
   type OptimizationPlan,
   type PlanRefusal,
+  type PlannedConversion,
   type PlannedRewrite,
   type PublicPolicy,
   type RootLinkPolicy,
@@ -41,7 +43,12 @@ import {
   findUnfollowedLines,
   mentionReader,
 } from '../plan/unfollowed.js';
-import type { AssetProbe, EncodeFormat, ImageProbe } from '../probe/probe.js';
+import {
+  type AssetProbe,
+  ENCODES_AT_ONCE,
+  type EncodeFormat,
+  type ImageProbe,
+} from '../probe/probe.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import type { ServingRoots } from '../resolve/resolve.js';
 import { hashText } from '../scan/text-hash.js';
@@ -708,12 +715,16 @@ function offsetOn(text: string, line: number, quote: string): number {
 
 /**
  * Encode into the run directory and back up anything that will be removed, then
- * describe the whole thing as operations.
+ * describe the whole thing as operations, in the plan's order.
  *
  * Staged files mirror the project tree under `<runDir>/staged/` rather than being
  * named by a hash, so a person looking into a run directory recognises what they are
  * seeing. They cannot collide, because the planner declines every conversion whose target
  * another conversion shares.
+ *
+ * Conversions are staged `ENCODES_AT_ONCE` at a time. After one fails, no other starts and
+ * the failure is thrown only once those in progress have finished, so every file they wrote
+ * is in `staging` for the caller to remove.
  */
 async function stage(
   plan: OptimizationPlan,
@@ -721,58 +732,64 @@ async function stage(
   input: OptimizeInput,
   staging: string[],
 ): Promise<PlannedOperation[]> {
-  const operations: PlannedOperation[] = [];
   const animated = animatedAssets(input.probes);
+  const staged = await mapInOrder(plan.conversions, ENCODES_AT_ONCE, (conversion) =>
+    stageConversion(conversion, runDir, input, staging, animated),
+  );
+  return [...staged.flat(), ...(await editOperations(plan.rewrites, input.store))];
+}
 
-  for (const conversion of plan.conversions) {
-    const staged = `staged/${conversion.target}`;
-    const source = input.graph.assets.find((node) => node.asset.relative === conversion.asset);
-    if (source === undefined) {
-      throw new Error(`the plan names ${conversion.asset}, which is not in the graph`);
-    }
-
-    // Hashed before the encode and checked after each step that reads the original, so the
-    // file encoded, the file backed up and the file the delete expects are one file.
-    const original = await input.store.hash(conversion.asset);
-    if (original === null) {
-      throw originalMoved(conversion.asset, 'was removed after Upfly read the project');
-    }
-
-    // Recorded before the step that writes it, so a refusal part way removes it too.
-    staging.push(`${runDir}/${staged}`);
-    await unlessOriginalMoved(input.store, conversion.asset, original, () =>
-      input.probe.encodeToFile({
-        path: source.asset.path,
-        format: conversion.format,
-        // Getting this wrong keeps one frame of an animation, for a saving only
-        // achievable by destroying it.
-        animated: animated.has(conversion.asset),
-        // The setting the saving was measured at. The probe's default quality would put a
-        // different file on disk from the one whose saving the user was shown.
-        lossless: conversion.quality === 'lossless',
-        destination: `${input.graph.root}/${runDir}/${staged}`,
-      }),
-    );
-
-    const afterHash = await input.store.hash(`${runDir}/${staged}`);
-    if (afterHash === null) {
-      throw new Error(`the encode of ${conversion.asset} produced no file at ${staged}`);
-    }
-    operations.push({ kind: 'create', path: conversion.target, staged, afterHash });
-
-    if (!conversion.replacesOriginal) continue;
-
-    // Before `prepare`, which refuses a delete whose backup is not actually there.
-    const backup = `backup/${conversion.asset}`;
-    staging.push(`${runDir}/${backup}`);
-    await unlessOriginalMoved(input.store, conversion.asset, original, () =>
-      input.store.copy(conversion.asset, `${runDir}/${backup}`),
-    );
-    operations.push({ kind: 'delete', path: conversion.asset, beforeHash: original, backup });
+/** One conversion's encode, and its original's backup when the original is removed. */
+async function stageConversion(
+  conversion: PlannedConversion,
+  runDir: string,
+  input: OptimizeInput,
+  staging: string[],
+  animated: ReadonlySet<string>,
+): Promise<PlannedOperation[]> {
+  const staged = `staged/${conversion.target}`;
+  const source = input.graph.assets.find((node) => node.asset.relative === conversion.asset);
+  if (source === undefined) {
+    throw new Error(`the plan names ${conversion.asset}, which is not in the graph`);
   }
 
-  operations.push(...(await editOperations(plan.rewrites, input.store)));
-  return operations;
+  // Hashed before the encode and checked after each step that reads the original, so the
+  // file encoded, the file backed up and the file the delete expects are one file.
+  const original = await input.store.hash(conversion.asset);
+  if (original === null) {
+    throw originalMoved(conversion.asset, 'was removed after Upfly read the project');
+  }
+
+  // Recorded before the step that writes it, so a refusal part way removes it too.
+  staging.push(`${runDir}/${staged}`);
+  await unlessOriginalMoved(input.store, conversion.asset, original, () =>
+    input.probe.encodeToFile({
+      path: source.asset.path,
+      format: conversion.format,
+      // Getting this wrong keeps one frame of an animation, for a saving only
+      // achievable by destroying it.
+      animated: animated.has(conversion.asset),
+      // The setting the saving was measured at. The probe's default quality would put a
+      // different file on disk from the one whose saving the user was shown.
+      lossless: conversion.quality === 'lossless',
+      destination: `${input.graph.root}/${runDir}/${staged}`,
+    }),
+  );
+
+  const afterHash = await input.store.hash(`${runDir}/${staged}`);
+  if (afterHash === null) {
+    throw new Error(`the encode of ${conversion.asset} produced no file at ${staged}`);
+  }
+  const create: PlannedOperation = { kind: 'create', path: conversion.target, staged, afterHash };
+  if (!conversion.replacesOriginal) return [create];
+
+  // Before `prepare`, which refuses a delete whose backup is not actually there.
+  const backup = `backup/${conversion.asset}`;
+  staging.push(`${runDir}/${backup}`);
+  await unlessOriginalMoved(input.store, conversion.asset, original, () =>
+    input.store.copy(conversion.asset, `${runDir}/${backup}`),
+  );
+  return [create, { kind: 'delete', path: conversion.asset, beforeHash: original, backup }];
 }
 
 /**

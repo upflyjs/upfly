@@ -482,6 +482,183 @@ describe('an image saved while it is being encoded', () => {
   });
 });
 
+describe('staging several images at once', () => {
+  const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const MANY = NAMES.map((name) => `import ${name} from "./${name}.png";\n`).join('');
+  const PROJECT = Object.fromEntries([
+    ['src/App.jsx', MANY],
+    ...NAMES.map((name) => [`src/${name}.png`, `PNG ${name}`]),
+  ]);
+
+  /** Six images, each imported by `src/App.jsx`, every original removed once converted. */
+  function sixImages(
+    over: Partial<OptimizeInput> & Pick<OptimizeInput, 'store' | 'probe'>,
+  ): OptimizeInput {
+    return {
+      ...inputFor(over),
+      graph: buildGraph({
+        root: ROOT,
+        assets: NAMES.map((name) => asset(`src/${name}.png`)),
+        references: NAMES.map((name) =>
+          resolved('src/App.jsx', `./${name}.png`, `src/${name}.png`, MANY),
+        ),
+        unscannedFiles: [],
+        texts: [scanned('src/App.jsx', MANY)],
+      }),
+      probes: NAMES.map((name) => probeOf(`src/${name}.png`)),
+      publicPolicy: 'replace',
+      ...over,
+    };
+  }
+
+  /**
+   * Encodes that wait until the test settles each one, so it sees which are in progress. A
+   * failed encode leaves part of its file behind first, as a real encoder can.
+   */
+  function gated(project: ReturnType<typeof harness>) {
+    const started: string[] = [];
+    const gates = new Map<string, (failure: Error | null) => void>();
+    const probe: ImageProbe = {
+      ...project.probe,
+      async encodeToFile(options) {
+        const name = options.path.slice(`${ROOT}/src/`.length, -'.png'.length);
+        started.push(name);
+        const failure = await new Promise<Error | null>((resolve) => gates.set(name, resolve));
+        if (failure === null) return project.probe.encodeToFile(options);
+        project.tree.set(options.destination.slice(`${ROOT}/`.length), 'PARTIAL');
+        throw failure;
+      },
+    };
+    return {
+      probe,
+      started,
+      finish(...names: string[]) {
+        for (const name of names) gates.get(name)?.(null);
+      },
+      fail(name: string, failure: Error) {
+        gates.get(name)?.(failure);
+      },
+    };
+  }
+
+  /** Lets every step the in-memory disk can take run, up to the next encode that waits. */
+  async function settle(): Promise<void> {
+    for (let turn = 0; turn < 5; turn++) await new Promise((done) => setImmediate(done));
+  }
+
+  const runFiles = (tree: ReadonlyMap<string, string>) =>
+    [...tree.keys()].filter((path) => path.startsWith(`.upfly/runs/${RUN_ID}/`));
+  const projectFiles = (tree: ReadonlyMap<string, string>) =>
+    Object.fromEntries([...tree].filter(([path]) => !path.startsWith('.upfly/')));
+
+  it('encodes four at a time, the next as any finishes, and keeps the plan order', async () => {
+    const project = harness(PROJECT);
+    const encodes = gated(project);
+    const run = optimize(sixImages({ ...project, probe: encodes.probe }));
+
+    await settle();
+    expect(encodes.started).toEqual(['a', 'b', 'c', 'd']);
+    encodes.finish('c');
+    await settle();
+    expect(encodes.started).toEqual(['a', 'b', 'c', 'd', 'e']);
+    encodes.finish('f', 'e', 'd', 'b', 'a');
+    await settle();
+    encodes.finish('f');
+
+    const { manifest } = await run;
+    expect(
+      manifest?.operations.map((operation) =>
+        operation.kind === 'edit' || operation.kind === 'move'
+          ? operation.kind
+          : `${operation.kind} ${operation.path}`,
+      ),
+    ).toEqual([
+      ...NAMES.flatMap((name) => [`create src/${name}.webp`, `delete src/${name}.png`]),
+      'edit',
+    ]);
+    for (const name of NAMES) {
+      expect(project.tree.get(`src/${name}.webp`)).toBe(`WEBP(${ROOT}/src/${name}.png)`);
+    }
+  });
+
+  it.each([
+    [
+      'its encode fails',
+      (_project: ReturnType<typeof harness>, encodes: ReturnType<typeof gated>) =>
+        encodes.fail('c', new Error('the encoder ran out of disk')),
+      'the encoder ran out of disk',
+    ],
+    [
+      'its original is saved again while it encodes',
+      (project: ReturnType<typeof harness>, encodes: ReturnType<typeof gated>) => {
+        project.tree.set('src/c.png', 'PNG c, saved again');
+        encodes.finish('c');
+      },
+      'src/c.png changed while Upfly was converting it',
+    ],
+    [
+      'its backup cannot be written',
+      (_project: ReturnType<typeof harness>, encodes: ReturnType<typeof gated>) =>
+        encodes.finish('c'),
+      'no room to back up src/c.png',
+    ],
+  ])(
+    'refuses when one image fails as others encode (%s): no other starts, and none of their files stay',
+    async (_case, failC, message) => {
+      const project = harness(PROJECT);
+      const encodes = gated(project);
+      const store: FileStore = {
+        ...project.store,
+        async copy(from, to) {
+          if (from !== 'src/c.png' || message !== 'no room to back up src/c.png') {
+            return project.store.copy(from, to);
+          }
+          project.tree.set(to, 'PARTIAL');
+          throw new Error(message);
+        },
+      };
+      let settled = false;
+      const run = optimize(sixImages({ ...project, store, probe: encodes.probe })).finally(() => {
+        settled = true;
+      });
+
+      await settle();
+      expect(encodes.started).toEqual(['a', 'b', 'c', 'd']);
+      failC(project, encodes);
+      await settle();
+
+      // Nothing more starts, and the refusal waits for the three still encoding, whose files
+      // land after the failure and must be removed with the rest.
+      expect(encodes.started).toEqual(['a', 'b', 'c', 'd']);
+      expect(settled).toBe(false);
+      const before = projectFiles(project.tree);
+      encodes.finish('d', 'a', 'b');
+
+      await expect(run).rejects.toThrow(message);
+      expect(runFiles(project.tree)).toEqual([]);
+      expect(projectFiles(project.tree)).toEqual(before);
+      expect(project.tree.has(MANIFEST_PATH)).toBe(false);
+      expect(project.tree.has(LOCK_PATH)).toBe(false);
+    },
+  );
+
+  it('reports the earliest failing image in the plan, whichever failed first', async () => {
+    const project = harness(PROJECT);
+    const encodes = gated(project);
+    const run = optimize(sixImages({ ...project, probe: encodes.probe }));
+
+    await settle();
+    encodes.fail('c', new Error('c could not be encoded'));
+    await settle();
+    encodes.fail('a', new Error('a could not be encoded'));
+    encodes.finish('b', 'd');
+
+    // One at a time, the run would have stopped at a.
+    await expect(run).rejects.toThrow('a could not be encoded');
+    expect(runFiles(project.tree)).toEqual([]);
+  });
+});
+
 describe('a lock file its creator is still writing', () => {
   it('is taken as held, so a second run cannot start beside the first', async () => {
     // What a reader sees between the creator's exclusive create and its write: nothing yet,
