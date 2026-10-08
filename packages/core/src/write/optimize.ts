@@ -9,6 +9,7 @@
  */
 
 import type { AuditResult } from '../audit/audit.js';
+import type { Mention } from '../audit/sweep.js';
 import { UpflyError } from '../errors.js';
 import type { Graph } from '../graph/graph.js';
 import { isBinaryExtension } from '../graph/unscanned.js';
@@ -23,6 +24,7 @@ import {
   spellingsFor,
 } from '../plan/old-path-search.js';
 import {
+  type HedgedMention,
   MENTION_SURVIVES,
   type OptimizationPlan,
   type PlanRefusal,
@@ -33,7 +35,12 @@ import {
   planOptimization,
   withExtraEdits,
 } from '../plan/plan.js';
-import { type CommentMention, findUnfollowedLines } from '../plan/unfollowed.js';
+import {
+  type CommentMention,
+  type MentionPlace,
+  findUnfollowedLines,
+  mentionReader,
+} from '../plan/unfollowed.js';
 import type { AssetProbe, EncodeFormat, ImageProbe } from '../probe/probe.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import type { ServingRoots } from '../resolve/resolve.js';
@@ -401,6 +408,7 @@ export function newRunId(now: Date, random: () => number = Math.random): string 
 
 export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
   const runDir = `.upfly/runs/${input.runId}`;
+  const hedged = await hedgedMentions(input);
 
   const planWith = (blocked?: Blocked) =>
     planOptimization({
@@ -408,7 +416,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
       probes: input.probes,
       format: input.format,
       publicPolicy: input.publicPolicy,
-      hedged: hedgedAssets(input.audit),
+      hedged,
       servingRoots: input.servingRoots,
       builds: input.builds,
       ...(input.aliases === undefined ? {} : { aliases: input.aliases }),
@@ -625,13 +633,77 @@ async function commitUnderLock(
   return commit(operations, input.store, context, input.lock ?? {});
 }
 
-/** The `possibly-dead` set, taken from the audit rather than worked out again. */
-function hedgedAssets(audit: AuditResult): ReadonlySet<string> {
-  const hedged = new Set<string>();
-  for (const finding of audit.findings) {
-    if (finding.kind === 'possibly-dead') hedged.add(finding.asset);
+/**
+ * Where something names each asset the audit hedged, taken from the audit's evidence rather
+ * than searched for again: a path Upfly could not resolve, a file it does not read, or text
+ * of a file it did read, which is read once more for the kind of place it is. Of several, a
+ * place a page could load the asset through is the one named, since it is why the asset may
+ * be in use.
+ */
+async function hedgedMentions(input: OptimizeInput): Promise<ReadonlyMap<string, HedgedMention>> {
+  const read = mentionReader(input.graph);
+  const texts = new Map<string, Promise<string | null>>();
+  const textOf = (file: string): Promise<string | null> => {
+    const known = texts.get(file);
+    if (known !== undefined) return known;
+    const text = input.store.readText(file).catch(() => null);
+    texts.set(file, text);
+    return text;
+  };
+  const hedged = new Map<string, HedgedMention>();
+  for (const finding of input.audit.findings) {
+    if (finding.kind !== 'possibly-dead') continue;
+    const places = await Promise.all(
+      finding.evidence.map((mention) => mentionPlace(mention, read, textOf)),
+    );
+    const chosen = places.find((place) => place.loads) ?? places[0];
+    if (chosen === undefined) continue;
+    const others = places.length - 1;
+    hedged.set(
+      finding.asset,
+      others === 0 ? chosen : { ...chosen, where: `${chosen.where} (and ${others} more)` },
+    );
   }
   return hedged;
+}
+
+/** What one piece of the audit's evidence says of the asset it names. */
+async function mentionPlace(
+  mention: Mention,
+  read: (file: string, text: string | null, offset: number) => MentionPlace,
+  textOf: (file: string) => Promise<string | null>,
+): Promise<HedgedMention> {
+  const { where } = mention;
+  if (mention.source === 'unresolved-reference') {
+    return {
+      where,
+      says: 'may name it through a path Upfly read but could not resolve',
+      loads: true,
+    };
+  }
+  const cited = /^(.*):(\d+)$/.exec(where);
+  const file = cited?.[1] ?? where;
+  if (mention.source === 'unscanned-file') return { where, ...read(file, null, 0) };
+  const text = await textOf(file);
+  const offset =
+    text === null || cited === null ? -1 : offsetOn(text, Number(cited[2]), mention.quote);
+  // The file changed or went since the scan read it, so what holds the name is not known.
+  if (text === null || offset === -1) {
+    return { where, says: 'names it in text that has changed since Upfly read it', loads: true };
+  }
+  return { where, ...read(file, text, offset) };
+}
+
+/** Where `quote` first sits on the one-based `line` of `text`, or -1. */
+function offsetOn(text: string, line: number, quote: string): number {
+  let start = 0;
+  for (let at = 1; at < line; at++) {
+    start = text.indexOf('\n', start) + 1;
+    if (start === 0) return -1;
+  }
+  const end = text.indexOf('\n', start);
+  const found = text.slice(start, end === -1 ? undefined : end).indexOf(quote);
+  return found === -1 ? -1 : start + found;
 }
 
 /**

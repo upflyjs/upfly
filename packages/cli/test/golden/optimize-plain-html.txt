@@ -37,7 +37,7 @@ Options: none
       images/badge@2x.png  70 B  converting it would save 34 B, under the 1 KB a saving must reach to be reported or converted
       images/favicon.png  70 B  `index.html` names it as `images/favicon.png`, and this run does not rewrite that reference: an icon link names this image, and browsers and phones read icons outside the page, some only as PNG, as iOS does for a home-screen icon. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file
       images/never-referenced.png  70 B  nothing links to it, and no website folder was found in this project, so Upfly cannot tell which images a browser loads by URL; converting it would gain only bytes. Name the folder the site is served from with `--public <dir>` or `publicDirs` in the config file, using "." for the project root itself, as on a plain HTML site
-      images/removed.png  70 B  nothing links to it and something we could not read mentions it, so converting would change a file whose references we cannot see
+      images/removed.png  70 B  nothing links to it, and index.html:17 names it in a comment, which no page loads, so converting it would rewrite no reference and gain only bytes
       images/team.jpg  2 KB  converting it would save 994 B, under the 1 KB a saving must reach to be reported or converted
 
   Next         npx upfly optimize --apply

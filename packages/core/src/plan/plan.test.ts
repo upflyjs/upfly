@@ -8,6 +8,7 @@ import type { AliasMap } from '../resolve/aliases.js';
 import type { Asset, RawReference, Reference } from '../types.js';
 import type { ProjectBuilds } from './builds.js';
 import {
+  type HedgedMention,
   type LinkedReference,
   type PlanInput,
   planOptimization,
@@ -92,6 +93,20 @@ function pattern(file: string, rawPath: string, targets: readonly string[]): Ref
   } as Reference;
 }
 
+/** A name in a file type Upfly does not read, through which a page may load the image. */
+const IN_A_VUE_FILE: HedgedMention = {
+  where: 'src/App.vue:3',
+  says: 'names it in a .vue file, a type Upfly does not read',
+  loads: true,
+};
+
+/** A name in a comment, through which no page loads anything. */
+const IN_A_COMMENT: HedgedMention = {
+  where: 'src/old.js:2',
+  says: 'names it in a comment, which no page loads',
+  loads: false,
+};
+
 function input(
   over: Partial<PlanInput> & {
     assets: Asset[];
@@ -110,7 +125,7 @@ function input(
     probes: over.probes ?? over.assets.map((a) => probe(a.relative)),
     format: 'webp',
     publicPolicy: over.publicPolicy ?? 'keep-original',
-    hedged: over.hedged ?? new Set(),
+    hedged: over.hedged ?? new Map(),
     servingRoots: over.servingRoots ?? { dirs: over.served ?? ['public'], declared: false },
     builds: over.builds ?? BUILT_BY_VITE,
     ...(over.aliases === undefined ? {} : { aliases: over.aliases }),
@@ -345,16 +360,24 @@ describe('an asset nothing links to', () => {
     ]);
   });
 
-  it('says so differently when something unreadable mentions it', () => {
+  it('names where something else names it, and whether a page could load it there', () => {
     const plan = planOptimization(
       input({
-        assets: [asset('src/maybe.png')],
+        assets: [asset('src/maybe.png'), asset('src/old.png')],
         references: [],
-        hedged: new Set(['src/maybe.png']),
+        hedged: new Map([
+          ['src/maybe.png', IN_A_VUE_FILE],
+          ['src/old.png', IN_A_COMMENT],
+        ]),
       }),
     );
 
-    expect(plan.declined[0]?.reason).toContain('something we could not read mentions it');
+    expect(reasonsByPath(plan)).toEqual({
+      'src/maybe.png':
+        'nothing links to it that Upfly can follow, and src/App.vue:3 names it in a .vue file, a type Upfly does not read, so converting it would change a file whose references Upfly cannot see',
+      'src/old.png':
+        'nothing links to it, and src/old.js:2 names it in a comment, which no page loads, so converting it would rewrite no reference and gain only bytes',
+    });
   });
 
   it('is not converted under replace, because the new file would be used by nobody', () => {
@@ -366,7 +389,7 @@ describe('an asset nothing links to', () => {
       input({
         assets: [asset('public/hero.png'), asset('public/maybe.png')],
         references: [],
-        hedged: new Set(['public/maybe.png']),
+        hedged: new Map([['public/maybe.png', IN_A_VUE_FILE]]),
         publicPolicy: 'replace',
       }),
     );
@@ -376,7 +399,7 @@ describe('an asset nothing links to', () => {
     expect(reasonsByPath(plan)).toEqual({
       'public/hero.png':
         'nothing links to it, so converting it would rewrite no reference and gain only bytes',
-      'public/maybe.png': expect.stringContaining('something we could not read mentions it'),
+      'public/maybe.png': expect.stringContaining('src/App.vue:3 names it in a .vue file'),
     });
   });
 });

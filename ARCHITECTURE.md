@@ -2340,7 +2340,14 @@ the summary counts it apart: a comment is not a reference.
 **Every reason that cites a mention says what kind of place it is** — a code example, a
 file type Upfly does not read, frontmatter, prose — in the words the lines a move lists use,
 so a reader knows what to open without searching for it. The kind comes from the graph, so
-the search after the encodes does not claim one for a file written while Upfly worked.
+the search after the encodes does not claim one for a file written while Upfly worked. That
+holds for an image nothing links to that something names, the audit's `possibly-dead`: its
+reason cites the audit's own evidence, and a name found in a file Upfly read is read again
+for what holds it (`mentionReader`). On Bushimla 34 of 68 such names sit in comments and 26
+are only the file name inside a path to another image of that name, none of which a page
+loads the image through, so those reasons end as an unlinked image's does; a path Upfly could
+not resolve, or a file it does not read, may load it, and the reason says converting would
+change a file whose references Upfly cannot see.
 
 **What a move leaves behind, split by whether a page loads it.** Every line the move does not
 rewrite carries `loads`: whether a page can still load the image through it, so the move

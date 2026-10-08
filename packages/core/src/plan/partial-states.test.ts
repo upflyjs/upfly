@@ -73,7 +73,7 @@ async function planFor(publicPolicy: PublicPolicy) {
       probes,
       format: 'webp',
       publicPolicy,
-      hedged: new Set(),
+      hedged: new Map(),
       servingRoots: SERVING_ROOTS,
       builds: BUILDS,
     }),

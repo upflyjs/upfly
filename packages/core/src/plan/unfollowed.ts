@@ -138,8 +138,8 @@ const BUILT_AT_RUNTIME =
 const DATA_GUESS =
   'a path in data that names no file from where it is written, so the code that reads it decides which file it is';
 const IN_FRONTMATTER = "in a Markdown file's frontmatter, which Upfly does not read";
-const IN_COMMENT =
-  'in a comment, which no page loads: the path in it is rewritten with the references, and never decides on its own whether the image converts or moves';
+const IN_A_COMMENT = 'in a comment, which no page loads';
+const IN_COMMENT = `${IN_A_COMMENT}: the path in it is rewritten with the references, and never decides on its own whether the image converts or moves`;
 const IN_CODE_EXAMPLE = 'in a code example, which a page shows rather than loads';
 const EXCLUDED_FILE =
   'in a file this run leaves out (.upflyignore, --exclude or the config file), read only to list it here';
@@ -149,8 +149,7 @@ const UNPLACED_ROOT =
   "a path from the site's root, which Upfly cannot follow while it cannot tell the folder the site is served from";
 const UNKNOWN_ALIAS = 'written through an alias that no configuration Upfly reads defines';
 const IN_SHOWN_TEXT = 'in the text of a page, which shows the path rather than loads it';
-const NOT_READ_HERE =
-  'Upfly reads this file but takes no path from this text, such as HTML written inside a string, so a page may still load the image through it';
+const NOT_READ_HERE = 'in a value Upfly takes no path from, such as HTML written inside a string';
 const FOLDER_ITSELF =
   'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide';
 const INSIDE_THE_FOLDER =
@@ -374,15 +373,18 @@ function longestPerImage(
   return [...longest.values()].sort((a, b) => a.occurrence.offset - b.occurrence.offset);
 }
 
-/** The graph's references in each file that holds an occurrence, keyed by POSIX path. */
+/**
+ * The graph's references by POSIX path: in each file `texts` holds, which are those holding an
+ * occurrence, or in every file when it is null.
+ */
 function referencesByFile(
   graph: Graph,
-  texts: ReadonlyMap<string, string>,
+  texts: ReadonlyMap<string, string> | null,
 ): Map<string, Reference[]> {
   const files = new Map<string, Reference[]>();
   for (const reference of graph.references) {
     const file = relativePath(graph.root, reference.file);
-    if (!texts.has(file)) continue;
+    if (texts !== null && !texts.has(file)) continue;
     const list = files.get(file);
     if (list === undefined) files.set(file, [reference]);
     else list.push(reference);
@@ -965,11 +967,64 @@ function folderVerdict(inside: boolean, place: Place | null): Pick<Place, 'why' 
   if (place === null || place.loads) {
     return { why: inside ? INSIDE_THE_FOLDER : FOLDER_ITSELF, loads: true };
   }
-  // The sentence for a comment speaks of an image's path, which moves with the references; a
-  // folder's never does.
-  const where = place.reason === 'comment' ? 'in a comment, which no page loads' : place.why;
   const what = inside ? 'a path inside the moved folder' : 'the moved folder';
-  return { why: `it names ${what} ${where}`, loads: false };
+  return { why: `it names ${what} ${placeAlone(place)}`, loads: false };
+}
+
+/**
+ * Where a place sits, for a line nothing rewrites. The sentence for a comment on an image's
+ * line says the path moves with the references, which is true of no other line.
+ */
+function placeAlone(place: Place): string {
+  return place.reason === 'comment' ? IN_A_COMMENT : place.why;
+}
+
+/**
+ * What one place says of an image nothing links to: how it names the image, and whether a
+ * page could load the image through it.
+ */
+export interface MentionPlace {
+  /** The words after the place, such as "names it in a comment, which no page loads". */
+  readonly says: string;
+  readonly loads: boolean;
+}
+
+/**
+ * Reads what holds a mention of an image's file name, for an image nothing links to, in the
+ * words the lines a move lists use. Inside a path Upfly read, the name is that path's own
+ * file's, so the mention loads nothing of this image.
+ *
+ * @param graph the project as the scan read it
+ * @returns a reader of one place: the file, its text, or null for a file the scan did not
+ * read, and the offset of the name in it
+ */
+export function mentionReader(
+  graph: Graph,
+): (file: string, text: string | null, offset: number) => MentionPlace {
+  const context = {
+    excluded: new Set<string>(),
+    unscanned: new Map(graph.unscannedFiles.map((file) => [file.relative, file])),
+  };
+  const references = lazily(() => referencesByFile(graph, null));
+  const readers = new Map<string, () => RegionAt>();
+  return (file, text, offset) => {
+    const reference = text === null ? undefined : innermost(references().get(file) ?? [], offset);
+    if (reference !== undefined) {
+      const [target] = linkedPaths(reference);
+      const to = target === undefined ? 'another file' : relativePath(graph.root, target);
+      return {
+        says: `names only its file name, in \`${capped(reference.rawPath)}\`, a path to ${to}`,
+        loads: false,
+      };
+    }
+    let regions = readers.get(file);
+    if (regions === undefined) {
+      regions = lazily(() => (text === null ? () => null : regionsOf(file, text)));
+      readers.set(file, regions);
+    }
+    const place = whereItSits(file, offset, regions, context);
+    return { says: `names it ${placeAlone(place)}`, loads: place.loads };
+  };
 }
 
 /** The characters a file or folder name is made of, for deciding where a match ends. */

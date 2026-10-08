@@ -247,6 +247,65 @@ describe('an original that a page the run excludes still shows', () => {
   });
 });
 
+describe('an image nothing links to, which something names', () => {
+  // The reason says where the name is and what kind of place holds it, so a reader can tell
+  // a comment, or another image's path holding the same file name, from a place a page may
+  // load the image by.
+  it('says what kind of place names it, read from the file, and whether a page could load it there', async () => {
+    const root = await copy();
+    const png = await readFile(join(root, 'images/logo.png'));
+    for (const image of [
+      'images/retired-banner.png',
+      'images/old/team.png',
+      'images/new/team.png',
+      'images/card-art.png',
+      'images/vue-hero.png',
+    ]) {
+      await mkdir(dirname(join(root, image)), { recursive: true });
+      await writeFile(join(root, image), png);
+    }
+    await mkdir(join(root, 'src'));
+    await writeFile(
+      join(root, 'gallery.html'),
+      '<!doctype html>\n<img src="images/new/team.png">\n',
+    );
+    await writeFile(
+      join(root, 'src/legacy.js'),
+      "export const keep = 1;\n// const banner = '/images/retired-banner.png';\n",
+    );
+    await writeFile(
+      join(root, 'src/card.js'),
+      `export const card = '<img src="/images/card-art.png">';\n`,
+    );
+    await writeFile(
+      join(root, 'src/App.vue'),
+      '<template><img src="/images/vue-hero.png"></template>\n',
+    );
+
+    const { optimize } = await optimizeProject({
+      root,
+      declared: { dirs: [''], declared: true },
+      format: 'webp',
+      publicPolicy: 'replace',
+      apply: false,
+    });
+
+    const reasons = Object.fromEntries(
+      optimize.plan.declined.map((entry) => [entry.path, entry.reason]),
+    );
+    expect(reasons).toMatchObject({
+      'images/retired-banner.png':
+        'nothing links to it, and src/legacy.js:2 names it in a comment, which no page loads, so converting it would rewrite no reference and gain only bytes',
+      'images/old/team.png':
+        'nothing links to it, and gallery.html:2 names only its file name, in `images/new/team.png`, a path to images/new/team.png, so converting it would rewrite no reference and gain only bytes',
+      'images/card-art.png':
+        'nothing links to it that Upfly can follow, and src/card.js:1 names it in a value Upfly takes no path from, such as HTML written inside a string, so converting it would change a file whose references Upfly cannot see',
+      'images/vue-hero.png':
+        'nothing links to it that Upfly can follow, and src/App.vue:1 names it in a .vue file, a type Upfly does not read, so converting it would change a file whose references Upfly cannot see',
+    });
+  });
+});
+
 describe('only some images', () => {
   it('measures and converts only the images a pattern or a path names, and says what named none', async () => {
     const root = await copy();

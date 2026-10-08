@@ -69,11 +69,11 @@ export interface PlanInput {
   readonly format: EncodeFormat;
   readonly publicPolicy: PublicPolicy;
   /**
-   * Assets nothing links to that a file Upfly could not read mentions by name: the audit's
-   * `possibly-dead` findings. Converting one changes a file on disk and rewrites nothing,
-   * because no reference Upfly can see points at it.
+   * Assets nothing links to that something names all the same, the audit's `possibly-dead`
+   * findings, each mapped to where and what kind of place that is. Converting one changes a
+   * file on disk and rewrites nothing, because no reference Upfly can see points at it.
    */
-  readonly hedged: ReadonlySet<string>;
+  readonly hedged: ReadonlyMap<string, HedgedMention>;
   /**
    * Assets not to convert because a literal mention of their path would survive the
    * rewrite, each mapped to where the mention is (`file:line`, and a count of any others).
@@ -173,10 +173,6 @@ export interface EditsInFile {
 }
 
 /**
- * A file's collected edits as a `PlannedRewrite`: in offset order, and carrying the hash
- * of the text they were counted in when the graph recorded one.
- */
-/**
  * The text of each file the graph read, by POSIX path relative to the project root.
  *
  * The map the graph keeps is keyed by absolute path in the platform's own spelling, which a
@@ -201,6 +197,23 @@ export interface SurvivingMention {
   readonly kind: string;
 }
 
+/** Where something names an asset nothing links to, and what kind of place it is. */
+export interface HedgedMention {
+  /** Where to look: `file:line`, and a count of any others. */
+  readonly where: string;
+  /**
+   * How the place names it, in the words the lines a move lists use: "names it in a comment,
+   * which no page loads", or "names it in a .vue file, a type Upfly does not read".
+   */
+  readonly says: string;
+  /** Whether a page could load the asset through that place, so it may be in use. */
+  readonly loads: boolean;
+}
+
+/**
+ * A file's collected edits as a `PlannedRewrite`: in offset order, and carrying the hash
+ * of the text they were counted in when the graph recorded one.
+ */
 export function plannedRewrite(file: string, collected: EditsInFile, graph: Graph): PlannedRewrite {
   const edits = [...collected.edits].sort((a, b) => a.start - b.start);
   const text = graph.texts.get(collected.path);
@@ -880,7 +893,7 @@ export function convertibleImages(input: ConvertibleInput): ReadonlySet<string> 
     ...input,
     probes: [],
     publicPolicy: 'keep-original',
-    hedged: new Set(),
+    hedged: new Map(),
   };
   const convertible = new Set<string>();
   for (const node of input.graph.assets) {
@@ -953,6 +966,16 @@ function convertDecision(
 }
 
 /**
+ * Why an asset nothing links to that something names stays: where the name is and what kind
+ * of place holds it, and so whether converting would change a file a page may still load.
+ */
+function namedButUnlinked(hedge: HedgedMention): string {
+  return hedge.loads
+    ? `nothing links to it that Upfly can follow, and ${hedge.where} ${hedge.says}, so converting it would change a file whose references Upfly cannot see`
+    : `nothing links to it, and ${hedge.where} ${hedge.says}, so converting it would rewrite no reference and gain only bytes`;
+}
+
+/**
  * Why no conversion of this asset would be used, whatever it measures, or null when one
  * would. These are the rules `convertibleImages` reads to choose what to measure, so an
  * asset left unmeasured is one of them, and each reads the graph alone.
@@ -973,12 +996,13 @@ function whyNothingWouldUseIt(
   // visitor downloads fewer bytes, and a saving counted for it would be a saving nobody gets.
   // An asset nothing links to is the plainest case, with its own sentences.
   if (node.references.length === 0) {
-    const why = input.hedged.has(relative)
-      ? 'nothing links to it and something we could not read mentions it, so converting would change a file whose references we cannot see'
-      : noServingRootFound(input.servingRoots)
+    const hedge = input.hedged.get(relative);
+    if (hedge !== undefined) return { reason: namedButUnlinked(hedge) };
+    return {
+      reason: noServingRootFound(input.servingRoots)
         ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}`
-        : 'nothing links to it, so converting it would rewrite no reference and gain only bytes';
-    return { reason: why };
+        : 'nothing links to it, so converting it would rewrite no reference and gain only bytes',
+    };
   }
 
   // Decided here, before collisions and before any reference is repointed. See "The
@@ -1398,9 +1422,11 @@ function usedByNoMove(node: AssetNode, input: PlanInput): string | null {
 
   const [first] = blocked;
   if (first === undefined) {
-    const held = input.hedged.has(node.asset.relative)
-      ? 'nothing Upfly can see links to it, and something it could not read mentions it by its current name'
-      : 'nothing Upfly can see links to it';
+    const hedge = input.hedged.get(node.asset.relative);
+    const held =
+      hedge === undefined
+        ? 'nothing Upfly can see links to it'
+        : `nothing Upfly can see links to it, and ${hedge.where} ${hedge.says}`;
     return `${held}, so a new file would be used by nobody. ${CONVERTS_ONLY_WHAT_MOVES}`;
   }
 
