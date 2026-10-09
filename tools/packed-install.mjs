@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Proves the packages work as npm will publish them: packs both, checks each tarball holds
- * every file its `files` list names, installs the two tarballs into an empty folder outside
- * the checkout, and runs the installed `upfly` there as a user would. Its `audit --json` on a
- * copy of a fixture must validate against the schemas the tarball shipped, and
- * `optimize --apply --commit` then `undo` on a git repository must put every byte back,
- * the originals the run removed included.
+ * Proves the packages work as npm will publish them: packs all three, checks each tarball holds
+ * every file its `files` list names, and installs them into an empty folder outside the
+ * checkout, `upfly` alone and then `upfly-mcp` beside it, printing what each install weighs.
+ * There `upfly` must hold no MCP library, audit a fixture copy with JSON its shipped schemas
+ * accept, and write, commit and undo a run byte for byte; `upfly-mcp`, started through npx as
+ * a client starts it, must list its seven tools and answer `check` as `upfly` does.
  *
  * Usage: `node tools/packed-install.mjs`, after `pnpm build`. It works in `RUNNER_TEMP` when
  * that is set, as on a CI runner, and in the system's temporary folder otherwise. `npx --no --`
@@ -14,7 +14,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,6 +32,9 @@ import { missingFromPack, tarPaths } from './pack-check.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WINDOWS = process.platform === 'win32';
 const failures = /** @type {string[]} */ ([]);
+
+/** The libraries only `upfly-mcp` needs, which an install of `upfly` alone must not hold. */
+const MCP_LIBRARIES = ['@modelcontextprotocol', 'zod'];
 
 /**
  * Runs a command, printing it, and returns its output. A non-zero exit is a failure.
@@ -92,6 +103,11 @@ function folderBytes(root) {
   return bytes;
 }
 
+/** @param {number} bytes */
+function megabytes(bytes) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 /**
  * A copy of the plain HTML fixture at `into`, leaving out any `node_modules`, whose links
  * Windows lets only some users create.
@@ -109,23 +125,29 @@ const work = mkdtempSync(path.join(process.env.RUNNER_TEMP ?? tmpdir(), 'upfly-p
 const packs = path.join(work, 'packs');
 mkdirSync(packs);
 
-const tarballs = /** @type {string[]} */ ([]);
-for (const folder of ['core', 'cli']) {
+const tarballs = { core: '', cli: '', mcp: '' };
+const versions = new Set();
+for (const folder of /** @type {const} */ (['core', 'cli', 'mcp'])) {
   const dir = path.join(ROOT, 'packages', folder);
   run('pnpm', ['pack', '--pack-destination', packs], dir);
   const manifest = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'));
   const tarball = path.join(packs, `${manifest.name}-${manifest.version}.tgz`);
   const missing = missingFromPack(manifest.files ?? [], tarPaths(readFileSync(tarball)));
   if (missing.length > 0) failures.push(`${manifest.name}'s tarball lacks ${missing.join(', ')}`);
-  tarballs.push(tarball);
+  tarballs[folder] = tarball;
+  versions.add(manifest.version);
 }
+if (versions.size !== 1) failures.push(`the packages have ${versions.size} versions, not one`);
 
+// `upfly` alone, as most people install it.
 const user = path.join(work, 'user');
 mkdirSync(user);
 run('npm', ['init', '--yes'], user);
-run('npm', ['install', '--no-audit', '--no-fund', ...tarballs], user);
+run('npm', ['install', '--no-audit', '--no-fund', tarballs.core, tarballs.cli], user);
+const alone = folderBytes(path.join(user, 'node_modules'));
+const brought = MCP_LIBRARIES.filter((name) => existsSync(path.join(user, 'node_modules', name)));
+if (brought.length > 0) failures.push(`upfly alone installs ${brought.join(' and ')}`);
 const version = run('npx', ['--no', '--', 'upfly', '--version'], user).trim();
-const installed = folderBytes(path.join(user, 'node_modules'));
 const expectedVersion = JSON.parse(
   readFileSync(path.join(ROOT, 'packages/cli/package.json'), 'utf8'),
 ).version;
@@ -152,34 +174,6 @@ for (const line of lines) {
     failures.push(`audit's ${line.type} line: ${ajv.errorsText(validate?.errors)}`);
 }
 if (lines.at(-1)?.type !== 'result') failures.push('audit --json printed no result');
-
-// `upfly mcp` as installed, through the MCP library's own client: its tools are listed, and
-// one answers as its command does, which a dependency missing from the package would stop.
-const cliRequire = createRequire(path.join(ROOT, 'packages/cli/package.json'));
-const { Client } = await import(
-  pathToFileURL(cliRequire.resolve('@modelcontextprotocol/client')).href
-);
-const { StdioClientTransport } = await import(
-  pathToFileURL(cliRequire.resolve('@modelcontextprotocol/client/stdio')).href
-);
-const installedBin = path.join(user, 'node_modules', 'upfly', 'dist', 'bin.js');
-const client = new Client({ name: 'packed-install', version: '1.0.0' });
-await client.connect(
-  new StdioClientTransport({ command: process.execPath, args: [installedBin, 'mcp', project] }),
-);
-const tools = (await client.listTools()).tools.map(
-  (/** @type {{ name: string }} */ tool) => tool.name,
-);
-const answer = await client.callTool({ name: 'check', arguments: {} });
-await client.close();
-const checked = run('npx', ['--no', '--', 'upfly', 'check', project, '--json'], user, 1)
-  .trimEnd()
-  .split('\n')
-  .at(-1);
-if (tools.length !== 7) failures.push(`upfly mcp listed ${tools.length} tools, not 7: ${tools}`);
-if (answer.content?.[0]?.text !== checked) {
-  failures.push(`upfly mcp's check answered ${answer.content?.[0]?.text}, not ${checked}`);
-}
 
 // Written, committed, and undone, in a repository of the project's own.
 const repo = path.join(work, 'repository');
@@ -218,9 +212,57 @@ const different = [...new Set([...before.keys(), ...after.keys()])].filter(
 );
 if (different.length > 0) failures.push(`undo left ${different.join(', ')} different`);
 
+// `upfly-mcp` beside it. npm takes the `upfly` it depends on from the tarball already
+// installed, which has its exact version; one from the registry would answer for another build.
+run('npm', ['install', '--no-audit', '--no-fund', tarballs.mcp], user);
+const withMcp = folderBytes(path.join(user, 'node_modules'));
+const lock = JSON.parse(readFileSync(path.join(user, 'package-lock.json'), 'utf8'));
+for (const name of ['upfly-core', 'upfly']) {
+  const copies = Object.entries(lock.packages ?? {}).filter(
+    ([at]) => at === `node_modules/${name}` || at.endsWith(`/node_modules/${name}`),
+  );
+  const resolved = copies.map(([, entry]) => String(entry.resolved));
+  if (copies.length !== 1 || !resolved[0]?.startsWith('file:')) {
+    failures.push(`the install holds ${name} from ${resolved.join(', ')}, not its tarball alone`);
+  }
+}
+
+// The installed `upfly-mcp` through the MCP library's own client, started as a client starts
+// it: through npx, and on Windows through cmd, as its README says. Its tools are listed, and one
+// answers as its command does, which a dependency missing from a package would stop.
+const mcpRequire = createRequire(path.join(ROOT, 'packages/mcp/package.json'));
+const { Client } = await import(
+  pathToFileURL(mcpRequire.resolve('@modelcontextprotocol/client')).href
+);
+const { StdioClientTransport } = await import(
+  pathToFileURL(mcpRequire.resolve('@modelcontextprotocol/client/stdio')).href
+);
+const server = ['--no', '--', 'upfly-mcp', project];
+const client = new Client({ name: 'packed-install', version: '1.0.0' });
+await client.connect(
+  new StdioClientTransport({
+    command: WINDOWS ? 'cmd' : 'npx',
+    args: WINDOWS ? ['/c', 'npx', ...server] : server,
+    cwd: user,
+  }),
+);
+const tools = (await client.listTools()).tools.map(
+  (/** @type {{ name: string }} */ tool) => tool.name,
+);
+const answer = await client.callTool({ name: 'check', arguments: {} });
+await client.close();
+const checked = run('npx', ['--no', '--', 'upfly', 'check', project, '--json'], user, 1)
+  .trimEnd()
+  .split('\n')
+  .at(-1);
+if (tools.length !== 7) failures.push(`upfly-mcp listed ${tools.length} tools, not 7: ${tools}`);
+if (answer.content?.[0]?.text !== checked) {
+  failures.push(`upfly-mcp's check answered ${answer.content?.[0]?.text}, not ${checked}`);
+}
+
 process.stdout.write(
   failures.length === 0
-    ? `\npacked install: upfly ${version} installed from its tarball (node_modules ${(installed / 1024 / 1024).toFixed(1)} MB), audit's JSON matches the shipped schemas, and ${written.length} files written, ${removed.length} removed, committed and undone\n`
+    ? `\npacked install: upfly ${version} installed from its tarball, audit's JSON matches the shipped schemas, and ${written.length} files written, ${removed.length} removed, committed and undone; upfly-mcp's ${tools.length} tools answer as upfly does. node_modules: upfly alone ${megabytes(alone)}, with upfly-mcp ${megabytes(withMcp)}\n`
     : `\npacked install failed:\n${failures.map((failure) => `  ${failure}`).join('\n')}\n`,
 );
 process.exit(failures.length === 0 ? 0 : 1);

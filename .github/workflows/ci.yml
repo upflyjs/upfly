@@ -162,12 +162,15 @@ jobs:
           test -f packages/core/dist/index.js || { echo "::error::core did not build"; exit 1; }
           test -f packages/core/dist/index.d.ts || { echo "::error::core types missing"; exit 1; }
           test -f packages/cli/dist/bin.js || { echo "::error::cli bin did not build"; exit 1; }
+          test -f packages/mcp/dist/bin.js || { echo "::error::mcp bin did not build"; exit 1; }
 
   packed-install:
     # The packages as npm will publish them, installed where a user installs them: each
     # tarball must hold every file its `files` list names, and the installed `upfly` must
     # print its version, audit a fixture with JSON the schemas it shipped accept, and write,
-    # commit and undo a run. The proof the dropped beta was for, on every platform.
+    # commit and undo a run, with no MCP library in its install. The installed `upfly-mcp`,
+    # started through npx as a client starts it, must answer as `upfly` does. The proof the
+    # dropped beta was for, on every platform.
     name: packed install / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -183,8 +186,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      # Packs both packages into the runner's temporary folder, installs the two tarballs
-      # into an empty folder there with npm, and runs the installed binary through npx.
+      # Packs the three packages into the runner's temporary folder, installs the tarballs
+      # into an empty folder there with npm, and runs the installed binaries through npx.
       - name: Pack, install and run
         run: node tools/packed-install.mjs
 

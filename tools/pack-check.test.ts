@@ -1,5 +1,5 @@
 /**
- * The tarball check the packed-install job runs, and both packages as `pnpm pack` makes them:
+ * The tarball check the packed-install job runs, and each package as `pnpm pack` makes it:
  * each tarball holds every entry its `files` list names, the licence, and a README.
  */
 
@@ -106,6 +106,7 @@ describe('each package, as pnpm packs it', () => {
   it.each([
     ['cli', 'README.md'],
     ['core', null],
+    ['mcp', null],
   ])(
     'packages/%s holds every entry of its files list, the licence and a README',
     (folder, copiedReadme) => {
@@ -124,10 +125,10 @@ describe('each package, as pnpm packs it', () => {
       expect(paths).toEqual(expect.arrayContaining(['package/LICENSE', 'package/README.md']));
 
       // The licence prepack copies is the root's, byte for byte, and the README the root's with
-      // its relative paths made absolute; core's README is its own.
+      // its relative paths made absolute; core's README and upfly-mcp's are their own.
       expect(readFileSync(join(dir, 'LICENSE'))).toEqual(readFileSync(join(ROOT, 'LICENSE')));
       const readme = readFileSync(join(dir, 'README.md'), 'utf8');
-      if (copiedReadme === null) expect(readme).toMatch(/^# upfly-core$/m);
+      if (copiedReadme === null) expect(readme).toMatch(new RegExp(`^# ${manifest.name}$`, 'm'));
       else {
         const isFolder = (relative: string) =>
           statSync(join(ROOT, relative), { throwIfNoEntry: false })?.isDirectory() === true;
