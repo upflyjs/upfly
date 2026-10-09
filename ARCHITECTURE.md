@@ -2848,6 +2848,17 @@ The promise is that the run's changes are the only ones a reviewer has to look a
   the index's own location and any shared index from the repository. An index holding an unresolved
   merge, which a conflicted `git stash pop` leaves, refuses `-m`; then HEAD is read afresh and the
   commit is the slow one. A branch with no commit starts from an empty index.
+- **Each file the run wrote is read from disk, whatever git recorded of it.** Git trusts an
+  entry's recorded size and time unless the index file is no newer than that time, which is what
+  protects a file rewritten within the second git recorded it. A copy of the index loses that
+  protection where the copy carries the moment it was made, as Node's copy does on Linux and macOS:
+  a file the run rewrote at its size within that second went into the commit as it was, or, alone,
+  left nothing to commit. So the run's paths in the index of its own are recorded again with no
+  size or time (`git update-index --index-info`, from that index's own `ls-files --stage`), and
+  `git add` reads each one. The files the run did not write still hold HEAD's content whatever
+  their record says, since `read-tree` set it and a refresh never changes an entry's content. The
+  project's own index, brought to the commit afterwards, is written only by git, which re-reads
+  each entry recorded in the index's own second before the index's time moves past it.
 - **A run never ends a merge, a rebase, a cherry-pick or a revert the user started.** A plain
   `git commit` made in any of those states finishes it: a merge would gain the other branch as a
   second parent and carry the user's half-finished resolution. Git decides the same question from

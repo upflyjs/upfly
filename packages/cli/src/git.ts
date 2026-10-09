@@ -286,7 +286,7 @@ export function commitPaths(
   const folder = mkdtempSync(join(tmpdir(), 'upfly-commit-'));
   const own = { GIT_INDEX_FILE: join(folder, 'index') };
   try {
-    headInto(root, ground, own);
+    headInto(root, ground, paths, own);
     stage(root, list, executable, own);
     must(git(root, ['commit', '--quiet', '-m', message], undefined, { env: own }), 'commit');
   } finally {
@@ -307,6 +307,8 @@ const PART_WAY_THROUGH: readonly (readonly [string, string])[] = [
 ];
 
 interface CommitGround {
+  /** Where the project sits inside the repository: POSIX, ending in `/`, or empty. */
+  readonly prefix: string;
   /** The project's own index, wherever git keeps it. */
   readonly index: string;
   /**
@@ -324,14 +326,22 @@ interface CommitGround {
 function groundFor(root: string): CommitGround {
   const named = ['index', ...PART_WAY_THROUGH.map(([file]) => file)];
   // `--quiet --verify HEAD` comes last, so it prints its hash after the paths, or prints
-  // nothing and exits 1 where the branch has no commit yet.
-  const asked = [...named.flatMap((file) => ['--git-path', file]), '--quiet', '--verify', 'HEAD'];
+  // nothing and exits 1 where the branch has no commit yet. Each answer is one line, and the
+  // prefix an empty one at the repository's top.
+  const asked = [
+    '--show-prefix',
+    ...named.flatMap((file) => ['--git-path', file]),
+    '--quiet',
+    '--verify',
+    'HEAD',
+  ];
   const result = git(root, ['rev-parse', ...asked]);
-  const lines = (result.status === 1 ? result : must(result, 'rev-parse')).stdout
-    .trim()
+  const [prefix = '', ...lines] = (result.status === 1 ? result : must(result, 'rev-parse')).stdout
+    .replace(/\n$/, '')
     .split('\n');
   const at = PART_WAY_THROUGH.findIndex((_, index) => inGitFolder(root, lines[index + 1]));
   return {
+    prefix,
     index: resolve(root, lines[0]?.trim() ?? ''),
     started: at === -1 ? null : (PART_WAY_THROUGH[at]?.[1] ?? null),
     head: lines.length > named.length,
@@ -346,18 +356,19 @@ function inGitFolder(root: string, line: string | undefined): boolean {
 
 /**
  * Fills the commit's own index with HEAD, keeping the size and time the project's index
- * recorded for every file whose content HEAD holds.
+ * recorded for every file whose content HEAD holds, except the files in `paths`.
  *
  * `git commit` refreshes its index first, and for an entry with no size recorded git has to
  * read the file to learn whether it changed, so an index straight from `read-tree` costs a
  * read of every tracked file: seconds on a large repository. A copy of the project's index
  * carries those sizes and times, and `read-tree -m` keeps them for every entry whose content
- * already matches. What is left to read is each file the user had staged differently, whose
- * recorded size belongs to the staged content rather than to HEAD's.
+ * already matches. What is left to read is each file the user had staged differently, and
+ * each file in `paths`.
  */
 function headInto(
   root: string,
   ground: CommitGround,
+  paths: readonly string[],
   own: { readonly GIT_INDEX_FILE: string },
 ): void {
   // A branch with no commit starts from an empty index, which is the whole of its first commit.
@@ -372,6 +383,26 @@ function headInto(
   if (git(root, ['read-tree', '-m', 'HEAD'], undefined, { env: own }).status !== 0) {
     must(git(root, ['read-tree', 'HEAD'], undefined, { env: own }), 'read-tree');
   }
+  // The run's own files are never taken from that record. Git trusts a recorded size and time
+  // unless the index is no newer than them, and on Linux and macOS a copy carries the moment it
+  // was made, so a file rewritten at its size within the second git recorded it would go into
+  // the commit as it was. `--index-info` records each again with no size or time, which makes
+  // `git add` read it, and names paths from the repository's top, as `ls-files --full-name`
+  // prints them.
+  const written = new Set(paths.map((path) => ground.prefix + path));
+  const listed = must(
+    git(root, ['ls-files', '--stage', '-z', '--full-name'], undefined, { env: own }),
+    'ls-files',
+  ).stdout;
+  // Each entry is `<mode> <object> <stage>\t<path>`, the form `--index-info` reads back.
+  const entries = listed
+    .split('\0')
+    .filter((entry) => written.has(entry.slice(entry.indexOf('\t') + 1)));
+  if (entries.length === 0) return;
+  must(
+    git(root, ['update-index', '-z', '--index-info'], nulList(entries), { env: own }),
+    'update-index',
+  );
 }
 
 /** Adds the paths in `list` to an index: the one `env` names, or else the project's own. */
@@ -468,7 +499,9 @@ function git(
 
 function must(result: GitResult, step: string): GitResult {
   if (result.status === 0) return result;
-  const reason = firstLine(result.stderr);
+  // Git gives its reason on the standard error, but `commit` reports "nothing to commit" on
+  // its standard output, after the branch's name, so that reason is the output's last line.
+  const reason = firstLine(result.stderr) || lastLine(result.stdout);
   throw new Error(`git ${step} failed${reason === '' ? '' : `: ${reason}`}`);
 }
 
@@ -478,6 +511,11 @@ function nulList(paths: readonly string[]): string {
 
 function firstLine(text: string): string {
   return text.trim().split('\n')[0] ?? '';
+}
+
+function lastLine(text: string): string {
+  const lines = text.trim().split('\n');
+  return lines[lines.length - 1] ?? '';
 }
 
 function compare(a: string, b: string): number {

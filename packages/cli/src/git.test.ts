@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
+  type PathLike,
   chmodSync,
   mkdirSync,
   mkdtempSync,
@@ -7,11 +8,12 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   RUN_TRAILER,
   commitForRun,
@@ -23,6 +25,27 @@ import {
   operationInProgress,
 } from './git.js';
 
+// On Linux and macOS Node sets a copy's times before writing its data, so the copy carries the
+// moment it was made; Windows' copy keeps the source's time. A test that needs one or the other
+// sets `copying.stamp`, and every other test gets the platform's own copy.
+const copying = vi.hoisted(() => ({ stamp: 'platform' as 'platform' | 'now' | 'source' }));
+vi.mock('node:fs', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...real,
+    copyFileSync(from: PathLike, to: PathLike, mode?: number) {
+      real.copyFileSync(from, to, mode);
+      if (copying.stamp === 'now') {
+        const now = new Date();
+        real.utimesSync(to, now, now);
+      } else if (copying.stamp === 'source') {
+        const { atime, mtime } = real.statSync(from);
+        real.utimesSync(to, atime, mtime);
+      }
+    },
+  };
+});
+
 // The long form of the path: on some machines the temporary folder is named in the short
 // form, while git always answers in the long one.
 const TEMP = realpathSync.native(tmpdir());
@@ -30,6 +53,7 @@ const TEMP = realpathSync.native(tmpdir());
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  copying.stamp = 'platform';
 });
 
 function write(root: string, path: string, text: string): void {
@@ -55,6 +79,33 @@ function repository(files: Record<string, string>): string {
   git(root, 'add', '-A');
   git(root, 'commit', '--quiet', '-m', 'start');
   return root;
+}
+
+/**
+ * A repository whose files git recorded in one past second and whose index it wrote in that
+ * same second, as when a test commits moments after writing. Ctime is left out of git's
+ * comparison, since a test can set every other time a file has, and on Linux and macOS not that.
+ */
+function recordedInOneSecond(files: Record<string, string>): { root: string; second: Date } {
+  const second = new Date(Math.floor(Date.now() / 1000) * 1000 - 3_600_000);
+  const root = mkdtempSync(join(TEMP, 'upfly-git-'));
+  roots.push(root);
+  git(root, 'init', '--quiet');
+  git(root, 'config', 'user.name', 'Upfly Test');
+  git(root, 'config', 'user.email', 'test@example.com');
+  git(root, 'config', 'commit.gpgsign', 'false');
+  git(root, 'config', 'core.trustctime', 'false');
+  for (const [path, text] of Object.entries(files)) rewrite(root, path, text, second);
+  git(root, 'add', '-A');
+  git(root, 'commit', '--quiet', '-m', 'start');
+  utimesSync(join(root, '.git', 'index'), second, second);
+  return { root, second };
+}
+
+/** Writes `text` to `path` and gives the file the time `at`. */
+function rewrite(root: string, path: string, text: string, at: Date): void {
+  write(root, path, text);
+  utimesSync(join(root, path), at, at);
 }
 
 /**
@@ -333,6 +384,88 @@ describe('commitPaths', () => {
       'M\tweb/index.html',
     ]);
     expect(git(outer, 'diff', '--cached', '--name-only').trim()).toBe('notes.txt');
+  });
+
+  it("names git's reason when there is nothing to commit", () => {
+    const root = repository({ 'index.html': 'a' });
+
+    expect(() => commitPaths(root, ['index.html'], 'the run')).toThrow(
+      'git commit failed: nothing to commit, working tree clean',
+    );
+  });
+});
+
+describe('commitPaths, for a file git recorded in the second the run then rewrote it', () => {
+  // Git reads a file whose recorded size and time still match only when its index is no newer
+  // than that time. The commit's own index is a copy, which is newer wherever the copy carries
+  // the moment it was made, so these cases make every copy do that.
+
+  it('commits the rewrite though the file kept its size', () => {
+    const { root, second } = recordedInOneSecond({ 'index.html': '<img src="a.jpeg">' });
+    rewrite(root, 'index.html', '<img src="a.webp">', second);
+    copying.stamp = 'now';
+
+    commitPaths(root, ['index.html'], 'the run');
+
+    expect(git(root, 'show', 'HEAD:index.html')).toBe('<img src="a.webp">');
+    expect(gitState(root)).toMatchObject({ changed: [] });
+  });
+
+  it('commits every file the run wrote when one kept its size and one did not', () => {
+    const { root, second } = recordedInOneSecond({
+      'index.html': '<img src="a.jpeg">',
+      'other.html': 'short',
+    });
+    rewrite(root, 'index.html', '<img src="a.webp">', second);
+    rewrite(root, 'other.html', 'a longer line', second);
+    copying.stamp = 'now';
+
+    commitPaths(root, ['index.html', 'other.html'], 'the run');
+
+    expect(git(root, 'show', '--name-only', '--format=', 'HEAD').trim().split('\n')).toEqual([
+      'index.html',
+      'other.html',
+    ]);
+    expect(gitState(root)).toMatchObject({ changed: [] });
+  });
+
+  it('commits a moved file and a rewrite of the same size in a folder of a larger repository', () => {
+    const { root: outer, second } = recordedInOneSecond({
+      'notes.txt': 'n',
+      'web/index.html': '<img src="img/a.jpeg">',
+      'web/img/a.jpeg': 'jpeg',
+    });
+    const project = join(outer, 'web');
+    mkdirSync(join(project, 'pic'));
+    renameSync(join(project, 'img/a.jpeg'), join(project, 'pic/a.jpeg'));
+    rewrite(project, 'index.html', '<img src="pic/a.jpeg">', second);
+    copying.stamp = 'now';
+
+    commitPaths(project, ['img/a.jpeg', 'index.html', 'pic/a.jpeg'], 'the move', [
+      { from: 'img/a.jpeg', to: 'pic/a.jpeg' },
+    ]);
+
+    const committed = git(outer, 'show', '--name-status', '--no-renames', '--format=', 'HEAD');
+    expect(committed.trim().split('\n')).toEqual([
+      'D\tweb/img/a.jpeg',
+      'M\tweb/index.html',
+      'A\tweb/pic/a.jpeg',
+    ]);
+    expect(gitState(outer)).toMatchObject({ changed: [] });
+  });
+
+  it.each([
+    ['a copy made in that same second', 'source', '<img src="a.webp">'],
+    ['a rewrite that changed the size', 'now', '<img src="a.avif2">'],
+  ] as const)('commits the rewrite with %s', (_, stamp, text) => {
+    const { root, second } = recordedInOneSecond({ 'index.html': '<img src="a.jpeg">' });
+    rewrite(root, 'index.html', text, second);
+    copying.stamp = stamp;
+
+    commitPaths(root, ['index.html'], 'the run');
+
+    expect(git(root, 'show', 'HEAD:index.html')).toBe(text);
+    expect(gitState(root)).toMatchObject({ changed: [] });
   });
 });
 
