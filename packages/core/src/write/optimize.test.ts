@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { PathSpelling } from '../adapters/reference-path.js';
 import type { AuditResult } from '../audit/audit.js';
 import { buildGraph } from '../graph/graph.js';
 import type { ProjectBuilds } from '../plan/builds.js';
@@ -688,12 +689,29 @@ describe('replace refuses to delete an original a mention would outlive', () => 
    * surviving mentions does not apply.
    */
   /** The extensions no adapter claims, which the walk hands the graph as unscanned. */
-  const UNREAD = new Set(['.yml', '.yaml', '.txt', '.pdf', '.log']);
+  const UNREAD = new Set(['.yml', '.yaml', '.txt', '.pdf', '.log', '.vue', '.njk', '.liquid']);
 
-  function servedProject(tree: Record<string, string>, files: readonly string[]) {
+  /** The image a project serves, and how `index.html` names it, decoded as the resolver does. */
+  interface Served {
+    readonly asset: string;
+    readonly rawPath: string;
+    readonly spelling?: PathSpelling;
+  }
+  const LOGO: Served = { asset: 'public/logo.png', rawPath: '/logo.png' };
+
+  function servedProject(
+    tree: Record<string, string>,
+    files: readonly string[],
+    served: Served = LOGO,
+  ) {
     const html = tree['index.html'] ?? '';
-    const assets = [asset('public/logo.png')];
-    const references = [resolved('index.html', '/logo.png', 'public/logo.png', html)];
+    const assets = [asset(served.asset)];
+    const reference = resolved('index.html', served.rawPath, served.asset, html);
+    const references = [
+      served.spelling === undefined
+        ? reference
+        : ({ ...reference, spelling: served.spelling } as Reference),
+    ];
     const project = harness(tree);
 
     return {
@@ -723,7 +741,7 @@ describe('replace refuses to delete an original a mention would outlive', () => 
           }),
           texts: [scanned('index.html', html)],
         }),
-        probes: [probeOf('public/logo.png')],
+        probes: [probeOf(served.asset)],
         publicPolicy: 'replace' as const,
         servingRoots: { dirs: ['public'], declared: true },
         apply: false,
@@ -939,6 +957,119 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     expect(declined?.reason).toContain('deploy.yml:1');
   });
 
+  it.each([
+    [
+      'percent-encoded, as a browser asks for it',
+      { asset: 'public/a b.png', rawPath: '/a%20b.png', spelling: 'percent-encoded' },
+      '/a%20b.png',
+    ],
+    [
+      'with a name beyond ASCII written as its UTF-8 escapes',
+      { asset: 'public/café.png', rawPath: '/caf%C3%A9.png', spelling: 'percent-encoded' },
+      '/caf%C3%A9.png',
+    ],
+    [
+      'encoded only in part',
+      {
+        asset: 'public/café au lait.png',
+        rawPath: '/caf%C3%A9%20au%20lait.png',
+        spelling: 'percent-encoded',
+      },
+      '/caf%C3%A9 au lait.png',
+    ],
+    [
+      'with a character reference',
+      { asset: 'public/a b.png', rawPath: '/a%20b.png', spelling: 'percent-encoded' },
+      '/a&#32;b.png',
+    ],
+  ] as const)(
+    'refuses it when a file nothing parses names the path %s',
+    async (_how, served, written) => {
+      // A browser decodes the text before it asks for the file, so the page still loads the
+      // original by that line, and removing it breaks the page.
+      const { input } = servedProject(
+        {
+          'index.html': `<img src="${served.rawPath}">`,
+          'src/Team.vue': `<template>\n  <img src="${written}">\n</template>\n`,
+          [served.asset]: 'PNG',
+        },
+        ['index.html', 'src/Team.vue'],
+        served,
+      );
+
+      const result = await optimize(input);
+
+      expect(result.plan.conversions).toEqual([]);
+      expect(result.plan.declined.find((entry) => entry.path === served.asset)?.reason).toBe(
+        'converting it would delete the original, and src/Team.vue:2 still names its path: in a .vue file, a type Upfly does not read',
+      );
+    },
+  );
+
+  it('converts it when the only other mention decodes to another file', async () => {
+    // `%2520` is an escaped percent sign: a browser asks for `a%20b.png`, another file.
+    const { input } = servedProject(
+      {
+        'index.html': '<img src="/a%20b.png">',
+        'src/Team.vue': '<template>\n  <img src="/a%2520b.png">\n</template>\n',
+        'public/a b.png': 'PNG',
+      },
+      ['index.html', 'src/Team.vue'],
+      { asset: 'public/a b.png', rawPath: '/a%20b.png', spelling: 'percent-encoded' },
+    );
+
+    const result = await optimize(input);
+
+    expect(
+      result.plan.conversions.map((conversion) => [conversion.asset, conversion.replacesOriginal]),
+    ).toEqual([['public/a b.png', true]]);
+  });
+
+  it('refuses each image a line names, not only the one whose path is longest', async () => {
+    // A srcset in a file nothing parses names three originals on one line, and each is kept.
+    const page = '<img src="/a.png" srcset="/a@2x.png 2x, /a@3x.png 3x">';
+    const vue = '<template>\n  <img srcset="/a.png 1x, /a@2x.png 2x, /a@3x.png 3x">\n</template>\n';
+    const images = ['public/a.png', 'public/a@2x.png', 'public/a@3x.png'];
+    const project = harness({
+      'index.html': page,
+      'src/Team.vue': vue,
+      ...Object.fromEntries(images.map((image) => [image, 'PNG'])),
+    });
+
+    const result = await optimize(
+      inputFor({
+        ...project,
+        files: ['index.html', 'src/Team.vue'],
+        graph: buildGraph({
+          root: ROOT,
+          assets: images.map((image) => asset(image)),
+          references: images.map((image) =>
+            resolved('index.html', image.slice('public'.length), image, page),
+          ),
+          unscannedFiles: [
+            {
+              path: `${ROOT}/src/Team.vue`,
+              relative: 'src/Team.vue',
+              extension: '.vue',
+              reason: 'unclaimed-extension',
+              detail: '',
+            },
+          ],
+          texts: [scanned('index.html', page)],
+        }),
+        probes: images.map((image) => probeOf(image)),
+        publicPolicy: 'replace',
+        servingRoots: { dirs: ['public'], declared: true },
+        apply: false,
+      }),
+    );
+
+    expect(result.plan.conversions).toEqual([]);
+    expect(
+      result.plan.declined.map((entry) => [entry.path, entry.reason.includes('src/Team.vue:2')]),
+    ).toEqual(images.map((image) => [image, true]));
+  });
+
   it('says the run excluded the file when only an excluded file still names the path', async () => {
     // The search reads what the run's rules left out, so the original stays, but the path
     // there is one Upfly would have rewritten had the run included the file.
@@ -1021,6 +1152,27 @@ describe('replace refuses to delete an original a mention would outlive', () => 
       'index.html',
       'src/App.jsx',
     ]);
+  });
+
+  it('rewrites a path a comment writes percent-encoded in the encoded spelling, and converts the image', async () => {
+    // A commented-out line keeps the spelling it was written in, so after the run it names
+    // the converted file the way the live line beside it does.
+    const page = '<img src="/a%20b.png">\n<!-- <img src="/a%20b.png"> -->\n';
+    const css = '/* .old { background: url(/a%20b.png); } */\n';
+    const { input, tree } = servedProject(
+      { 'index.html': page, 'public/site.css': css, 'public/a b.png': 'PNG' },
+      ['index.html', 'public/site.css'],
+      { asset: 'public/a b.png', rawPath: '/a%20b.png', spelling: 'percent-encoded' },
+    );
+
+    const result = await optimize({ ...input, apply: true });
+
+    expect(result.plan.declined).toEqual([]);
+    expect(tree.has('public/a b.png')).toBe(false);
+    expect(tree.get('index.html')).toBe(
+      '<img src="/a%20b.webp">\n<!-- <img src="/a%20b.webp"> -->\n',
+    );
+    expect(tree.get('public/site.css')).toBe('/* .old { background: url(/a%20b.webp); } */\n');
   });
 
   it('leaves a comment alone when the image it names is not converting', async () => {
@@ -1225,8 +1377,8 @@ describe('replace at the seam: a new file only where a reference moves to it, a 
       // Some move, some still need it: this literal moves, the template below does not.
       resolved('about.html', '/theme-light.png', 'public/theme-light.png', ABOUT),
       // Linked only through references that stay. A root-relative path that missed the
-      // declared root, so its rewrite is refused, spelled so that the text search, which
-      // looks for the path as written, finds none of its spellings.
+      // declared root, so its rewrite is refused and the planner keeps the image on that
+      // alone: the search for mentions looks only for originals the plan deletes.
       {
         ...resolved('index.html', '/public/h%65ro.png', 'public/hero.png', INDEX),
         resolvedVia: 'project-root',

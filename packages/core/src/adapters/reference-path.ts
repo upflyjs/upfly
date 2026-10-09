@@ -618,6 +618,17 @@ const WINDOWS_1252_C1: readonly number[] = [
 ];
 
 /**
+ * The text a character reference stands for in an HTML attribute, as a browser reads it:
+ * `amp` for `&amp;` gives `&`, and `#45` for `&#45;` gives `-`.
+ *
+ * @param body the reference between its `&` and its `;`
+ * @returns the text, or `null` for a name the HTML specification does not define
+ */
+export function decodeCharacterReference(body: string): string | null {
+  return decodeOneReference(body, 'html');
+}
+
+/**
  * One reference's body to its text, or `null` when it names nothing the table defines.
  *
  * @param reading HTML's rules or CommonMark's, which read a number differently; see

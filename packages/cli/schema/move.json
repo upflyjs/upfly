@@ -49,7 +49,7 @@
           "items": { "$ref": "#/definitions/declined" }
         },
         "unfollowed": {
-          "description": "Every other line that names a moved image's old path, found by a search of the project's files in any letter case, which Upfly does not follow and leaves as written, as upfly refs lists them.",
+          "description": "Every other line that names a moved image's old path, found by a search of the project's files in any letter case and as a browser reads a path written percent-encoded or with HTML character references, which Upfly does not follow and leaves as written, as upfly refs lists them.",
           "type": "array",
           "items": { "$ref": "#/definitions/unfollowed" }
         }

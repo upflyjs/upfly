@@ -2299,11 +2299,28 @@ which catches `../../img/hero.png`), and with Windows separators. A match that l
 destination path is discounted, because for an asset at a serving root the old URL (`/og.png`) is
 also the end of the new one (`/moved/og.png`).
 
+**The text is read the way a browser reads it, as well as as written** (`readingsOf`,
+`readings.ts`). A page names `public/img/a b.png` as `/img/a%20b.png`, the server decoding the
+escape, and a template as `/img/a&#32;b.png`, the HTML parser decoding the reference before the
+browser asks for anything; a name beyond ASCII is written as its UTF-8 escapes, and some writers
+encode only some characters. So each file is searched as written, with its percent-escapes decoded
+once, with its character references decoded, and with both, references first, and a match in a
+decoded reading is the range of the text that decodes to it. Each escape is decoded once, as a
+server does: `a%2520b.png` names the file `a%20b.png` and never `a b.png`. The text as written is
+always searched too, because `a%20b.png` can be a file's own name, which a program opening it by
+name reads as written; where the two readings name different files at one place, each is a
+survivor. The readers decode a path they parse the same way, literal spelling first ("Percent-encoded
+and entity-encoded paths"); this is the same rule for the text no reader parses.
+
 A survivor is an occurrence the move did not rewrite. It is usually a reference that could not be
 repointed, but it can be prose, a changelog entry or a coincidence, and a text search cannot tell
 them apart, so each is reported with its line for a person to read. Reporting a coincidence costs a
-glance; missing a break costs a missing image. The limits are printed with every result: a path
-assembled at runtime, a path spelled some other way (URL-encoded, behind a CDN prefix, split across a
+glance; missing a break costs a missing image. There is one survivor per place a path is written,
+a place being where the match ends, since every spelling of a path ends with its file name: the
+longest spelling there names it, and the shorter ones that end there are the same mention. Two
+places on one line are two survivors, as the three images of a `srcset` are, so a line naming
+several moved paths names each of them. The limits are printed with every result: a path
+assembled at runtime, a path spelled some other way (behind a CDN prefix, split across a
 concatenation), and a file nobody handed the search, such as one in an excluded directory.
 
 `optimize` runs the same search before it writes, treating each original that `replace` would delete
@@ -2332,7 +2349,11 @@ follow, and only for a place that reading says names this image: a text search a
 rewrite `vendor/a/b.png` because it ends with another image's path. The new text is the
 destination's spelling of the kind the comment used (`respellAs`): a URL is answered with a
 URL, a project-relative path with a project-relative path, so an image leaving the served
-folder has no answer for a URL and that comment is left as written. Three more are left:
+folder has no answer for a URL and that comment is left as written. A comment that writes the
+path the way a browser reads it is answered in kind, and only the part of the path that changes
+is written anew, encoded as the comment encodes it: `/img/a%20b.png` becomes `/img/a%20b.webp`,
+and `mtel&#45;logo.png` becomes `mtel&#45;logo.webp`, the writer's other escapes untouched. The
+result is checked to read as the destination before it is used. Three more are left:
 a mention written in another letter case, which Windows and macOS find and Upfly will not
 decide the spelling of; a place two images both claim; and a path whose file no text hash
 covers. Each edit carries the hash of the text the search read, not the graph's, because the
@@ -2387,7 +2408,7 @@ of longer names or lines the move already rewrites or lists.
 `refs` answers for one image with its references, the ones the graph follows, and then with
 every other line a search for the image's path finds, each with why Upfly does not follow it
 (`findUnfollowedLines`, `unfollowed.ts`). The search is the one above, `findPathOccurrences`
-reporting every match rather than one per line, over every file the walk found and every
+reporting every match in every reading rather than one per place, over every file the walk found and every
 file the run's ignore rules excluded: a scope limits what a run changes, never what it reads.
 Together the two lists hold every line the search finds, once, except a line that names
 another file of the same name, which is in neither. That exception is the hard part: four

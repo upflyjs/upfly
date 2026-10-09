@@ -107,6 +107,80 @@ describe('exchanging one path’s spelling for another’s', () => {
     expect(respellAs('/IMG/Hero.PNG', 'public/img/hero.png', 'public/img/hero.webp', SERVING)).toBe(
       null,
     );
+    expect(respellAs('/IMG/A%20B.png', 'public/img/a b.png', 'public/img/a b.webp', SERVING)).toBe(
+      null,
+    );
+  });
+
+  it('answers a percent-encoded spelling with the destination encoded', () => {
+    const from = 'public/img/a b.png';
+    expect(respellAs('/img/a%20b.png', from, 'public/img/a b.webp', SERVING)).toBe(
+      '/img/a%20b.webp',
+    );
+    expect(respellAs('/img/a%20b.png', from, 'public/my pics/a b.png', SERVING)).toBe(
+      '/my%20pics/a%20b.png',
+    );
+    expect(respellAs('img/a%20b.png', from, 'public/pics/a b.png', SERVING)).toBe('pics/a%20b.png');
+  });
+
+  it('keeps what the text wrote around the part that changes', () => {
+    // A writer who encoded one character and not the others, or wrote a hyphen as a
+    // character reference, keeps that spelling: only the part of the path that changes is
+    // written anew.
+    expect(
+      respellAs(
+        '/img/caf%C3%A9 au lait.png',
+        'public/img/café au lait.png',
+        'public/img/café au lait.webp',
+        SERVING,
+      ),
+    ).toBe('/img/caf%C3%A9 au lait.webp');
+    expect(
+      respellAs(
+        'img/mtel&#45;logo.png',
+        'public/img/mtel-logo.png',
+        'public/img/mtel-logo.webp',
+        SERVING,
+      ),
+    ).toBe('img/mtel&#45;logo.webp');
+  });
+
+  it('answers each spelling with text that reads as the destination, whatever it encodes', () => {
+    // Generated names and spellings: whatever a writer encoded, the answer read the same way
+    // is exactly the destination's spelling of that kind.
+    let seed = 20261009;
+    const next = (limit: number) => {
+      seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+      return Math.floor((seed / 2 ** 32) * limit);
+    };
+    const pick = <T>(items: readonly T[]): T => items[next(items.length)] as T;
+    const names = ['a b', 'café', 'Q&A', 'x (1)', 'enc%20name', 'é è', 'a@2x', 'plain'];
+    const encode = (text: string) =>
+      [...text]
+        .map((character) =>
+          character !== '/' && next(2) === 0 ? encodeURIComponent(character) : character,
+        )
+        .join('');
+    let answered = 0;
+    for (let round = 0; round < 300; round++) {
+      const from = `public/${pick(['img', 'my img'])}/${pick(names)}.png`;
+      const to = pick([
+        from.replace(/\.png$/, '.webp'),
+        from.replace('public/', 'public/moved here/'),
+        `public/${pick(names)}/${pick(names)}.png`,
+      ]);
+      const plain = pick(
+        spellingsFor(from, SERVING).filter((spelling) => !spelling.includes('\\')),
+      );
+      const written = encode(plain);
+      const answer = respellAs(written, from, to, SERVING);
+      if (answer === null) continue;
+      answered += 1;
+      const expected = spellingsFor(to, SERVING);
+      const readAs = written === plain ? answer : decodeURIComponent(answer);
+      expect(expected, `${written} for ${from} to ${to} gave ${answer}`).toContain(readAs);
+    }
+    expect(answered).toBeGreaterThan(200);
   });
 });
 
@@ -179,11 +253,42 @@ describe('searching for what the move left behind', () => {
     expect(result.survivors[0]?.line).toBe(2);
   });
 
-  it('reports one occurrence per line, not one per spelling that matched', async () => {
+  it('reports one occurrence per place, not one per spelling that matched', async () => {
     // `/img/hero.png` contains the suffix `img/hero.png`, so a naive loop reports the same
-    // line twice and the count says two occurrences where a reader can see one.
+    // place twice and the count says two occurrences where a reader can see one.
     const result = await search({ 'a.yml': 'src: /img/hero.png' }, 'public/img/hero.png');
-    expect(result.survivors).toHaveLength(1);
+    expect(result.survivors.map(({ spelling }) => spelling)).toEqual(['/img/hero.png']);
+  });
+
+  it('reports every place on a line that names a moved path, not only the longest', async () => {
+    // A srcset names three images on one line. Reporting the line once, for whichever path is
+    // longest, would leave the other two unnamed and their originals unguarded.
+    const result = await findSurvivingPaths({
+      moves: ['a.png', 'a@2x.png', 'a@3x.png'].map((name) => ({
+        from: `public/img/${name}`,
+        to: `public/img/${name.replace('.png', '.webp')}`,
+      })),
+      files: ['Team.vue'],
+      readFile: async () => '<img srcset="/img/a.png 1x, /img/a@2x.png 2x, /img/a@3x.png 3x">\n',
+      servingDirs: SERVING,
+    });
+
+    expect(result.survivors.map(({ line, spelling }) => [line, spelling])).toEqual([
+      [1, '/img/a.png'],
+      [1, '/img/a@2x.png'],
+      [1, '/img/a@3x.png'],
+    ]);
+  });
+
+  it('reports a second place on a line apart from one the caller discounts', async () => {
+    // A caller that rewrites the first place discounts it by offset, so the second, a path in
+    // an attribute Upfly does not read, has to be its own occurrence.
+    const result = await search(
+      { 'Card.jsx': '<img src="/img/hero.png" data-zoom="/img/hero.png" />\n' },
+      'public/img/hero.png',
+    );
+
+    expect(result.survivors.map(({ offset }) => offset)).toEqual([10, 36]);
   });
 
   it('finds several occurrences across files and orders them predictably', async () => {
@@ -247,6 +352,121 @@ describe('searching for what the move left behind', () => {
   });
 });
 
+describe('a path written the way a browser reads it', () => {
+  it('finds a path a URL writes percent-encoded, reporting it as the file spells it', async () => {
+    // A browser asks for `/img/a%20b.png` and the server decodes it to `a b.png`, so a page
+    // naming the path that way loads the original as surely as one naming it plainly.
+    const result = await search(
+      { 'src/Team.vue': '<template>\n  <img src="/img/a%20b.png">\n</template>\n' },
+      'public/img/a b.png',
+    );
+
+    expect(
+      result.survivors.map(({ line, spelling, searched }) => [line, spelling, searched]),
+    ).toEqual([[2, '/img/a%20b.png', '/img/a b.png']]);
+  });
+
+  it('finds a name beyond ASCII written as its UTF-8 escapes, in either case of hex digit', async () => {
+    const result = await search(
+      { 'team.njk': '<img src="/img/caf%C3%A9.png">\n<img src="/img/CAF%c3%a9.png">\n' },
+      'public/img/café.png',
+    );
+
+    expect(result.survivors.map(({ line, spelling }) => [line, spelling])).toEqual([
+      [1, '/img/caf%C3%A9.png'],
+      [2, '/img/CAF%c3%a9.png'],
+    ]);
+  });
+
+  it('finds a path a writer encoded only in part, or with escapes it did not need', async () => {
+    const result = await search(
+      {
+        'a.liquid': '<img src="/img/caf%C3%A9 au lait.png">\n',
+        'b.liquid': '<img src="/img/caf%C3%A9%20au%20lait%2Epng">\n',
+      },
+      'public/img/café au lait.png',
+    );
+
+    expect(result.survivors.map(({ file, spelling }) => [file, spelling])).toEqual([
+      ['a.liquid', '/img/caf%C3%A9 au lait.png'],
+      ['b.liquid', '/img/caf%C3%A9%20au%20lait%2Epng'],
+    ]);
+  });
+
+  it('finds a path written with character references, as an HTML parser reads an attribute', async () => {
+    // A template Upfly does not read becomes HTML, and the browser decodes `&#32;` and
+    // `&amp;` before it asks for the file, then the server decodes the percent-escapes.
+    const result = await findSurvivingPaths({
+      moves: ['a b.png', 'Q&A.png', 'café x.png'].map((name) => ({
+        from: `public/img/${name}`,
+        to: `public/img/${name.replace('.png', '.webp')}`,
+      })),
+      files: ['Team.vue'],
+      readFile: async () =>
+        '<img src="/img/a&#32;b.png">\n<img src="/img/Q&amp;A.png">\n<img src="/img/caf&eacute;%20x.png">\n',
+      servingDirs: SERVING,
+    });
+
+    expect(result.survivors.map(({ line, spelling }) => [line, spelling])).toEqual([
+      [1, '/img/a&#32;b.png'],
+      [2, '/img/Q&amp;A.png'],
+      [3, '/img/caf&eacute;%20x.png'],
+    ]);
+  });
+
+  it('reads each escape once, so a path that decodes to another file never counts for this one', async () => {
+    // `%2520` is an escaped percent sign: the server reads `a%20b.png`, a file whose name
+    // holds a percent sign, and never `a b.png`.
+    const files = { 'Team.vue': '<img src="/img/a%2520b.png">\n' };
+
+    expect((await search(files, 'public/img/a b.png')).survivors).toEqual([]);
+    expect(
+      (await search(files, 'public/img/a%20b.png')).survivors.map(({ spelling }) => spelling),
+    ).toEqual(['/img/a%2520b.png']);
+  });
+
+  it('still finds a name holding a percent sign by its name as written', async () => {
+    const result = await search(
+      { 'a.yml': 'src: /img/enc%20name.png\n' },
+      'public/img/enc%20name.png',
+    );
+
+    expect(result.survivors.map(({ spelling }) => spelling)).toEqual(['/img/enc%20name.png']);
+  });
+
+  it('finds both files where one text names a file as written and another as a URL reads it', async () => {
+    // `/img/a%20b.png` is the file `a%20b.png` to a program that opens it by name, and the file
+    // `a b.png` to a browser. Each original is guarded by the place.
+    const result = await findSurvivingPaths({
+      moves: ['a b.png', 'a%20b.png'].map((name) => ({
+        from: `public/img/${name}`,
+        to: `public/img/${name.replace('.png', '.webp')}`,
+      })),
+      files: ['a.yml'],
+      readFile: async () => 'src: /img/a%20b.png\n',
+      servingDirs: SERVING,
+    });
+
+    expect(result.survivors.map(({ searched }) => searched).sort()).toEqual([
+      '/img/a b.png',
+      '/img/a%20b.png',
+    ]);
+  });
+
+  it('does not report a destination written encoded as a survivor', async () => {
+    // After a move, the new URL ends with the old one when the image sat at a serving root,
+    // and a rewrite writes it percent-encoded as the old one was.
+    const result = await findSurvivingPaths({
+      moves: [{ from: 'public/a b.png', to: 'public/moved/a b.png' }],
+      files: ['page.html'],
+      readFile: async () => '<img src="/moved/a%20b.png">\n<meta content="/a%20b.png">\n',
+      servingDirs: SERVING,
+    });
+
+    expect(result.survivors.map(({ line }) => line)).toEqual([2]);
+  });
+});
+
 describe('searching every file once, with exactly the answers of one search per spelling', () => {
   /**
    * The search sweeps each file once for every spelling. What it finds must be exactly
@@ -272,7 +492,10 @@ describe('searching every file once, with exactly the answers of one search per 
       .flatMap((file) => oneFileAsBefore(file, files[file] ?? '', spellings, destinations));
     survivors.sort(
       (a, b) =>
-        compareStrings(a.file, b.file) || a.line - b.line || compareStrings(a.spelling, b.spelling),
+        compareStrings(a.file, b.file) ||
+        a.line - b.line ||
+        a.offset - b.offset ||
+        compareStrings(a.spelling, b.spelling),
     );
     return { spellings, survivors };
   }
@@ -299,6 +522,8 @@ describe('searching every file once, with exactly the answers of one search per 
       }
     }
     const survivors: { file: string; line: number; offset: number; spelling: string }[] = [];
+    // A place is where a match ends, since every spelling of a path ends with its file name:
+    // the longest spelling there names it, and a match elsewhere on the line is another place.
     const claimed = new Set<number>();
     // A Set keeps the first of two spellings that fold alike, so the rank order stands.
     for (const spelling of new Set(spellings.map((each) => each.toLowerCase()))) {
@@ -309,8 +534,8 @@ describe('searching every file once, with exactly the answers of one search per 
       ) {
         const end = at + spelling.length;
         const line = text.slice(0, at).split('\n').length;
-        if (claimed.has(line) || spans.some(([from, to]) => from <= at && end <= to)) continue;
-        claimed.add(line);
+        if (claimed.has(end) || spans.some(([from, to]) => from <= at && end <= to)) continue;
+        claimed.add(end);
         survivors.push({ file, line, offset: at, spelling: text.slice(at, end) });
       }
     }
@@ -427,10 +652,10 @@ describe('searching every file once, with exactly the answers of one search per 
     expect(result.survivors).toEqual([]);
   });
 
-  it('gives a line to the longest spelling on it, even when a shorter one comes first', async () => {
-    // The line's survivor is the first match in rank order, longest spelling first, and
-    // only then by position. `img/hero.png` at the start of the line loses to
-    // `/public/img/hero.png` further along.
+  it('gives each place on a line to the longest spelling that ends there', async () => {
+    // `/public/img/hero.png` also matches `public/img/hero.png` and `img/hero.png` where it
+    // ends, and that place is its own. The `img/hero.png` at the start of the line is another
+    // place, written by itself, so it is a survivor too.
     const result = await searchAll(
       [{ from: 'public/img/hero.png', to: 'public/moved/hero.png' }],
       { 'a.txt': 'img/hero.png then /public/img/hero.png' },
@@ -438,6 +663,7 @@ describe('searching every file once, with exactly the answers of one search per 
     );
 
     expect(result.survivors.map(({ offset, spelling }) => [offset, spelling])).toEqual([
+      [0, 'img/hero.png'],
       [18, '/public/img/hero.png'],
     ]);
   });

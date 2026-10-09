@@ -7,12 +7,14 @@
  * also match the asset at its new place. That is why `sweepForMentions`, which matches the
  * basenames of assets the graph says nothing references, is not reused. A survivor is an
  * occurrence the move did not rewrite, which may be a reference or may be prose, so the
- * line is reported for a person to read.
+ * line is reported for a person to read. The text is searched as written and as a browser
+ * reads it (`readingsOf`), so a path written `a%20b.png` or `a&#32;b.png` is found too.
  * See "Moving an asset" in ARCHITECTURE.md.
  */
 
 import { plural } from '../format.js';
 import { compareStrings } from '../paths.js';
+import { type Reading, readingsOf } from './readings.js';
 
 /** One occurrence of an old path that survived the move. */
 export interface Survivor {
@@ -29,10 +31,12 @@ export interface Survivor {
   readonly offset: number;
   /**
    * The text that matched, as the file spells it, so a reader knows what to look for on that
-   * line. It is one of the spellings searched for, in any letter case: Windows and macOS find
-   * `img/hero.png` by `IMG/Hero.png`.
+   * line: one of the spellings searched for in any letter case, since Windows and macOS find
+   * `img/hero.png` by `IMG/Hero.png`, or text a browser decodes to one, such as `a%20b.png`.
    */
   readonly spelling: string;
+  /** The spelling searched for that the text reads as, which says which path it names. */
+  readonly searched: string;
   /** The matching line, trimmed and capped. Evidence, so nobody has to open the file. */
   readonly text: string;
 }
@@ -140,12 +144,15 @@ export function spellingsByKind(
 /**
  * What text spells `to` the way `written` spells `from`, or null when nothing does.
  *
- * The letter case has to match: a mention written in another case names the file on Windows
- * and macOS, and replacing it would be Upfly deciding how the path should have been spelled.
- * Null where the spelling has no counterpart, as a served URL has none for a destination
- * outside every serving directory.
+ * Text a browser decodes is answered in kind: only the part of the path that changes is
+ * written anew, encoded the way the text is, so `/img/a%20b.png` becomes `/img/a%20b.webp`
+ * and a writer's other escapes stay as they were. The text as written is read first, since
+ * `a%20b.png` can also be a file's name. The letter case has to match: a mention written in
+ * another case names the file on Windows and macOS, and replacing it would be Upfly deciding
+ * how the path should have been spelled. Null where the spelling has no counterpart, as a
+ * served URL has none for a destination outside every serving directory.
  *
- * @param written the text found, one of `from`'s spellings
+ * @param written the text found, one of `from`'s spellings or text a browser decodes to one
  * @param from the asset's path now, POSIX-relative to the project root
  * @param to where it is going, POSIX-relative to the project root
  * @param servingDirs serving directories, as `spellingsFor` takes them
@@ -158,16 +165,56 @@ export function respellAs(
 ): string | null {
   const before = spellingsByKind(from, servingDirs);
   const after = spellingsByKind(to, servingDirs);
-  let replacement: string | null = null;
-  let longest = 0;
-  for (const [kind, spelling] of before) {
-    const candidate = after.get(kind);
-    if (spelling !== written || candidate === undefined || spelling.length <= longest) continue;
-    longest = spelling.length;
-    replacement = candidate;
+  for (const reading of readingsOf(written)) {
+    let kind: string | null = null;
+    for (const [each, spelling] of before) {
+      if (spelling === reading.text && after.has(each)) {
+        kind = each;
+        break;
+      }
+    }
+    const target = kind === null ? undefined : after.get(kind);
+    if (target !== undefined) return rewritten(written, reading, target);
+    // Read as written, the text names this path with no counterpart at the destination.
+    if ([...before.values()].includes(reading.text)) return null;
   }
-  return replacement;
+  return null;
 }
+
+/**
+ * `written` with the part of the path that differs from `target` replaced, spelled the way
+ * `reading` decodes, so the text before and after the change stays exactly as written. Null
+ * when the result would not read as `target`, which no reading of a real path produces.
+ */
+function rewritten(written: string, reading: Reading, target: string): string | null {
+  const read = reading.text;
+  let head = 0;
+  while (head < read.length && head < target.length && read[head] === target[head]) head++;
+  let tail = 0;
+  while (
+    tail < read.length - head &&
+    tail < target.length - head &&
+    read[read.length - 1 - tail] === target[target.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  // A boundary between the two halves of a character outside the BMP would split it.
+  const splits = (text: string, at: number) => LOW_SURROGATE.test(text.charAt(at));
+  if (head > 0 && (splits(read, head) || splits(target, head))) head--;
+  if (tail > 0 && (splits(read, read.length - tail) || splits(target, target.length - tail))) {
+    tail--;
+  }
+  let middle: string;
+  try {
+    middle = reading.spell(target.slice(head, target.length - tail));
+  } catch {
+    return null;
+  }
+  const result = `${written.slice(0, reading.sourceAt(head))}${middle}${written.slice(reading.sourceAt(read.length - tail))}`;
+  return reading.read(result) === target ? result : null;
+}
+
+const LOW_SURROGATE = /[\uDC00-\uDFFF]/;
 
 /**
  * The text with every letter in lower case and each character where it was, so a match in
@@ -191,15 +238,16 @@ export function foldCase(text: string): string {
 
 /**
  * Search every file for the old paths, in any letter case, since Windows and macOS find a
- * file whatever the case of its name. Reads text; never looks at a graph.
+ * file whatever the case of its name, and in every reading of the text (`readingsOf`), since
+ * a browser decodes `a%20b.png` and `a&#32;b.png` to `a b.png`. Reads text, never a graph.
  *
- * Longest spellings first, and one match per line per file: a line containing
- * `/img/hero.png` matches both that spelling and the `img/hero.png` suffix, and reporting
- * it twice would make the count say two occurrences where a reader can see one.
+ * One survivor per place, a place being where a match ends: `/img/hero.png` also matches the
+ * `img/hero.png` suffix there, and counting both would say two occurrences where a reader can
+ * see one. The next image of a srcset on the same line is another place.
  *
- * Each file is searched for all the spellings in one sweep (see `occurrencesIn`), so the
- * cost follows the size of the text rather than the number of spellings, which reaches
- * tens of thousands on a site that serves thousands of images from its own root.
+ * Each file is searched for all the spellings in one sweep (see `occurrencesIn`), so the cost
+ * follows the size of the text rather than the number of spellings, which reaches tens of
+ * thousands on a site that serves thousands of images from its own root.
  */
 export async function findSurvivingPaths(input: OldPathSearchInput): Promise<OldPathSearchResult> {
   const spellings = [
@@ -214,6 +262,7 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
   ];
   const spellingIndex = indexNeedles(spellings.map(foldCase));
   const destinationIndex = indexNeedles(destinations.map(foldCase));
+  const searched = { spellings, index: spellingIndex };
 
   const survivors: Survivor[] = [];
   const unsearchable: Unsearchable[] = [];
@@ -230,12 +279,16 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
       continue;
     }
     filesSearched++;
-    survivors.push(...survivorsIn(file, text, spellingIndex, destinationIndex));
+    survivors.push(...survivorsIn(file, text, searched, destinationIndex));
   }
 
   survivors.sort(
     (a, b) =>
-      compareStrings(a.file, b.file) || a.line - b.line || compareStrings(a.spelling, b.spelling),
+      compareStrings(a.file, b.file) ||
+      a.line - b.line ||
+      a.offset - b.offset ||
+      compareStrings(a.spelling, b.spelling) ||
+      compareStrings(a.searched, b.searched),
   );
 
   return {
@@ -256,6 +309,8 @@ export interface PathOccurrence {
   readonly offset: number;
   /** The text that matched, as the file spells it. */
   readonly spelling: string;
+  /** The spelling searched for that the text reads as, which says which path it names. */
+  readonly searched: string;
 }
 
 export interface PathOccurrencesInput {
@@ -285,9 +340,9 @@ export interface PathOccurrencesResult {
 }
 
 /**
- * Every place the paths occur in the files, in any spelling and any letter case: the same
- * search as `findSurvivingPaths`, reporting every match rather than one per line, and
- * discounting nothing. What a match means is for the caller to work out, which is why the
+ * Every place the paths occur in the files, in any spelling, any letter case and any reading:
+ * the same search as `findSurvivingPaths`, reporting every match rather than one per place,
+ * and discounting nothing. What a match means is for the caller to work out, which is why the
  * texts that hold one come back with it.
  */
 export async function findPathOccurrences(
@@ -312,19 +367,18 @@ export async function findPathOccurrences(
       continue;
     }
     filesSearched++;
-    const found = occurrencesIn(foldCase(text), index);
+    const found = spansIn(readingsOf(text), index);
     if (found.length === 0) continue;
     texts.set(file, text);
     const lineAt = lineIndex(text);
-    for (const { needle, offsets } of found) {
-      for (const at of offsets) {
-        occurrences.push({
-          file,
-          line: lineAt(at),
-          offset: at,
-          spelling: text.slice(at, at + needle.length),
-        });
-      }
+    for (const { rank, start, end } of found) {
+      occurrences.push({
+        file,
+        line: lineAt(start),
+        offset: start,
+        spelling: text.slice(start, end),
+        searched: spellings[rank] ?? '',
+      });
     }
   }
 
@@ -332,50 +386,99 @@ export async function findPathOccurrences(
     (a, b) =>
       compareStrings(a.file, b.file) ||
       a.offset - b.offset ||
-      b.spelling.length - a.spelling.length,
+      b.searched.length - a.searched.length ||
+      compareStrings(a.searched, b.searched),
   );
   return { occurrences, filesSearched, unsearchable, spellings, texts };
 }
 
+/** What a search looks for: the spellings, longest first, and their folded needles. */
+interface Searched {
+  readonly spellings: readonly string[];
+  readonly index: NeedleIndex;
+}
+
 /**
- * The survivors in one file: at most one per line, the match met first when the spellings
- * are taken in rank order, longest first, and each spelling's matches from the top. The
- * indexes hold folded needles and the folded text is searched, so a match is found in any
- * letter case and reported as the file spells it.
+ * The survivors in one file: one for each place a spelling ends, its longest spelling there.
+ * The indexes hold folded needles and each reading of the text is searched folded, so a
+ * match is found in any letter case and any reading and reported as the file spells it.
+ *
+ * Where two readings name different paths at one place, as `a%20b.png` names the file
+ * `a%20b.png` to a program that opens it by name and `a b.png` to a browser, each is a
+ * survivor. One that is only the end of a longer spelling found there is not.
  */
 function survivorsIn(
   file: string,
   text: string,
-  spellings: NeedleIndex,
+  searched: Searched,
   destinations: NeedleIndex,
 ): Survivor[] {
-  const folded = foldCase(text);
-  const found = occurrencesIn(folded, spellings);
+  const readings = readingsOf(text);
+  const found = spansIn(readings, searched.index);
   if (found.length === 0) return [];
 
-  const insideDestination = containedIn(occurrencesIn(folded, destinations));
-  const lineAt = lineIndex(text);
-  const firstOnLine = new Map<number, { rank: number; at: number; length: number }>();
-  for (const { rank, needle, offsets } of found) {
-    for (const at of offsets) {
-      // Inside a destination path means the move wrote this text, so it is the rewrite
-      // working rather than a reference left behind.
-      if (insideDestination(at, at + needle.length)) continue;
-      const line = lineAt(at);
-      const held = firstOnLine.get(line);
-      if (held === undefined || rank < held.rank || (rank === held.rank && at < held.at)) {
-        firstOnLine.set(line, { rank, at, length: needle.length });
-      }
-    }
+  const insideDestination = containedIn(spansIn(readings, destinations));
+  const byPlace = new Map<number, Span[]>();
+  for (const span of found) {
+    // Inside a destination path means the move wrote this text, so it is the rewrite
+    // working rather than a reference left behind.
+    if (insideDestination(span.start, span.end)) continue;
+    const held = byPlace.get(span.end);
+    if (held === undefined) byPlace.set(span.end, [span]);
+    else held.push(span);
   }
 
-  return [...firstOnLine].map(([line, { at, length }]) => ({
-    file,
-    line,
-    offset: at,
-    spelling: text.slice(at, at + length),
-    text: lineTextAt(text, at),
-  }));
+  const lineAt = lineIndex(text);
+  const survivors: Survivor[] = [];
+  for (const spans of byPlace.values()) {
+    const kept: Span[] = [];
+    for (const span of spans.sort((a, b) => a.rank - b.rank || a.start - b.start)) {
+      if (kept.some((longer) => longer.needle.endsWith(span.needle))) continue;
+      kept.push(span);
+      survivors.push({
+        file,
+        line: lineAt(span.start),
+        offset: span.start,
+        spelling: text.slice(span.start, span.end),
+        searched: searched.spellings[span.rank] ?? '',
+        text: lineTextAt(text, span.start),
+      });
+    }
+  }
+  return survivors;
+}
+
+/** A match of one needle, as a range of the text as written. */
+interface Span {
+  /** The needle's position in the list the index was built from; lower is longer. */
+  readonly rank: number;
+  readonly needle: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * Every match of the index's needles in every reading of a text, as ranges of the text as
+ * written, each once. A match in a decoded reading that holds no escape is one the text as
+ * written holds too, so it is left to that reading.
+ */
+function spansIn(readings: readonly Reading[], index: NeedleIndex): Span[] {
+  const spans: Span[] = [];
+  const seen = new Set<string>();
+  readings.forEach((reading, which) => {
+    for (const { rank, needle, offsets } of occurrencesIn(foldCase(reading.text), index)) {
+      for (const at of offsets) {
+        const start = reading.sourceAt(at);
+        const end = reading.sourceAt(at + needle.length);
+        if (which > 0 && end - start === needle.length) continue;
+        const key = `${rank}:${start}:${end}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        spans.push({ rank, needle, start, end });
+      }
+    }
+  });
+  return spans;
 }
 
 /**
@@ -468,15 +571,13 @@ function occurrencesIn(text: string, index: NeedleIndex): Matches[] {
  * range exactly when it starts at or before `start` and ends at or after `end`, so the
  * furthest end among the spans that start by `start` decides it.
  */
-function containedIn(destinations: readonly Matches[]): (start: number, end: number) => boolean {
-  const spans = destinations
-    .flatMap(({ needle, offsets }) => offsets.map((at) => [at, at + needle.length] as const))
-    .sort((a, b) => a[0] - b[0]);
-  const starts = spans.map(([from]) => from);
+function containedIn(destinations: readonly Span[]): (start: number, end: number) => boolean {
+  const spans = [...destinations].sort((a, b) => a.start - b.start);
+  const starts = spans.map(({ start }) => start);
   const reach: number[] = [];
   let furthest = -1;
-  for (const [, to] of spans) {
-    furthest = Math.max(furthest, to);
+  for (const { end } of spans) {
+    furthest = Math.max(furthest, end);
     reach.push(furthest);
   }
 
@@ -553,8 +654,9 @@ function render(
     '  it can only find a path that is written down as text:',
     "    - a path a program assembles at runtime ('/img/' + name + '.png') is not written",
     '      down anywhere, so nothing matches it.',
-    '    - a path spelled some other way: URL-encoded, behind a CDN prefix, or split across',
-    `      a concatenation. ${plural(spellings.length, 'spelling was', 'spellings were')} searched, listed below.`,
+    '    - a path spelled some other way: behind a CDN prefix, or split across a',
+    `      concatenation. ${plural(spellings.length, 'spelling was', 'spellings were')} searched, listed below, each also`,
+    '      percent-encoded or with HTML character references, as a browser reads them.',
     '    - a file nobody handed this search. Directories excluded by an ignore rule are not',
     '      in the list, so nothing inside them was read.',
   );

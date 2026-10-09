@@ -244,6 +244,67 @@ describe('a place outside every reference', () => {
   });
 });
 
+describe('a path written the way a browser reads it', () => {
+  it('lists a comment, a file type Upfly does not read and a template that name it encoded', async () => {
+    // Each line writes the path the way a URL or a page spells it, and a browser decodes it to
+    // this image, so each names it as surely as the plain spelling would.
+    const root = await project({
+      'public/img/a b.png': 'IMAGE',
+      'index.html': [
+        '<!doctype html>',
+        '<img src="/img/a%20b.png" alt="">',
+        '<!-- <img src="/img/a%20b.png" alt=""> -->',
+        '',
+      ].join('\n'),
+      'src/Team.vue': '<template>\n  <img src="/img/a%20b.png">\n</template>\n',
+      'src/_includes/team.njk': '<img src="/img/a&#32;b.png">\n',
+      'src/site.css': '/* url(/img/a%20b.png) */\n.x { color: red; }\n',
+    });
+
+    const lines = await linesFor(root, 'public/img/a b.png');
+
+    expect(Object.keys(lines).sort()).toEqual([
+      'index.html:3',
+      'src/Team.vue:2',
+      'src/_includes/team.njk:1',
+      'src/site.css:1',
+    ]);
+    expect(lines).toMatchObject({
+      'index.html:3': { reason: 'comment', loads: false, text: '/img/a%20b.png' },
+      'src/Team.vue:2': { reason: 'unread-file-type', loads: true, text: '/img/a%20b.png' },
+      'src/_includes/team.njk:1': { reason: 'unread-file-type', loads: true },
+      'src/site.css:1': { reason: 'comment', loads: false },
+    });
+  });
+
+  it('lists a name beyond ASCII written as its escapes, and one encoded in part', async () => {
+    const root = await project({
+      'public/img/café au lait.png': 'IMAGE',
+      'src/Team.vue': [
+        '<template>',
+        '  <img src="/img/caf%C3%A9%20au%20lait.png">',
+        '  <img src="/img/caf%c3%a9 au lait.png">',
+        '</template>',
+        '',
+      ].join('\n'),
+    });
+
+    expect(Object.keys(await linesFor(root, 'public/img/café au lait.png')).sort()).toEqual([
+      'src/Team.vue:2',
+      'src/Team.vue:3',
+    ]);
+  });
+
+  it('lists nothing for a path that decodes to another file', async () => {
+    const root = await project({
+      'public/img/a b.png': 'IMAGE',
+      'src/Team.vue': '<template>\n  <img src="/img/a%2520b.png">\n</template>\n',
+    });
+
+    expect(await linesFor(root, 'public/img/a b.png')).toEqual({});
+  });
+});
+
 describe('whether a page still loads the image through a line', () => {
   it('counts a value no reader takes a path from as loading, such as HTML inside a string', async () => {
     // A shortcode returns this HTML for a page to show, so the image loads through it, and a

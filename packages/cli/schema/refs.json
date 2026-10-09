@@ -46,7 +46,7 @@
       }
     },
     "unfollowed": {
-      "description": "Every other line that names the image's path, found by a search of the project's files in any letter case, which Upfly does not follow: each stays as written when Upfly converts or moves the image. A line that names another file of the same name is not here. At most one entry per line.",
+      "description": "Every other line that names the image's path, found by a search of the project's files in any letter case and as a browser reads a path written percent-encoded or with HTML character references, which Upfly does not follow: each stays as written when Upfly converts or moves the image. A line that names another file of the same name is not here. At most one entry per line.",
       "type": "array",
       "items": {
         "type": "object",

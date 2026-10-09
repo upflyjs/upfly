@@ -193,7 +193,8 @@ const REFS = `Usage: upfly refs <image> [dir] [options]
 
 Lists every line in the project that names one image. First its references: the file and
 line, the path as written, and, for one optimize would leave as it is, why. Then, under
-Not followed, every other line a search for the image's path finds, in any letter case,
+Not followed, every other line a search for the image's path finds, in any letter case and
+as a browser reads a path written percent-encoded or with HTML character references,
 with why Upfly does not follow it: a full address, a path built at runtime, a value in data
 or a component's props, a file type Upfly does not read, a comment. Upfly leaves those as
 written when it converts or moves the image. A line that names another file of the same

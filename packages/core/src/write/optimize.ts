@@ -273,9 +273,10 @@ ${survivor.offset}`),
   );
 
   // An occurrence names a spelling, not an asset, so map back through each asset's
-  // spellings, in any letter case as the search matched them. Two assets can share one (the
-  // suffix `img/hero.png`, or `/hero.png` under two serving roots), and a mention of it then
-  // blocks both: a lost saving, never a lost file.
+  // spellings, in any letter case as the search matched them, by the spelling the text reads
+  // as rather than as it is written. Two assets can share one (the suffix `img/hero.png`, or
+  // `/hero.png` under two serving roots), and a mention of it then blocks both: a lost
+  // saving, never a lost file.
   const excludedFiles = new Set(scope.excludedFiles ?? []);
   const assets = new Map<string, SurvivingMention>();
   const excluded = new Map<string, string>();
@@ -284,7 +285,7 @@ ${survivor.offset}`),
     const spellings = new Set(
       spellingsFor(conversion.asset, input.servingRoots.dirs).map(foldCase),
     );
-    const mine = standing.filter((survivor) => spellings.has(foldCase(survivor.spelling)));
+    const mine = standing.filter((survivor) => spellings.has(foldCase(survivor.searched)));
     // A mention in a file the run reads is the one to name. Where only excluded files name
     // the path, the exclusion is why the mention stays as written, and the reason says so.
     const read = mine.filter((survivor) => !excludedFiles.has(survivor.file));
@@ -374,7 +375,7 @@ async function placesOf(
   const named = new Set(
     occurrences.flatMap((survivor) =>
       [...spellings]
-        .filter(([, holds]) => holds.has(foldCase(survivor.spelling)))
+        .filter(([, holds]) => holds.has(foldCase(survivor.searched)))
         .map(([asset]) => asset),
     ),
   );

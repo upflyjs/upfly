@@ -159,6 +159,47 @@ describe('moveProject', () => {
     ).toBe(true);
   });
 
+  it("rewrites a path a comment writes percent-encoded, in the destination's encoded spelling", async () => {
+    const root = await project({
+      'public/img/a b.png': 'IMAGE',
+      'index.html':
+        '<img src="/img/a%20b.png" alt="">\n<!-- <img src="/img/a%20b.png" alt=""> -->\n',
+    });
+
+    const { plan } = await moveProject({
+      root,
+      declared: SERVED,
+      apply: true,
+      moves: [{ from: 'public/img/a b.png', to: 'public/my pics/a b.png' }],
+    });
+
+    expect(plan.unfollowed).toEqual([]);
+    expect(await readFile(join(root, 'index.html'), 'utf8')).toBe(
+      '<img src="/my%20pics/a%20b.png" alt="">\n<!-- <img src="/my%20pics/a%20b.png" alt=""> -->\n',
+    );
+  });
+
+  it('lists a line that names a moved folder percent-encoded', async () => {
+    // The folder's URL is written the way a browser asks for it, so the rule still names the
+    // folder after it has gone.
+    const root = await project({
+      'public/my img/hero.png': 'IMAGE',
+      'index.html': '<img src="/my%20img/hero.png" alt="">\n',
+      'netlify.toml': '[[headers]]\n  for = "/my%20img/*"\n',
+    });
+
+    const { plan } = await moveProject({
+      root,
+      declared: SERVED,
+      apply: false,
+      moves: [{ from: 'public/my img', to: 'public/pictures' }],
+    });
+
+    expect(plan.unfollowed.map((line) => [`${line.file}:${line.line}`, line.reason])).toEqual([
+      ['netlify.toml:2', 'folder'],
+    ]);
+  });
+
   it('lists the lines that name a moved folder itself, and not the page of that name', async () => {
     // A rule that copies the folder, a pattern that matches inside it and a path built from
     // it name no image, so nothing rewrites them and each points at a folder that is not

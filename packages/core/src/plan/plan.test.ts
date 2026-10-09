@@ -1227,10 +1227,9 @@ describe('the public policy', () => {
       );
     });
 
-    it('keeps it when a refused literal still needs it beside one that moves, without the text search finding it', () => {
-      // The old-path text search looks for the path as written, and `h%65ro.png` holds
-      // none of its spellings, so the planner has to keep this original by itself.
-      // `blockedByMention` is absent here, so the planner alone decides.
+    it('keeps it when a refused literal still needs it beside one that moves, with no search to help', () => {
+      // The planner keeps this original by itself, since the reference it does not rewrite
+      // still names it. `blockedByMention` is absent here, so the planner alone decides.
       const plan = replacing(
         [asset('public/hero.png')],
         [resolved('about.html', '/hero.png', 'public/hero.png'), refused],

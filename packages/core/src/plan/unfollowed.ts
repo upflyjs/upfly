@@ -353,7 +353,8 @@ function byFile(occurrences: readonly PathOccurrence[]): Map<string, PathOccurre
 /**
  * For each image, the longest of its own spellings matched at each place, in file order. The
  * spellings of one path overlap (`/img/hero.png` ends with `img/hero.png`), so one place
- * matches several, and two images can share a short one.
+ * matches several, and two images can share a short one. A match is the image's by the
+ * spelling it reads as, since the text may write it percent-encoded.
  */
 function longestPerImage(
   occurrences: readonly PathOccurrence[],
@@ -362,10 +363,10 @@ function longestPerImage(
   const longest = new Map<string, { image: string; occurrence: PathOccurrence }>();
   for (const occurrence of occurrences) {
     const end = occurrence.offset + occurrence.spelling.length;
-    for (const image of imagesBySpelling.get(foldCase(occurrence.spelling)) ?? []) {
+    for (const image of imagesBySpelling.get(foldCase(occurrence.searched)) ?? []) {
       const key = `${image}\n${end}`;
       const held = longest.get(key);
-      if (held === undefined || occurrence.spelling.length > held.occurrence.spelling.length) {
+      if (held === undefined || occurrence.searched.length > held.occurrence.searched.length) {
         longest.set(key, { image, occurrence });
       }
     }
@@ -435,7 +436,10 @@ function placeOf(
 
   // A name that carries on past the match, or a folder name the match begins inside, is
   // another file's: `logo.png.webp`, `old-img/logo.png`.
-  if (!opensSegment(text, start, token.start) || namesCarryOn(text, end, token.end)) {
+  if (
+    !opensSegment(text, start, token.start, occurrence.searched) ||
+    namesCarryOn(text, end, token.end)
+  ) {
     return 'elsewhere';
   }
   const address = addressIn(text.slice(token.start, end));
@@ -767,12 +771,13 @@ function tokenAround(text: string, start: number, end: number): { start: number;
 
 /**
  * Whether the match starts a folder or file name, rather than inside a longer one: at the
- * start of the path, after a separator, or after the colon of a prefix such as `file:`.
+ * start of the path, after a separator, or after the colon of a prefix such as `file:`. The
+ * match's first character is read as the spelling it matched has it, since `%2F` is a slash.
  */
-function opensSegment(text: string, start: number, tokenStart: number): boolean {
+function opensSegment(text: string, start: number, tokenStart: number, searched: string): boolean {
   if (start === tokenStart) return true;
   const before = text[start - 1];
-  const first = text[start];
+  const first = searched.charAt(0);
   return before === '/' || before === '\\' || before === ':' || first === '/' || first === '\\';
 }
 
@@ -887,10 +892,10 @@ export async function linesNamingFolders(input: FolderLinesInput): Promise<{
   for (const place of found.occurrences) {
     const text = found.texts.get(place.file) ?? '';
     const end = place.offset + place.spelling.length;
-    if (!wholeSegment(text, place.offset, end, place.spelling)) continue;
+    if (!wholeSegment(text, place.offset, end, place.searched)) continue;
     const at = `${place.file}:${place.line}`;
     if (covered(place.file, place.line) || seen.has(at)) continue;
-    const folder = [...byFolder].find(([, spellings]) => spellings.has(foldCase(place.spelling)));
+    const folder = [...byFolder].find(([, spellings]) => spellings.has(foldCase(place.searched)));
     if (folder === undefined) continue;
     seen.add(at);
     lines.push({
