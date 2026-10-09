@@ -22,7 +22,7 @@ One row per reference shape, never per repository and never in total. From a run
 shape                          met/ exp  miss threw  gap stale  n/x  direction
 css.url.double                   7/   7     0    0    0    0    0
 html.img.srcset.w                8/   8     0    0    0    0    0
-unread.vue                       0/   8     0    0    8    0    0  gap [...]
+unread.vue                       0/  10     0    0   10    0    0  gap [...]
 ```
 
 There is no total, no percentage and no overall row, and it must stay impossible to build one:
@@ -30,10 +30,10 @@ that is what stops a figure from this suite escaping into a claim about real pro
 where to add a reader next, and catches a regression that drops `srcset` from 8 to 5; a single
 number does neither.
 
-The rows fall into four populations, read separately and never added together: `claimed` (451
+The rows fall into four populations, read separately and never added together: `claimed` (453
 entries in 74 rows, found against expected: the only population where a miss is a bug),
-`declined` (91 in 19: text that is not a live path, so claiming nothing is right), `unclaimed`
-(15 in 4: real files Upfly chooses not to index) and `gap` (47 in 8: constructs nothing reads
+`declined` (93 in 19: text that is not a live path, so claiming nothing is right), `unclaimed`
+(15 in 4: real files Upfly chooses not to index) and `gap` (51 in 8: constructs nothing reads
 yet, each with its reason in `knownGap`). The engine runs twice, once with the suite's stated
 configuration and once with none, and each run reports "claimed N of N" over every claimed entry.
 
@@ -53,7 +53,7 @@ went wrong.
 
 ```
 accuracy-suite/
-  key/answer-key.json         the answer key: 108 shapes, 81 assets, 604 references in 153 files
+  key/answer-key.json         the answer key: 108 shapes, 81 assets, 612 references in 153 files
   tools/check-key.mjs         the self-check: plain text and path arithmetic, no engine
   tools/prove-can-fail.mjs    deliberate damages, each asserted to turn a check red
   tools/measure.mjs           the engine over tree/, run twice, rendered as the matrix
@@ -91,7 +91,7 @@ two measured conclusions.
 The outcomes are the engine's own. `expect` records what a correct engine should produce,
 independently of what this one does, so a `.vue` reference expects to be found, which is the only
 way the matrix can say "0 of 8, no reader" out loud instead of reporting nothing. Where today's
-engine is known to differ, `knownGap` says why (47 entries carry one).
+engine is known to differ, `knownGap` says why (51 entries carry one).
 
 `discarded` means "must not be treated as a live reference". A `url()` inside a comment is
 probably never collected at all rather than collected and marked `discarded`, and the harness

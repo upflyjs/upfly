@@ -107,6 +107,7 @@
 /* A url() inside a comment. Never a reference.
    .decoy { background-image: url("/img/in-a-comment.png"); }
    background: url(/gallery/also-in-a-comment.png);
+   background: url(/gallery/hero%20image.png);
 */
 
 /* A url() in a selector rather than a declaration. Also never a reference. */

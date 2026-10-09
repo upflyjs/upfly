@@ -2466,8 +2466,8 @@
           "expect": "resolved",
           "why": "Before the raw-text prose, so it is collected either way.",
           "target": "apps/web/public/brand.png",
-          "offset": 1925,
-          "line": 42,
+          "offset": 2024,
+          "line": 43,
           "column": 15
         },
         {
@@ -2476,8 +2476,8 @@
           "shape": "html.rawtext.swallowed",
           "expect": "discarded",
           "why": "Inside the unclosed <style> on line 45, so it is stylesheet text rather than markup. The engine correctly produces nothing here, and so does a browser.",
-          "offset": 2575,
-          "line": 57,
+          "offset": 2674,
+          "line": 58,
           "column": 15
         },
         {
@@ -2486,8 +2486,8 @@
           "shape": "html.rawtext.swallowed",
           "expect": "discarded",
           "why": "Inside the unclosed <style> on line 45, so it is stylesheet text rather than markup. The engine correctly produces nothing here, and so does a browser.",
-          "offset": 2659,
-          "line": 58,
+          "offset": 2758,
+          "line": 59,
           "column": 15
         },
         {
@@ -2496,8 +2496,8 @@
           "shape": "html.rawtext.swallowed",
           "expect": "discarded",
           "why": "Inside the unclosed <style> on line 45, so it is stylesheet text rather than markup. The engine correctly produces nothing here, and so does a browser.",
-          "offset": 2748,
-          "line": 59,
+          "offset": 2847,
+          "line": 60,
           "column": 15
         },
         {
@@ -2506,8 +2506,20 @@
           "shape": "html.rawtext.swallowed",
           "expect": "discarded",
           "why": "Inside the unclosed <style> on line 45, so it is stylesheet text rather than markup. The engine correctly produces nothing here, and so does a browser.",
-          "offset": 2839,
-          "line": 60,
+          "offset": 2938,
+          "line": 61,
+          "column": 15
+        },
+        {
+          "raw": "/gallery/hero%20image (2) copy.png",
+          "occurrence": 1,
+          "shape": "html.percent-encoded",
+          "expect": "resolved",
+          "why": "A writer who encoded only some characters: the browser encodes the raw spaces, and the server decodes them all to the same file.",
+          "decoded": "/gallery/hero image (2) copy.png",
+          "target": "apps/web/public/gallery/hero image (2) copy.png",
+          "offset": 1799,
+          "line": 37,
           "column": 15
         }
       ]
@@ -2998,6 +3010,16 @@
           "why": "Named in an HTML comment. Not a reference.",
           "offset": 3605,
           "line": 94,
+          "column": 38
+        },
+        {
+          "raw": "/gallery/hero%20image.png",
+          "occurrence": 1,
+          "shape": "decoy.comment",
+          "expect": "discarded",
+          "why": "Named percent-encoded in an HTML comment. Not a reference.",
+          "offset": 3692,
+          "line": 95,
           "column": 38
         }
       ]
@@ -3804,8 +3826,8 @@
           "shape": "css.url.in-selector",
           "expect": "discarded",
           "why": "Inside an attribute selector value. It is text that happens to spell url().",
-          "offset": 2991,
-          "line": 113,
+          "offset": 3038,
+          "line": 114,
           "column": 17
         },
         {
@@ -3814,8 +3836,8 @@
           "shape": "css.url.in-selector",
           "expect": "discarded",
           "why": "An [href$=] suffix match. A path-shaped string in a selector, not a declaration.",
-          "offset": 3057,
-          "line": 117,
+          "offset": 3104,
+          "line": 118,
           "column": 10
         },
         {
@@ -3824,8 +3846,8 @@
           "shape": "css.url.double",
           "expect": "broken",
           "why": "A well-formed url() pointing at nothing.",
-          "offset": 3189,
-          "line": 123,
+          "offset": 3236,
+          "line": 124,
           "column": 26
         },
         {
@@ -3834,8 +3856,8 @@
           "shape": "css.fragment",
           "expect": "discarded",
           "why": "A same-document filter reference. Never a path.",
-          "offset": 3300,
-          "line": 128,
+          "offset": 3347,
+          "line": 129,
           "column": 15
         },
         {
@@ -3844,8 +3866,8 @@
           "shape": "css.fragment",
           "expect": "discarded",
           "why": "And a clip-path reference.",
-          "offset": 3326,
-          "line": 129,
+          "offset": 3373,
+          "line": 130,
           "column": 18
         },
         {
@@ -3854,8 +3876,8 @@
           "shape": "path.data-uri",
           "expect": "discarded",
           "why": "An inline SVG as a data URI.",
-          "offset": 3377,
-          "line": 133,
+          "offset": 3424,
+          "line": 134,
           "column": 26
         },
         {
@@ -3864,8 +3886,8 @@
           "shape": "path.absolute-url",
           "expect": "out-of-scope",
           "why": "An absolute URL to another host: real and reachable, and not ours to rewrite.",
-          "offset": 3543,
-          "line": 138,
+          "offset": 3590,
+          "line": 139,
           "column": 26
         },
         {
@@ -3874,8 +3896,8 @@
           "shape": "path.protocol-relative",
           "expect": "out-of-scope",
           "why": "Protocol-relative, in CSS rather than HTML.",
-          "offset": 3645,
-          "line": 142,
+          "offset": 3692,
+          "line": 143,
           "column": 25
         },
         {
@@ -3884,8 +3906,8 @@
           "shape": "css.font-face",
           "expect": "out-of-scope",
           "why": "A real font file the engine does not index. Not broken, not an asset.",
-          "offset": 3736,
-          "line": 147,
+          "offset": 3783,
+          "line": 148,
           "column": 13
         },
         {
@@ -3894,8 +3916,8 @@
           "shape": "css.font-face",
           "expect": "out-of-scope",
           "why": "An image target is resolved or broken, and a non-image extension is filtered out. A non-image target is therefore out-of-scope whether or not it exists: the extension filter runs before existence is ever checked, so the engine cannot distinguish these two cases and is not asked to. Its siblings in this shape read out-of-scope for an existing file of the same type.",
-          "offset": 3845,
-          "line": 152,
+          "offset": 3892,
+          "line": 153,
           "column": 13
         },
         {
@@ -3905,8 +3927,8 @@
           "expect": "resolved",
           "why": "A second custom property holding a url().",
           "target": "apps/web/public/gallery/photo.png",
-          "offset": 4408,
-          "line": 173,
+          "offset": 4455,
+          "line": 174,
           "column": 17
         },
         {
@@ -3916,8 +3938,8 @@
           "expect": "resolved",
           "why": "A third, unquoted.",
           "target": "apps/web/public/img/texture.png",
-          "offset": 4445,
-          "line": 174,
+          "offset": 4492,
+          "line": 175,
           "column": 16
         },
         {
@@ -3926,8 +3948,8 @@
           "shape": "css.font-face",
           "expect": "out-of-scope",
           "why": "A third @font-face, reusing the first one's file at a different weight. Occurrence 2: the first @font-face above names the same path.",
-          "offset": 3980,
-          "line": 158,
+          "offset": 4027,
+          "line": 159,
           "column": 12
         },
         {
@@ -3936,8 +3958,8 @@
           "shape": "path.protocol-relative",
           "expect": "out-of-scope",
           "why": "A third protocol-relative URL, unquoted.",
-          "offset": 4144,
-          "line": 164,
+          "offset": 4191,
+          "line": 165,
           "column": 25
         },
         {
@@ -3946,8 +3968,8 @@
           "shape": "path.data-uri",
           "expect": "discarded",
           "why": "A third data URI, this one a real 1x1 GIF rather than an SVG.",
-          "offset": 4223,
-          "line": 168,
+          "offset": 4270,
+          "line": 169,
           "column": 26
         },
         {
@@ -3960,6 +3982,16 @@
           "offset": 2641,
           "line": 100,
           "column": 42
+        },
+        {
+          "raw": "/gallery/hero%20image.png",
+          "occurrence": 1,
+          "shape": "css.url.in-comment",
+          "expect": "discarded",
+          "why": "A percent-encoded url() in the same comment. Never a reference.",
+          "offset": 2911,
+          "line": 110,
+          "column": 20
         }
       ]
     },
@@ -6360,8 +6392,8 @@
           "why": "An import in the script block.",
           "knownGap": "No adapter reads .vue files.",
           "target": "apps/web/src/components/logo.png",
-          "offset": 404,
-          "line": 11,
+          "offset": 583,
+          "line": 13,
           "column": 19
         },
         {
@@ -6372,8 +6404,8 @@
           "why": "A literal in the script block.",
           "knownGap": "No adapter reads .vue files.",
           "target": "apps/web/public/img/hero.jpg",
-          "offset": 448,
-          "line": 13,
+          "offset": 627,
+          "line": 15,
           "column": 19
         },
         {
@@ -6384,8 +6416,8 @@
           "why": "A four-level climb in the script block.",
           "knownGap": "No adapter reads .vue files.",
           "target": "shared/assets/img/thumb.png",
-          "offset": 480,
-          "line": 14,
+          "offset": 659,
+          "line": 16,
           "column": 17
         },
         {
@@ -6396,8 +6428,8 @@
           "why": "A url() in a scoped style block.",
           "knownGap": "No adapter reads .vue files.",
           "target": "apps/web/public/img/texture.png",
-          "offset": 583,
-          "line": 19,
+          "offset": 762,
+          "line": 21,
           "column": 26
         },
         {
@@ -6408,9 +6440,35 @@
           "why": "A second url() in that block.",
           "knownGap": "No adapter reads .vue files.",
           "target": "apps/web/src/assets/inline-logo.jpg",
-          "offset": 647,
-          "line": 22,
+          "offset": 826,
+          "line": 24,
           "column": 26
+        },
+        {
+          "raw": "/gallery/hero%20image.png",
+          "occurrence": 1,
+          "shape": "unread.vue",
+          "expect": "resolved",
+          "why": "Percent-encoded in a template nothing reads. The browser asks for the file with a space, so this line loads it, and removing that file breaks the line.",
+          "knownGap": "No adapter reads .vue files.",
+          "decoded": "/gallery/hero image.png",
+          "target": "apps/web/public/gallery/hero image.png",
+          "offset": 363,
+          "line": 7,
+          "column": 15
+        },
+        {
+          "raw": "/gallery/hero&#32;image.png",
+          "occurrence": 1,
+          "shape": "unread.vue",
+          "expect": "resolved",
+          "why": "The space as a character reference, which the template's HTML decodes before the browser asks for the file.",
+          "knownGap": "No adapter reads .vue files.",
+          "decoded": "/gallery/hero image.png",
+          "target": "apps/web/public/gallery/hero image.png",
+          "offset": 455,
+          "line": 8,
+          "column": 15
         }
       ]
     },
@@ -6439,6 +6497,18 @@
           "target": "sites/root-served/marks/€uro.png",
           "offset": 409,
           "line": 13,
+          "column": 15
+        },
+        {
+          "raw": "marks/%E2%82%ACuro.png",
+          "occurrence": 1,
+          "shape": "html.percent-encoded",
+          "expect": "resolved",
+          "why": "The euro mark as its UTF-8 percent-escapes, three bytes for one character, which the server decodes to the file beside this page.",
+          "decoded": "marks/€uro.png",
+          "target": "sites/root-served/marks/€uro.png",
+          "offset": 495,
+          "line": 14,
           "column": 15
         }
       ]
@@ -6500,9 +6570,22 @@
           "why": "A url() inside a style element inside a Nunjucks block.",
           "knownGap": "No adapter reads .njk files.",
           "target": "sites/root-served/img/hero.jpg",
-          "offset": 435,
-          "line": 12,
+          "offset": 523,
+          "line": 13,
           "column": 30
+        },
+        {
+          "raw": "/marks/%E2%82%ACuro.png",
+          "occurrence": 1,
+          "shape": "unread.njk",
+          "expect": "resolved",
+          "why": "A name beyond ASCII written as its UTF-8 percent-escapes, in Nunjucks.",
+          "knownGap": "No adapter reads .njk files.",
+          "decoded": "/marks/€uro.png",
+          "target": "sites/root-served/marks/€uro.png",
+          "offset": 391,
+          "line": 9,
+          "column": 13
         }
       ]
     },
@@ -6566,6 +6649,19 @@
           "knownGap": "No adapter reads .liquid files.",
           "offset": 367,
           "line": 11,
+          "column": 13
+        },
+        {
+          "raw": "/marks/%e2%82%acuro.png",
+          "occurrence": 1,
+          "shape": "unread.liquid",
+          "expect": "resolved",
+          "why": "The same escapes with lower-case hex digits, which a server decodes the same way.",
+          "knownGap": "No adapter reads .liquid files.",
+          "decoded": "/marks/€uro.png",
+          "target": "sites/root-served/marks/€uro.png",
+          "offset": 436,
+          "line": 12,
           "column": 13
         }
       ]

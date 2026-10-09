@@ -4,6 +4,8 @@
     <img src="../assets/chart.png" alt="Relative, in a template nothing reads" />
     <img :src="heroPath" alt="Bound, from the script block" />
     <img src="/img/missing-from-vue.png" alt="Broken, and invisible to every instrument" />
+    <img src="/gallery/hero%20image.png" alt="Percent-encoded, as a browser asks for it" />
+    <img src="/gallery/hero&#32;image.png" alt="The space as a character reference" />
   </div>
 </template>
 
