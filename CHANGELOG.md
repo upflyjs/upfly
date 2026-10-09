@@ -1,5 +1,100 @@
 # Changelog
 
+## 3.1.0
+
+Moving images, `check` as a guard you set up for continuous integration, and pointing a project's coding agents at
+Upfly. No command or option of 3.0.0 was removed.
+
+### What is new
+
+- `upfly move <from> <to> [dir]`: moves an image, or each image in a folder, and rewrites every reference Upfly can
+  rewrite to name the new place, in the form it was written in. A `<to>` that is a folder, or ends in a slash, takes
+  the image in under its own name. Like `optimize`, it shows the plan unless run with `--apply`, takes `--commit`,
+  and `upfly undo` puts every file back. Every other line that still names an old path is listed with the reason
+  Upfly leaves it as written, and the plan counts the lines a page still loads the image through: those break unless
+  you change them by hand. A folder move also lists the lines that name the folder itself, such as a build rule that
+  copies it. A move Upfly cannot make safely is refused with the reason, such as an image that a path built at
+  runtime also matches; when every move asked for is refused, it exits 3. It deletes no image.
+- `upfly refs <image>` lists every line that names the image, not only its references. After the references comes
+  "Not followed": each other line a search for the image's path finds, in any letter case, with why Upfly does not
+  follow it (a full address, a path built at runtime, a value in data or a component's props, a file type Upfly does
+  not read, a comment). A line that names another file of the same name is in neither list. The search reads the
+  files `--exclude` and `.upflyignore` leave out too. An image named only in such lines is possibly unused, not
+  unused.
+- `upfly check` is a guard you set up: `check.failOn` in the config, or `--fail-on` in a workflow, chooses what fails
+  it, from `broken`, `too-large` and `possibly-broken`; `--warn` lists everything and exits 0. Unset, it fails on
+  what 3.0.0 failed on. It also lists, apart from its findings, image paths in code or data that name no file, such
+  as a photo in a component's list of people: strings Upfly does not read as references, so it cannot tell whether a
+  page shows them. Where one names an image in another letter case, it says so: that path loads on Windows and macOS
+  and breaks on a Linux server. An unused image never fails the check.
+- `upfly init --agents` points a project's coding agents at Upfly. It adds a short marked block to `AGENTS.md`
+  (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there, and puts the Upfly Agent Skill in
+  `.agents/skills/upfly` and `.claude/skills/upfly`. It changes nothing outside its block, keeps a config file that
+  exists, asks nothing, and a second run changes nothing. A plain `upfly init` now ends with a line saying how to run
+  it.
+- `upfly-mcp`, a package of its own: an MCP server for apps that reach tools only through MCP, such as Claude
+  Desktop. `npx -y upfly-mcp <folder>` serves seven tools, one for each of `audit`, `check`, `refs`, `optimize`,
+  `dedupe`, `move` and `undo`; each runs its command with `--json` and answers with the line the command prints
+  last. A tool that writes does so only when a call sets `apply`, and refuses what the command refuses. No tool runs
+  `init` or takes `--allow-dirty`. Installing `upfly` does not bring the MCP server with it.
+
+### What changed
+
+- Measuring starts the next image as soon as any finishes, four at a time as before, where it waited for the
+  slowest of each group of four. The terminal's measuring line counts every image.
+- `optimize --apply` converts up to four images at a time, as measuring does. When more than one conversion fails,
+  the error reported is the one for the image that comes first in the plan, whichever failed first.
+- `optimize` measures only the images it could convert. An image no conversion of would be used, such as one nothing
+  links to, is no longer encoded: its reason needs no measurement. The full plan's "What Upfly could not check"
+  counts these images, as `audit` does.
+- A path written inside a comment is rewritten with the references, by `optimize` and `move`, so no comment is left
+  naming a file that has gone. A comment never by itself makes an image convert or move. The plan shows each such
+  edit beside its file and counts them apart from the references.
+- A reason that cites a line naming an image says what kind of place it is: a comment, a code example, a page's
+  text, a file type Upfly does not read, a path built at runtime. An unused image that something names says where:
+  "nothing links to it, and index.html:17 names it in a comment, which no page loads", where 3.0.0 said "something
+  we could not read mentions it".
+- An image whose name ends in the target format while its bytes are another format, such as a `.webp` file that
+  holds a PNG, says so, where 3.0.0 gave "another reason, in the full plan".
+- `optimize`'s Leave row counts unused images the way `audit` does, so both commands give the same number.
+- When the folder the site is served from is named, with `--public` or `publicDirs`, and few root-relative
+  references resolve there, Upfly no longer asks for the folder: `check` lists each reference that names no file
+  there and exits 1, `audit` lists them as broken, and `optimize` still refuses, pointing at `check`.
+- With `--commit`, a run in a repository part way through a merge, a rebase, a cherry-pick or a revert is refused
+  before anything is written (exit 3), since its commit would become part of that operation. 3.0.0 wrote the run,
+  then failed to commit it (exit 4).
+- Printed commands read as you run Upfly: `npx upfly …` from a project install, `upfly …` for a global install.
+- References to images that do not exist are listed by file, then line, in `check`, `audit` and the report file.
+- `upfly undo` also puts moved images back, and says how many.
+- `AGENTS.md` says what to do for every `reason` an error line can carry, and covers `move`, `check` as an optional
+  guard, `init --agents` and `upfly-mcp`. The Agent Skill no longer assumes Upfly is installed in the project.
+
+### What a script reading `--json` must know
+
+- `move.json` is new, for `upfly move`.
+- `refs.json` requires `unfollowed`: each line with `file`, `line`, `text`, `reason`, `why` and `loads`, and `host`
+  for a full address. `unsearchable` lists the files the search could not read, when there are any.
+- `loads`, on each unfollowed line of `refs` and `move`: whether a page can still load the image through the line,
+  so a move breaks it unless it is changed by hand. It is false only where Upfly read the place and found that
+  nothing loads it: a comment, a code example, a page's text.
+- An unfollowed line's `reason` can be `folder`: a line that names a moved folder, or a path inside it, rather than
+  an image.
+- An edit in `optimize.json`, and so in `move.json`, can carry `inComment: true`: a path inside a comment, which is
+  not a reference.
+- `check.json` requires `failOn` and `possiblyBroken` (`paths`, each with an optional `note`, then `leftOut` and
+  `unlisted`). `fewResolved` is present when a named folder resolves few references.
+- `init.json` gains `agents` with `--agents`; `file` and `config` are null when a config file was kept.
+- `undo.json` requires `moved`, the images a run had moved, put back.
+- `config.json` accepts `check.failOn`. `events.json`'s command names gain `move`.
+- New error `reason`s: `MOVE_REFUSED`, `GIT_OPERATION_IN_PROGRESS` and `UPFLY_BLOCK_UNCLOSED`.
+- The report's broken findings within one file come in line order; they came in the order of the paths as written.
+
+### For the library
+
+- `runPipeline`'s `onProgress` gets a `measuring` event for every image, where it got one for every twentieth.
+- `optimizeProject` measures only the images it could convert; the plan is the same.
+- `Edit` gains `inComment`, and an `OptimizationPlan`'s rewrites can hold edits inside comments.
+
 ## 3.0.0
 
 **3.0.0 is a different product from 2.x, under the same name.**
