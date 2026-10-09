@@ -13,8 +13,8 @@
 <h3 align="center">Optimize your repo's images without breaking a reference.</h3>
 
 <p align="center">
-Built for coding agents to use: a dry run by default, <code>--json</code> output, exit codes to branch on, one
-commit per run with <code>--commit</code>, and <code>upfly undo</code>.
+Upfly converts your images to WebP and updates the code that points at them, as one change you can review and
+undo. Anything it cannot prove, it leaves alone and tells you why.
 </p>
 
 <p align="center">
@@ -23,37 +23,31 @@ commit per run with <code>--commit</code>, and <code>upfly undo</code>.
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/upfly" alt="MIT license"></a>
 </p>
 
-Converting an image to WebP takes one command. The work is everywhere the old file is named: the `import` in a
-component, the `src` and `srcset` in a page, the `url()` in a stylesheet, the path in a Markdown post or a JSON
-file. Build-time image tools leave your source alone. Conversion CLIs and the most-installed editor extensions write
-the new file and leave the code that points at the old one for you to change.
+Converting an image takes one command. The real work is every place the old file is named: an `import` in a
+component, a `src` or `srcset` in a page, a `url()` in a stylesheet, a path in a Markdown post or a JSON file. Miss
+one and the image breaks on your site.
 
-Upfly does both halves. It finds the images in your repository and the places your code points at them, converts
-each image that comes out smaller as WebP, and rewrites those references. With `--commit`, the whole change is one
-commit you can review, and `upfly undo` puts it back. Where it cannot prove what a path points at, it leaves the path
-alone, and its full plan lists each such path with the reason.
+Upfly does that work. It finds the images in your repository and the lines that use them, converts each image that
+comes out smaller, and rewrites those lines. No image or line of code changes until you add `--apply`, and
+`upfly undo` puts every file back. A path it cannot prove, such as one built at runtime, is never rewritten: Upfly
+lists it with the reason, so you know exactly what is left to check.
 
-Moving or renaming an image is the same work, and `upfly move` does it the same way: it moves the file, rewrites the
-references it can prove, and lists every other line that still names the old path.
+Moving or renaming an image is the same job, and `upfly move` does it the same way.
 
 ## Highlights
 
-- **It reads your code, not only your folders.** HTML, CSS with SCSS and Less, JavaScript and TypeScript with JSX,
-  Astro, Markdown, MDX and JSON. A path resolves the way your site serves it: through the website folders Upfly
-  detects or you name, `tsconfig` and `jsconfig` paths, and Vite aliases, read from their files without running them.
-- **It rewrites only what it can prove, and lists the rest.** A path assembled at runtime, such as
-  `` `/img/${name}.png` ``, or one that only happens to match a file, stays as written, listed with the reason.
-  `upfly refs` and `upfly move` also list every other line that names the image, such as a full address or a line in
-  a file type Upfly does not read, and `move` says which of them a page still loads the image through.
-- **It converts only what gets smaller.** Each image is measured by encoding it, and converts when it saves at least
-  1 KB and either 10% of the file or 100 KB. A photo keeps its orientation and a wide-gamut colour profile, an
-  animation is never flattened to one frame, and a PNG becomes lossless WebP when that is the smaller file. Link
-  previews, icons and a web app manifest's images keep their format, because what reads them outside the page may
-  not read a converted one.
-- **It is safe by default.** A dry run unless you pass `--apply`, a refusal to run over uncommitted changes, one
-  commit per run, `upfly undo`, and no image deleted because nothing uses it.
-- **It works with coding agents.** `upfly init --agents` points a project's agents at Upfly, and the `upfly-mcp`
-  package serves its commands to apps that reach tools only through MCP.
+- **It knows where your images are used.** It reads HTML, CSS with SCSS and Less, JavaScript and TypeScript with
+  JSX, Astro, Markdown, MDX and JSON, and resolves each path the way your site serves it: through your website
+  folders, `tsconfig` and `jsconfig` paths, and Vite aliases.
+- **It changes only what it can prove.** A path built at runtime, or one that only happens to match a file, stays as
+  written and is listed with the reason. `upfly refs` and `upfly move` also list every other line that names the
+  image, such as a full web address, and `move` says which of them a page still loads the image through.
+- **It converts only what gets smaller,** and keeps what other software needs: link previews, icons and app
+  manifests keep their format, and a photo keeps its orientation and colour profile.
+- **Nothing happens without your say.** No image or line of code changes until you add `--apply`; it will not run
+  over uncommitted work; `upfly undo` puts every file back. It never deletes an image just because nothing uses it.
+- **It works with your coding agent.** `upfly init --agents` tells the agent to use Upfly for image tasks, and the
+  `upfly-mcp` package offers the same commands to apps that use MCP.
 - **It is measured.** 451 of 451 cases in its accuracy suite, with configuration and without; three open-source
   projects converted, with none of their 18,922 image references broken by the run.
 - **It stays on your machine.** No network calls and no telemetry, enforced by a test.
@@ -78,6 +72,11 @@ npx upfly undo                        # put back every file the last run changed
 npx upfly refs public/hero.png        # every line that names one image; changes nothing
 npx upfly --help                      # every command; upfly <command> --help for its options
 ```
+
+**Using a coding agent?** Run `npx upfly init --agents` once. It adds a short, marked block to your project's
+`AGENTS.md` (and to a `CLAUDE.md` or `GEMINI.md` already there) and the Upfly skill, telling your agent to use
+Upfly when a task moves, renames, converts or deletes an image, or asks where one is used. Commit those files and
+the agents of everyone on the project read them. [Which agents read which file](#pointing-a-projects-agents-at-upfly).
 
 A real run, on a committed copy of [`fixtures/vite-react`](fixtures/vite-react) from this repository, at commit
 `4f30349`:
@@ -411,10 +410,13 @@ Every image in your codebase, and every line that uses it:
    alias, or the file's own folder. Only a path resolved on disk from a static `import` or a literal in a known
    position can be rewritten. A pattern or a path assembled at runtime never is, and an image it could name is
    reported as possibly unused, never as unused.
-4. **Plan.** Each image that could convert is encoded to measure it. It converts when the saving is large enough and
-   at least one of its references will point at the new file; otherwise it is left, with the reason. A path written
-   inside a comment moves with the references, so no comment is left naming a file that has gone, but a comment
-   never makes an image convert on its own.
+4. **Plan.** Each image that could convert is encoded to measure it. It converts when it saves at least 1 KB and
+   either 10% of the file or 100 KB, and at least one of its references will point at the new file; otherwise it is
+   left, with the reason. A photo keeps its orientation and wide-gamut colour profile, an animation is never
+   flattened to one frame, and a PNG becomes lossless WebP when that is the smaller file. Link previews, icons and a
+   web app manifest's images keep their format, because what reads them outside the page may not read a converted
+   one. A path written inside a comment moves with the references, so no comment is left naming a file that has
+   gone, but a comment never makes an image convert on its own.
 5. **Write.** Every image is encoded into `.upfly/runs/`, and every edit is computed and checked, before any project
    file changes; a failure there leaves the tree untouched. A manifest is written first, then the new files, then
    the edits, then the removals, so a run stopped at any point can still be undone, and `upfly undo` works from that
