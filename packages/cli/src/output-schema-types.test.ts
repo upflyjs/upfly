@@ -44,6 +44,7 @@ import type {
 } from 'upfly-core/internal';
 import { describe, expect, it } from 'vitest';
 import type { InstructionFile, SkillFile } from './agents.js';
+import type { CommandName } from './args.js';
 import type { TooLargeFinding } from './check.js';
 import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
@@ -963,6 +964,21 @@ describe('the command schemas and the types each command prints agree', () => {
       parser,
       fields<ScanDiagnostic>({ relative: 'required', adapterId: 'required', detail: 'required' }),
       [...line, 'source'],
+    );
+  });
+
+  it('the command a progress, diagnostic or error line names', () => {
+    expect(enumOf(at('events.json', '/definitions/command'))).toEqual(
+      members<CommandName>({
+        audit: true,
+        optimize: true,
+        undo: true,
+        check: true,
+        init: true,
+        refs: true,
+        dedupe: true,
+        move: true,
+      }),
     );
   });
 });

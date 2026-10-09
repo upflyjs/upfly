@@ -49,7 +49,7 @@ export function upfly(
 
 /**
  * The environment `upfly` runs a command with, as plain strings, for a process started by
- * something else, such as an MCP client starting `upfly mcp`.
+ * something else, such as an MCP client starting `upfly-mcp`.
  */
 export function commandEnvironment(extra: Record<string, string> = {}): Record<string, string> {
   const env: Record<string, string> = {};

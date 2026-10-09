@@ -200,12 +200,14 @@ describe('parseCommandLine', () => {
     });
   });
 
-  it('serves mcp from a directory, with no flag but help, since each call carries its own', () => {
-    expect(parseCommandLine(['mcp', 'site'])).toEqual({
-      kind: 'run',
-      options: { command: 'mcp', dir: 'site', json: false, noColor: false },
-    });
-    expect(parseCommandLine(['mcp', '--help'])).toEqual({ kind: 'help', command: 'mcp' });
+  it('has no mcp command: the MCP server is the upfly-mcp package', () => {
+    for (const argv of [['mcp'], ['mcp', 'site'], ['mcp', '--help']]) {
+      expect(parseCommandLine(argv)).toEqual({
+        kind: 'usage-error',
+        command: null,
+        message: 'unknown command `mcp`',
+      });
+    }
   });
 
   it.each([
@@ -298,9 +300,6 @@ describe('parseCommandLine', () => {
     [['move', 'a.png', 'b.png', '--keep', 'a.png'], 'unknown option `--keep`'],
     [['undo', '--apply'], 'unknown option `--apply`'],
     [['undo', 'a', 'b'], 'expected one directory, got 2: a b'],
-    [['mcp', '--json'], 'unknown option `--json`'],
-    [['mcp', '--apply'], 'unknown option `--apply`'],
-    [['mcp', 'a', 'b'], 'expected one directory, got 2: a b'],
   ])('rejects %j as a usage error', (argv, message) => {
     expect(parseCommandLine(argv)).toEqual(
       expect.objectContaining({ kind: 'usage-error', message }),

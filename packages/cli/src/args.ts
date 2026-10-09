@@ -16,8 +16,7 @@ export type CommandName =
   | 'init'
   | 'refs'
   | 'dedupe'
-  | 'move'
-  | 'mcp';
+  | 'move';
 
 export interface CommonOptions {
   /** The project directory, as given; the current directory when none is. */
@@ -139,11 +138,6 @@ export interface MoveOptions extends CommonOptions, ScopeOptions {
   readonly allowDirty: boolean;
 }
 
-/** `upfly mcp`: its folder is the one a tool reads when a call names none. */
-export interface McpOptions extends CommonOptions {
-  readonly command: 'mcp';
-}
-
 export type CommandOptions =
   | AuditOptions
   | OptimizeOptions
@@ -152,8 +146,7 @@ export type CommandOptions =
   | InitOptions
   | RefsOptions
   | DedupeOptions
-  | MoveOptions
-  | McpOptions;
+  | MoveOptions;
 
 export type Parsed =
   | { readonly kind: 'run'; readonly options: CommandOptions }
@@ -190,7 +183,6 @@ const COMMANDS: readonly CommandName[] = [
   'refs',
   'dedupe',
   'move',
-  'mcp',
 ];
 
 const COMMON = {
@@ -247,8 +239,6 @@ const REFS = { ...COMMON, ...SCOPE } as const;
 
 const INIT = { ...COMMON, agents: { type: 'boolean' } } as const;
 
-const MCP = { help: COMMON.help } as const;
-
 const DEDUPE = {
   ...COMMON,
   ...SCOPE,
@@ -303,28 +293,7 @@ export function parseCommandLine(
   if (command === 'dedupe') return parseDedupe(rest);
   if (command === 'move') return parseMove(rest, upfly);
   if (command === 'init') return parseInit(rest);
-  if (command === 'mcp') return parseMcp(rest);
   return parseCommonOnly(command, rest);
-}
-
-/** `upfly mcp [dir]`: no flag but `--help`, since each call to a tool carries its own options. */
-function parseMcp(args: readonly string[]): Parsed {
-  const command = 'mcp';
-  let parsed: ReturnType<typeof parseMcpArgs>;
-  try {
-    parsed = parseMcpArgs(args);
-  } catch (error) {
-    return { kind: 'usage-error', command, message: plainParseError(error) };
-  }
-  const { values, positionals } = parsed;
-  if (values.help === true) return { kind: 'help', command };
-  const dir = directoryOf(positionals);
-  if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
-  return { kind: 'run', options: { command, dir: dir.value, json: false, noColor: false } };
-}
-
-function parseMcpArgs(args: readonly string[]) {
-  return parseArgs({ args: [...args], options: MCP, allowPositionals: true, strict: true });
 }
 
 function parseDedupe(args: readonly string[]): Parsed {

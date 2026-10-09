@@ -15,7 +15,7 @@ import { upfly } from './helpers.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const DOCS = ['AGENTS.md', 'skill/upfly/SKILL.md'];
-const COMMANDS = ['audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe', 'move', 'mcp'];
+const COMMANDS = ['audit', 'optimize', 'undo', 'check', 'init', 'refs', 'dedupe', 'move'];
 /** Words written in code style that are not in the JSON: folder names and HTML. */
 const NOT_JSON = new Set(['public', 'node_modules']);
 

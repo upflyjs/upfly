@@ -1,0 +1,43 @@
+{
+  "name": "upfly-mcp",
+  "version": "3.0.0",
+  "description": "Upfly's commands as an MCP server, for apps that reach tools only through MCP.",
+  "license": "MIT",
+  "author": "Rinkal Kumar (https://github.com/ramin-010)",
+  "homepage": "https://github.com/upflyjs/upfly#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/upflyjs/upfly.git",
+    "directory": "packages/mcp"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "image",
+    "optimize",
+    "webp",
+    "avif",
+    "upfly"
+  ],
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "bin": {
+    "upfly-mcp": "./dist/bin.js"
+  },
+  "files": ["dist/", "!dist/.tsbuildinfo", "!dist/**/*.map", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
+    "upfly": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1"
+  }
+}

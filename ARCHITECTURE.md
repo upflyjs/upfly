@@ -2703,23 +2703,27 @@ above that reads skills; an agent that reads both folders sees two copies of one
 picks before `AGENTS.md` is left alone: each of those belongs to another agent that reads
 `AGENTS.md` too.
 
-#### `upfly mcp`
+#### `upfly-mcp`
 
-For an app that reaches tools only through MCP, `upfly mcp` serves the commands over standard input
-and output (`@modelcontextprotocol/server`, which brings no web server and no login code), to a
-client that opens the 2025 way and to one that opens the 2026-07-28 way alike. It adds
-nothing a command does not do: **each tool runs `upfly <command> --json` as a child process whose
-working folder is the project, and answers with the line it printed last**, so the parsing, the
-refusals and the JSON are the command's own by construction, and a run that crashes ends its own
-process rather than the server. Each tool's arguments are the command's flags under its own schema,
-which refuses a key it does not know; `--allow-dirty` has no argument, and `init` no tool, so a
-tool that writes needs a clean folder and never writes into the agent's instruction files. A tool
-that writes acts only when a call sets `apply`, and `undo`'s schema makes `apply` required. The
-child gets the server's own Node options, so a preload such as the no-network test's reaches every
-command; a progress line becomes a progress notification for a client that asked for them; and a
-call the client cancels ends its child, which leaves what any interrupted run leaves, a record
-`undo` follows. `main.ts` imports the module only for `mcp`, so no other command loads the library,
-which a test of the modules each command loads holds.
+For an app that reaches tools only through MCP, the package `upfly-mcp` (`packages/mcp`) serves the
+commands over standard input and output (`@modelcontextprotocol/server`, which brings no web server
+and no login code), to a client that opens the 2025 way and to one that opens the 2026-07-28 way
+alike. It is a package of its own so that an install of `upfly` carries no MCP library, which most
+people never start: `upfly` depends on none, and a test of the modules each command loads holds
+that none loads one. The server adds nothing a command does not do: **each tool runs
+`upfly <command> --json` as a child process whose working folder is the project, and answers with
+the line it printed last**, so the parsing, the refusals and the JSON are the command's own by
+construction, and a run that crashes ends its own process rather than the server. **The `upfly` it
+runs is its own dependency, in the same version,** resolved as Node resolves any dependency, from
+the package's own folder outward: never an `upfly` on PATH, in a global install, or in the project
+being served, any of which can be another version whose flags the tools' schemas do not match.
+Each tool's arguments are the command's flags under its own schema, which refuses a key it does not
+know; `--allow-dirty` has no argument, and `init` no tool, so a tool that writes needs a clean
+folder and never writes into the agent's instruction files. A tool that writes acts only when a
+call sets `apply`, and `undo`'s schema makes `apply` required. The child gets the server's own Node
+options, so a preload such as the no-network test's reaches every command; a progress line becomes
+a progress notification for a client that asked for them; and a call the client cancels ends its
+child, which leaves what any interrupted run leaves, a record `undo` follows.
 
 **The configuration file is `upfly.config.ts` (or `.js` and their module forms), or
 `upfly.config.json`, in the directory the command runs on.** The code forms load through c12 with
@@ -2850,6 +2854,7 @@ The promise is that the run's changes are the only ones a reviewer has to look a
 |---|---|---|
 | `packages/core` | `upfly-core` | graph, adapters, planner, transaction, report. No CLI or editor concerns, no network. |
 | `packages/cli` | `upfly` | argument parsing, human/JSON output, exit codes, git safety. |
+| `packages/mcp` | `upfly-mcp` | the MCP server: one tool per command, each running the `upfly` installed with it. |
 | `packages/vscode` | `upfly-vscode` | the editor surface (not yet written). |
 
 `packages/core/src` is grouped by pipeline stage. At the top, `index.ts` is the public entry,

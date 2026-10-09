@@ -1,14 +1,13 @@
 /**
- * `upfly mcp`: serves the commands to an MCP client, such as Claude Desktop or Antigravity, over
+ * The server: Upfly's commands for an MCP client, such as Claude Desktop or Antigravity, over
  * standard input and output. Each tool runs the command of its name as `upfly <command> --json`
  * does, in a process of its own whose working folder is the project, and answers with the line
  * that command prints last: its result, or its refusal with the reason. So a tool keeps every
  * rule its command keeps, and a run that crashes ends its own process rather than the server.
- *
- * Only `upfly mcp` imports this module, so no other command loads the MCP library.
  */
 
 import { spawn } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { finished } from 'node:stream/promises';
@@ -16,14 +15,18 @@ import { fileURLToPath } from 'node:url';
 import { type CallToolResult, McpServer, type ServerContext } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import * as z from 'zod';
-import type { CommandName, McpOptions } from './args.js';
-import { isDirectory } from './audit.js';
-import { EXIT_CODES, type ExitCode } from './exit-codes.js';
-import { type Io, stopWith } from './output.js';
 import { version } from './version.js';
 
-/** The CLI's own entry point, which every tool runs. */
-const BIN = fileURLToPath(new URL('./bin.js', import.meta.url));
+/** The commands the tools run, one tool each. */
+type CommandName = 'audit' | 'check' | 'refs' | 'optimize' | 'dedupe' | 'move' | 'undo';
+
+/**
+ * The binary of the `upfly` this package was installed with, which every tool runs. Node
+ * resolves it as it resolves any dependency, from this package's own folder outward, so it is
+ * never an `upfly` on PATH, in a global install, or in the project being served. The binary
+ * sits beside the package's entry point.
+ */
+const UPFLY = fileURLToPath(new URL('./bin.js', import.meta.resolve('upfly')));
 
 /** What a client is told about the tools when it connects. */
 const INSTRUCTIONS =
@@ -41,7 +44,7 @@ const dir = z
   .string()
   .optional()
   .describe(
-    "The project's folder, absolute or relative to the folder upfly mcp serves, which it is when left out. The other paths of a call are read from it.",
+    "The project's folder, absolute or relative to the folder upfly-mcp serves, which it is when left out. The other paths of a call are read from it.",
   );
 const servedFrom = z
   .array(z.string())
@@ -75,19 +78,22 @@ const includeUnusedSvg = z
 /**
  * Serves the tools over standard input and output until the client closes the connection.
  *
- * @param options the parsed command line: the folder a tool reads when a call names none
- * @param io where a usage error is written; the connection itself uses the process's streams
- * @returns 0 once the client has closed the connection; 2 when the folder does not exist
+ * @param folder the folder a tool reads when a call names none, which must exist
+ * @returns once the client has closed the connection
  */
-export async function runMcp(options: McpOptions, io: Io): Promise<ExitCode> {
-  const folder = resolve(options.dir);
-  if (!isDirectory(folder)) {
-    return stopWith(io, options, EXIT_CODES.USAGE, `${options.dir} is not a directory`);
-  }
+export async function serve(folder: string): Promise<void> {
   const closed = finished(process.stdin).catch(() => undefined);
   serveStdio(() => serverFor(folder));
   await closed;
-  return EXIT_CODES.OK;
+}
+
+/** Whether `path` names a folder that exists. */
+export function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /** The server one connection is given, each tool one command. */
@@ -364,7 +370,7 @@ async function run(
     process.execPath,
     [
       ...process.execArgv,
-      BIN,
+      UPFLY,
       command,
       ...flags,
       '--json',

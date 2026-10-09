@@ -21,6 +21,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 const NO_NETWORK = fileURLToPath(new URL('./no-network.mjs', import.meta.url));
+const MODULE_LOG = fileURLToPath(new URL('./module-log.mjs', import.meta.url));
 const KILL_SWITCH = readFileSync(fileURLToPath(new URL('./v2-kill-switch.json', import.meta.url)));
 /** A one-pixel PNG. */
 const PNG = Buffer.from(
@@ -101,6 +102,33 @@ describe('upfly', () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe('');
     expect(result.stderr).toBe('upfly: unknown option `--nope`\nSee `npx upfly audit --help`.\n');
+  });
+
+  it('loads no MCP library in any command, and has no mcp command to load it', () => {
+    const root = site();
+    const logs = mkdtempSync(join(tmpdir(), 'upfly-modules-'));
+    roots.push(logs);
+    const loaded = (args: readonly string[]) => {
+      const log = join(logs, `${args.join('-').replace(/\W/g, '')}.log`);
+      const result = spawnSync(
+        process.execPath,
+        ['--import', pathToFileURL(MODULE_LOG).href, BIN, ...args],
+        // An empty input ends at once a command that would read it.
+        { env: { ...process.env, UPFLY_MODULE_LOG: log }, input: '', encoding: 'utf8' },
+      );
+      return { status: result.status, modules: existsSync(log) ? readFileSync(log, 'utf8') : '' };
+    };
+
+    for (const args of [['--version'], ['audit', root], ['check', root], ['optimize', root]]) {
+      const { modules } = loaded(args);
+      // The control: the log holds what was loaded, the CLI's own entry among it.
+      expect(modules, args.join(' ')).toContain('/dist/main.js');
+      expect(modules, args.join(' ')).not.toContain('@modelcontextprotocol');
+    }
+    const mcp = loaded(['mcp', root]);
+    expect(mcp.modules).toContain('/dist/main.js');
+    expect(mcp.modules).not.toContain('@modelcontextprotocol');
+    expect(mcp.status).toBe(2);
   });
 });
 

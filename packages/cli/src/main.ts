@@ -90,8 +90,5 @@ function run(options: CommandOptions, io: Io): Promise<ExitCode> {
       return runDedupe(options, io);
     case 'move':
       return runMove(options, io);
-    case 'mcp':
-      // Imported here, so that no other command loads the MCP library.
-      return import('./mcp.js').then(({ runMcp }) => runMcp(options, io));
   }
 }

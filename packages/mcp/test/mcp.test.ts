@@ -1,20 +1,19 @@
 /**
- * `upfly mcp` as an MCP client meets it: the library's own client, over stdio, on a copy of a
+ * `upfly-mcp` as an MCP client meets it: the library's own client, over stdio, on a copy of a
  * fixture. Every tool is listed with whether it writes; each answers exactly what its command
  * prints last with `--json`; a tool that writes does nothing without `apply`, and refuses a
- * folder with uncommitted changes as its command does.
+ * folder with uncommitted changes as its command does. The commands are those of the `upfly`
+ * this package depends on, which in the workspace is `packages/cli`, the one `upfly()` runs.
  */
 
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  BIN,
-  MODULE_LOG,
   commandEnvironment,
   commitAll,
   copyFixture,
@@ -23,7 +22,9 @@ import {
   snapshot,
   tempFolder,
   upfly,
-} from './helpers.js';
+} from '../../cli/test/helpers.js';
+
+const SERVER = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
 const roots: string[] = [];
 let root: string;
@@ -39,7 +40,7 @@ beforeAll(async () => {
   await client.connect(
     new StdioClientTransport({
       command: process.execPath,
-      args: [BIN, 'mcp', root],
+      args: [SERVER, root],
       env: commandEnvironment(),
       stderr: 'pipe',
     }),
@@ -66,7 +67,7 @@ function cli(...args: string[]): Record<string, unknown> | undefined {
 /** Every file of the project but git's and Upfly's own. */
 const files = () => snapshot(root, ['.git', '.upfly']);
 
-describe('upfly mcp', () => {
+describe('upfly-mcp', () => {
   it('lists one tool for each command it serves, each saying whether it writes', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
@@ -189,7 +190,7 @@ describe('a client that opens the 2026-07-28 way', () => {
     await modern.connect(
       new StdioClientTransport({
         command: process.execPath,
-        args: [BIN, 'mcp', project],
+        args: [SERVER, project],
         env: commandEnvironment(),
         stderr: 'pipe',
       }),
@@ -209,26 +210,85 @@ describe('a client that opens the 2026-07-28 way', () => {
   });
 });
 
-describe('the MCP library', () => {
-  it('is loaded by upfly mcp and by no other command', () => {
-    const log = (args: readonly string[]) => {
-      const file = join(tempFolder(roots, 'upfly-modules-'), 'modules.log');
-      spawnSync(process.execPath, ['--import', pathToFileURL(MODULE_LOG).href, BIN, ...args], {
-        env: commandEnvironment({ UPFLY_MODULE_LOG: file }),
-        // An empty input ends `upfly mcp` at once, as a client closing the connection does.
-        input: '',
-        encoding: 'utf8',
-      });
-      return existsSync(file) ? readFileSync(file, 'utf8') : '';
-    };
-    const project = copyFixture('vite-react', tempFolder(roots, 'upfly-modules-project-'));
+describe('the upfly a tool runs', () => {
+  it('is the one installed with this package, never one on PATH or in the project', async () => {
+    const project = copyFixture('vite-react', tempFolder(roots, 'upfly-mcp-decoy-'));
+    // Another `upfly` on PATH, where a global install puts one, and in the project's own
+    // `node_modules`, where a project that depends on another version has one; each answers
+    // every command with a line of its own.
+    const onPath = tempFolder(roots, 'upfly-mcp-path-');
+    for (const folder of [onPath, join(project, 'node_modules', '.bin')]) decoy(folder);
+    const env = commandEnvironment();
+    const path = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+    env[path] = `${onPath}${delimiter}${env[path] ?? ''}`;
+    const decoyed = new Client({ name: 'upfly-test', version: '1.0.0' });
+    await decoyed.connect(
+      new StdioClientTransport({
+        command: process.execPath,
+        args: [SERVER, project],
+        env,
+        cwd: project,
+        stderr: 'pipe',
+      }),
+    );
+    try {
+      const answer = await decoyed.callTool({ name: 'check', arguments: {} });
+      const [first] = answer.content as { type: string; text?: string }[];
 
-    for (const args of [['audit', project], ['check', project], ['--version']]) {
-      const loaded = log(args);
-      // The control: the log holds what was loaded, the CLI's own entry among it.
-      expect(loaded, args.join(' ')).toContain('/dist/main.js');
-      expect(loaded, args.join(' ')).not.toContain('@modelcontextprotocol');
+      expect(JSON.parse(first?.text ?? 'null')).toEqual(
+        jsonLines(upfly(['check', '--json'], { cwd: project }).stdout).at(-1),
+      );
+    } finally {
+      await decoyed.close();
     }
-    expect(log(['mcp', project])).toContain('@modelcontextprotocol');
   });
 });
+
+describe('upfly-mcp on the command line', () => {
+  /** Runs the server with no client: an empty input closes the connection at once. */
+  const run = (...args: string[]) => {
+    const result = spawnSync(process.execPath, [SERVER, ...args], { input: '', encoding: 'utf8' });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  };
+
+  it('prints its help, and the version in its package.json', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    expect(run('--version')).toEqual({ status: 0, stdout: `${manifest.version}\n`, stderr: '' });
+    const help = run('--help');
+    expect(help.status).toBe(0);
+    expect(help.stdout).toMatch(/^Usage: upfly-mcp \[dir\]\n/);
+  });
+
+  it('serves the current folder when none is named, until the client closes the connection', () => {
+    expect(run()).toEqual({ status: 0, stdout: '', stderr: '' });
+  });
+
+  it.each([
+    [['--json'], 'unknown option `--json`'],
+    [['--apply'], 'unknown option `--apply`'],
+    [['a', 'b'], 'expected one directory, got 2: a b'],
+  ])('exits 2 on %j, naming the usage error', (args, message) => {
+    expect(run(...args)).toEqual({
+      status: 2,
+      stdout: '',
+      stderr: `upfly-mcp: ${message}\nSee \`upfly-mcp --help\`.\n`,
+    });
+  });
+
+  it('exits 2 for a folder that is not there, serving nothing', () => {
+    const missing = join(tempFolder(roots, 'upfly-mcp-cli-'), 'missing');
+    expect(run(missing)).toEqual({
+      status: 2,
+      stdout: '',
+      stderr: `upfly-mcp: ${missing} is not a directory\n`,
+    });
+  });
+});
+
+/** An `upfly` in `folder`, for a shell on any platform, that answers with a line of its own. */
+function decoy(folder: string): void {
+  const line = '{"type":"result","command":"check","decoy":true}';
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, 'upfly'), `#!/bin/sh\necho '${line}'\n`, { mode: 0o755 });
+  writeFileSync(join(folder, 'upfly.cmd'), `@echo ${line}\r\n`);
+}
