@@ -44,7 +44,7 @@ references it can prove, and lists every other line that still names the old pat
 - **It rewrites only what it can prove, and lists the rest.** A path assembled at runtime, such as
   `` `/img/${name}.png` ``, or one that only happens to match a file, stays as written, listed with the reason.
   `upfly refs` and `upfly move` also list every other line that names the image, such as a full address or a line in
-  a file type Upfly does not read, and say which of them a page still loads the image through.
+  a file type Upfly does not read, and `move` says which of them a page still loads the image through.
 - **It converts only what gets smaller.** Each image is measured by encoding it, and converts when it saves at least
   1 KB and either 10% of the file or 100 KB. A photo keeps its orientation and a wide-gamut colour profile, an
   animation is never flattened to one frame, and a PNG becomes lossless WebP when that is the smaller file. Link
@@ -320,7 +320,8 @@ does not fail it. It needs the history, so in a workflow that runs on pull reque
   the image through it.
 - **[`AGENTS.md`](packages/cli/AGENTS.md)** is a guide for coding agents, and
   **[`skill/upfly`](packages/cli/skill/upfly/SKILL.md)** is an Agent Skill an agent loads when a task touches a
-  project's images. Both ship in the package, and `upfly init --agents` puts them where a project's agents look.
+  project's images. Both ship in the package, and `upfly init --agents` puts the Skill, with a short block pointing
+  at Upfly, where a project's agents look.
 - **[`upfly-core`](packages/core)** is the engine as a library, for building on it.
 
 ### Pointing a project's agents at Upfly
@@ -328,8 +329,8 @@ does not fail it. It needs the history, so in a workflow that runs on pull reque
 `npx upfly init --agents` adds a short block, between `<!-- upfly:start -->` and `<!-- upfly:end -->`, to `AGENTS.md`
 (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there, and puts the Upfly Agent Skill in
 `.agents/skills/upfly` and `.claude/skills/upfly`. The block tells an agent to use Upfly for any task that moves,
-renames, converts, optimizes or deletes an image, starting with `npx upfly refs <image> --json`. On a committed copy
-of `fixtures/vite-react`, after `npx upfly init`:
+renames, converts, optimizes or deletes an image, or asks where one is used, and to start with
+`npx upfly refs <image> --json`. On a committed copy of `fixtures/vite-react`, after `npx upfly init`:
 
 ```
 $ npx upfly init --agents
