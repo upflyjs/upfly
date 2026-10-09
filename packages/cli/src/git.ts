@@ -499,10 +499,19 @@ function git(
 
 function must(result: GitResult, step: string): GitResult {
   if (result.status === 0) return result;
-  // Git gives its reason on the standard error, but `commit` reports "nothing to commit" on
-  // its standard output, after the branch's name, so that reason is the output's last line.
-  const reason = firstLine(result.stderr) || lastLine(result.stdout);
+  // Git gives its reason on the standard error, among warnings and hints that are not the
+  // reason, but `commit` reports "nothing to commit" on its standard output, after the branch's
+  // name, so that reason is the output's last line.
+  const reason = firstLine(withoutAdvice(result.stderr)) || lastLine(result.stdout);
   throw new Error(`git ${step} failed${reason === '' ? '' : `: ${reason}`}`);
+}
+
+/** Git's text without the lines it marks as a warning or a hint. */
+function withoutAdvice(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !line.startsWith('warning: ') && !line.startsWith('hint: '))
+    .join('\n');
 }
 
 function nulList(paths: readonly string[]): string {

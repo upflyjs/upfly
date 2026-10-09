@@ -393,6 +393,19 @@ describe('commitPaths', () => {
       'git commit failed: nothing to commit, working tree clean',
     );
   });
+
+  it("names git's reason, not a warning git printed before it", () => {
+    // With `core.autocrlf`, as Git for Windows sets it, adding a file whose lines end in LF
+    // prints a warning first.
+    const root = repository({ 'index.html': 'a', '.gitignore': 'ignored/\n' });
+    git(root, 'config', 'core.autocrlf', 'true');
+    write(root, 'index.html', 'a line\n');
+    write(root, 'ignored/new.webp', 'created by the run');
+
+    expect(() => commitPaths(root, ['ignored/new.webp', 'index.html'], 'the run')).toThrow(
+      'git add failed: The following paths are ignored by one of your .gitignore files:',
+    );
+  });
 });
 
 describe('commitPaths, for a file git recorded in the second the run then rewrote it', () => {
