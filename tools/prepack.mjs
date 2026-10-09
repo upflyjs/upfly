@@ -5,8 +5,9 @@
  * script: the licence into each package, and the README into the CLI's, so every tarball is
  * whole. Git ignores the copies; the files at the root are the ones to edit.
  *
- * A Markdown file's relative links and image paths are made absolute on the way, because
- * npm's page for a package has no repository to resolve them against.
+ * A Markdown file's relative links and image paths are made absolute on the way, into the tag
+ * of the release being packed, because npm's page for a package has no repository to resolve
+ * them against.
  *
  * Usage: `node ../../tools/prepack.mjs <file>...`, run from the package's folder.
  */
@@ -16,13 +17,21 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/**
- * The branch a published README's links point into: `v3`, which holds this code before
- * `main` does. A page published from here keeps its links for as long as the branch exists.
- */
-const BRANCH = 'v3';
 const PAGES = 'https://github.com/upflyjs/upfly';
-const FILES = `https://raw.githubusercontent.com/upflyjs/upfly/${BRANCH}`;
+const FILES = 'https://raw.githubusercontent.com/upflyjs/upfly';
+
+/**
+ * The tag a published README's links point into: the release's own, `v` and the version of
+ * the package being packed. npm's page for a release never changes, so it keeps showing the
+ * files as they were in that release for as long as the tag exists, which a branch that moves
+ * on, or stays behind, would not. The tag has to be on GitHub when the release is published.
+ *
+ * @param {{ readonly version?: unknown }} manifest the package's `package.json`
+ * @returns {string}
+ */
+export function releaseTag(manifest) {
+  return `v${manifest.version}`;
+}
 
 /** A Markdown link or image, `[text](target)` or `![alt](target)`. */
 const MARKDOWN_TARGET = /(!?)\[([^\]]*)\]\(([^)\s]+)\)/g;
@@ -47,13 +56,14 @@ function isRelative(target) {
  * @param {string} target a path relative to the repository's root, perhaps with a `#fragment`
  * @param {boolean} shown whether the page shows the file, as an image, rather than links to it
  * @param {(relative: string) => boolean} isFolder whether a path names a folder
+ * @param {string} ref the tag or branch the address points into
  */
-function absolute(target, shown, isFolder) {
+function absolute(target, shown, isFolder, ref) {
   const [file = '', fragment] = target.split('#', 2);
   const tail = fragment === undefined ? '' : `#${fragment}`;
   const bare = file.replace(/^\.\//, '').replace(/\/+$/, '');
-  if (shown) return `${FILES}/${bare}${tail}`;
-  return `${PAGES}/${isFolder(bare) ? 'tree' : 'blob'}/${BRANCH}/${bare}${tail}`;
+  if (shown) return `${FILES}/${ref}/${bare}${tail}`;
+  return `${PAGES}/${isFolder(bare) ? 'tree' : 'blob'}/${ref}/${bare}${tail}`;
 }
 
 /**
@@ -62,9 +72,10 @@ function absolute(target, shown, isFolder) {
  *
  * @param {string} markdown a file at the repository's root
  * @param {(relative: string) => boolean} isFolder whether a path names a folder
+ * @param {string} ref the tag or branch every address points into, such as `v3.1.0`
  * @returns {string}
  */
-export function withAbsoluteLinks(markdown, isFolder) {
+export function withAbsoluteLinks(markdown, isFolder, ref) {
   let fenced = false;
   return markdown
     .split('\n')
@@ -74,11 +85,13 @@ export function withAbsoluteLinks(markdown, isFolder) {
       return line
         .replace(MARKDOWN_TARGET, (whole, bang, text, target) =>
           isRelative(target)
-            ? `${bang}[${text}](${absolute(target, bang === '!', isFolder)})`
+            ? `${bang}[${text}](${absolute(target, bang === '!', isFolder, ref)})`
             : whole,
         )
         .replace(HTML_TARGET, (whole, name, target) =>
-          isRelative(target) ? `${name}="${absolute(target, name !== 'href', isFolder)}"` : whole,
+          isRelative(target)
+            ? `${name}="${absolute(target, name !== 'href', isFolder, ref)}"`
+            : whole,
         );
     })
     .join('\n');
@@ -99,11 +112,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.stderr.write('prepack: name the files to copy from the repository root\n');
     process.exit(2);
   }
+  const ref = releaseTag(
+    JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')),
+  );
   for (const file of files) {
     const from = path.join(ROOT, file);
     const to = path.join(process.cwd(), file);
     if (file.endsWith('.md')) {
-      writeFileSync(to, withAbsoluteLinks(readFileSync(from, 'utf8'), isFolderInRepository));
+      writeFileSync(to, withAbsoluteLinks(readFileSync(from, 'utf8'), isFolderInRepository, ref));
     } else {
       copyFileSync(from, to);
     }

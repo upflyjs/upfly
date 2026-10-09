@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 import { missingFromPack, tarPaths, unwantedInPack } from './pack-check.mjs';
-import { withAbsoluteLinks } from './prepack.mjs';
+import { releaseTag, withAbsoluteLinks } from './prepack.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -133,7 +133,11 @@ describe('each package, as pnpm packs it', () => {
         const isFolder = (relative: string) =>
           statSync(join(ROOT, relative), { throwIfNoEntry: false })?.isDirectory() === true;
         expect(readme).toBe(
-          withAbsoluteLinks(readFileSync(join(ROOT, 'README.md'), 'utf8'), isFolder),
+          withAbsoluteLinks(
+            readFileSync(join(ROOT, 'README.md'), 'utf8'),
+            isFolder,
+            releaseTag(manifest),
+          ),
         );
       }
     },
