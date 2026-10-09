@@ -38,9 +38,12 @@ Upfly never deletes an image that nothing uses; deleting one is the user's decis
    images and link previews keep their format on their own. An image in an email does
    not, and Outlook shows no WebP: offer to leave a folder of email templates out with
    `--exclude <path>`.
-3. Only with the user's yes: `npx upfly optimize --apply --commit`. When asking, say that
-   the originals the summary counts are removed, so a link to one from outside the project
-   (an email, another site, a CMS) stops working, and that `--keep-originals` keeps them.
+3. Only with the user's yes: `npx upfly optimize --apply`, adding `--commit` only when the
+   user asks for a commit. A go-ahead in the task is that yes: apply without asking again,
+   and say in your answer which originals were removed (`.upfly/optimize.txt` lists them).
+   Without one, ask, and say that the originals the summary counts are removed, so a link
+   to one from outside the project (an email, another site, a CMS) stops working, and that
+   `--keep-originals` keeps them.
 4. Run the project's own build, then `npx upfly check`.
 5. If anything is wrong: `npx upfly undo` puts every file back.
 
@@ -52,7 +55,9 @@ Use `npx upfly move <from> <to>` rather than moving the file yourself: it update
 references too. Without `--apply` it only shows the plan. In its `--json`, read
 `plan.refused`, `plan.declined` (references that will break) and `plan.unfollowed` (lines
 it leaves as written), show them to the user, and only with their yes run
-`npx upfly move <from> <to> --apply --commit`, then the build and `npx upfly check`.
+`npx upfly move <from> <to> --apply`, then the build and `npx upfly check`. As for
+converting, a go-ahead in the task is that yes, and `--commit` is added only when the user
+asks for a commit.
 
 ## When Upfly stops
 
@@ -67,7 +72,9 @@ which folder the site is served from and pass it with `--public <dir>`.
   does not exist, and lists apart, without failing, image paths in code or data that name
   no file; `check.failOn` in the config chooses what fails it.
 - `npx upfly dedupe`: plans pointing references to identical copies at one copy. Apply
-  it only with the user's yes, as `npx upfly dedupe --apply --commit`; it deletes nothing.
+  it only with the user's yes, which a go-ahead in the task gives, as
+  `npx upfly dedupe --apply`, adding `--commit` only when the user asks for a commit; it
+  deletes nothing.
 - `npx upfly init`: writes `upfly.config.json` with the folders the site is served from.
   Show the user the file. `npx upfly init --agents` also points the project's agents at
   Upfly; it keeps a config that exists.

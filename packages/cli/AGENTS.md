@@ -48,11 +48,14 @@ reads the folder given after it, or the current folder, and prints plain text; a
    show no WebP. It cannot tell which images an email uses, and Outlook shows no WebP: if
    the project holds email templates, offer to leave their folder out with
    `--exclude <path>`.
-3. Only when the user says yes: `npx upfly optimize --apply --commit`. When asking, say how
-   many originals the summary says are removed, that a link to one from outside the
-   project (an email, another site, a CMS) then stops working, and that
-   `npx upfly optimize --apply --commit --keep-originals` keeps every original beside its
-   converted file. The run's files go into one commit, which `git revert` undoes.
+3. Only when the user says yes: `npx upfly optimize --apply`. A go-ahead in the task, such
+   as "convert the images, you can change the files", is that yes: apply without asking
+   again, and say in your answer which originals were removed (`.upfly/optimize.txt` lists
+   them). Without one, ask, and say how many originals the summary says are removed, that
+   a link to one from outside the project (an email, another site, a CMS) then stops
+   working, and that `npx upfly optimize --apply --keep-originals` keeps every original
+   beside its converted file. Add `--commit` only when the user asks for a commit: the
+   run's files then go into one commit, which `git revert` undoes.
 4. Check the result: run the project's own build if it has one, then `npx upfly check`,
    which fails if any reference names an image that does not exist.
 5. To go back: `npx upfly undo` puts back every file the last run changed. After
@@ -79,8 +82,9 @@ the plan first, which `--json` holds:
   a comment, each with `reason` and `why`. Upfly leaves them as written.
 
 Show the user those lists, and only with their yes run
-`npx upfly move <from> <to> --apply --commit`. Then run the project's build and
-`npx upfly check`; `npx upfly undo` puts every file back. It deletes no image.
+`npx upfly move <from> <to> --apply`. As with `optimize`, a go-ahead in the task is that
+yes, and `--commit` is added only when the user asks for a commit. Then run the project's
+build and `npx upfly check`; `npx upfly undo` puts every file back. It deletes no image.
 
 ## Is it safe to delete an image?
 
@@ -201,8 +205,9 @@ have caused (the checkout needs that branch's history).
 `npx upfly dedupe` finds sets of images with the same bytes and plans to point every
 reference at one copy of each; `--keep <path>` chooses the copy. It deletes nothing: a
 copy no reference names afterwards stays on disk, and `upfly audit` then lists it as
-unused. Apply it the way `optimize` is applied: with the user's yes,
-`npx upfly dedupe --apply --commit`.
+unused. Apply it the way `optimize` is applied: with the user's yes, which a go-ahead in
+the task gives, `npx upfly dedupe --apply`, adding `--commit` only when the user asks for a
+commit.
 
 ## Config
 
@@ -217,8 +222,8 @@ when a task involves the project's images. `npx upfly init --agents` puts it in 
 project's `.agents/skills/upfly` and `.claude/skills/upfly` folders, where most coding
 agents look for a project's skills, and adds a short marked block pointing at Upfly to
 `AGENTS.md` (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there.
-It changes nothing outside that block and asks nothing; with the user's yes, commit the
-files it names.
+It changes nothing outside that block and asks nothing. The files it names reach the rest
+of the team once committed; commit them only when the user asks for a commit.
 
 ## Through MCP
 

@@ -30,7 +30,7 @@ const UPFLY = fileURLToPath(new URL('./bin.js', import.meta.resolve('upfly')));
 
 /** What a client is told about the tools when it connects. */
 const INSTRUCTIONS =
-  'Upfly finds the images in a project and the references to them in the files it can read, and names the files it could not read. Before changing an image, call refs and read both of its lists. optimize, dedupe and move write nothing unless apply is true: call them without it first, show the user the plan, and set apply only with their yes. Each answer is the JSON line the command prints with --json; an answer of type error carries a reason to branch on.';
+  'Upfly finds the images in a project and the references to them in the files it can read, and names the files it could not read. Before changing an image, call refs and read both of its lists. optimize, dedupe and move write nothing unless apply is true: call them without it first, show the user the plan, and set apply only with their yes. A go-ahead in the task is that yes: apply without asking again, and after optimize say which originals were removed. Set commit only when the user asks for a commit. Each answer is the JSON line the command prints with --json; an answer of type error carries a reason to branch on.';
 
 const READS = { readOnlyHint: true, openWorldHint: false };
 const WRITES = {
@@ -63,7 +63,9 @@ const apply = z
 const commit = z
   .boolean()
   .optional()
-  .describe('Commit exactly the files the run writes, as one commit (--commit). Needs apply.');
+  .describe(
+    'Commit exactly the files the run writes, as one commit (--commit). Set it only when the user asks for a commit. Needs apply.',
+  );
 const includeDiscarded = z
   .boolean()
   .optional()
