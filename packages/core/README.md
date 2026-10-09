@@ -39,10 +39,10 @@ tools. It is not part of the public API: any name in it can change in any releas
 
 ## More
 
-- [The repository](https://github.com/upflyjs/upfly/tree/v3), with the command-line tool's README: what Upfly is
+- [The repository](https://github.com/upflyjs/upfly/tree/main), with the command-line tool's README: what Upfly is
   measured to do, and its limits.
-- [ARCHITECTURE.md](https://github.com/upflyjs/upfly/blob/v3/ARCHITECTURE.md): how the engine is built.
-- [CONTRIBUTING.md](https://github.com/upflyjs/upfly/blob/v3/CONTRIBUTING.md): how to add a reader for a file type.
+- [ARCHITECTURE.md](https://github.com/upflyjs/upfly/blob/main/ARCHITECTURE.md): how the engine is built.
+- [CONTRIBUTING.md](https://github.com/upflyjs/upfly/blob/main/CONTRIBUTING.md): how to add a reader for a file type.
 
 ## License
 
