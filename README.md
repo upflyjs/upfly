@@ -28,9 +28,9 @@ component, a `src` or `srcset` in a page, a `url()` in a stylesheet, a path in a
 one and the image breaks on your site.
 
 Upfly does that work. It finds the images in your repository and the lines that use them, converts each image that
-comes out smaller, and rewrites those lines. No image or line of code changes until you add `--apply`, and
-`upfly undo` puts every file back. A path it cannot prove, such as one built at runtime, is never rewritten: Upfly
-lists it with the reason, so you know exactly what is left to check.
+comes out smaller, and rewrites those lines. With `--commit`, the whole change is one commit you can review, and
+`upfly undo` puts it back. Where it cannot prove what a path points at, it leaves the path alone, and its full plan
+lists each such path with the reason.
 
 Moving or renaming an image is the same job, and `upfly move` does it the same way.
 
@@ -48,8 +48,9 @@ Moving or renaming an image is the same job, and `upfly move` does it the same w
   over uncommitted work; `upfly undo` puts every file back. It never deletes an image just because nothing uses it.
 - **It works with your coding agent.** `upfly init --agents` tells the agent to use Upfly for image tasks, and the
   `upfly-mcp` package offers the same commands to apps that use MCP.
-- **It is measured.** 451 of 451 cases in its accuracy suite, with configuration and without; three open-source
-  projects converted, with none of their 18,922 image references broken by the run.
+- **It is measured.** 451 of 451 cases in its [accuracy suite](accuracy-suite/), with configuration and without; the
+  open-source websites of [Eleventy, Rails Girls and Scratch](EVIDENCE.md#three-real-projects-converted-and-built),
+  each converted on a fresh clone, with none of their 18,922 image references broken by the run.
 - **It stays on your machine.** No network calls and no telemetry, enforced by a test.
 
 ## Install
@@ -65,6 +66,7 @@ Or run it once without installing: `npx upfly audit`.
 ## Quick start
 
 ```bash
+npx upfly init --agents               # set up once: upfly.config.json, and your coding agents pointed at Upfly
 npx upfly audit                       # the images, the references to them, what optimize would save; changes nothing
 npx upfly optimize                    # the plan, as a dry run; changes nothing
 npx upfly optimize --apply --commit   # carry out the plan as one commit
@@ -73,10 +75,12 @@ npx upfly refs public/hero.png        # every line that names one image; changes
 npx upfly --help                      # every command; upfly <command> --help for its options
 ```
 
-**Using a coding agent?** Run `npx upfly init --agents` once. It adds a short, marked block to your project's
-`AGENTS.md` (and to a `CLAUDE.md` or `GEMINI.md` already there) and the Upfly skill, telling your agent to use
-Upfly when a task moves, renames, converts or deletes an image, or asks where one is used. Commit those files and
-the agents of everyone on the project read them. [Which agents read which file](#pointing-a-projects-agents-at-upfly).
+**`init` sets a project up once.** It writes `upfly.config.json`: the folders your site is served from, as Upfly
+works them out, each with its reason, for you to check. `--agents` also adds a short, marked block to your project's
+`AGENTS.md` (and to a `CLAUDE.md` or `GEMINI.md` already there) and the Upfly skill, telling your coding agent to use
+Upfly when a task moves, renames, converts or deletes an image, or asks where one is used; without an agent, leave
+`--agents` out. Commit what `init` writes before `optimize --apply`, which will not run over uncommitted work; the
+agents of everyone on the project then read it. [Which agents read which file](#pointing-a-projects-agents-at-upfly).
 
 A real run, on a committed copy of [`fixtures/vite-react`](fixtures/vite-react) from this repository, at commit
 `4f30349`:
