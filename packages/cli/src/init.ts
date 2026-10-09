@@ -293,7 +293,7 @@ function agentLines(agents: AgentFiles, styles: Styles): string[] {
     ...agents.skills.map((file) => `  ${file.file}  ${skillDone(file)}`),
     '',
     changed
-      ? 'Commit these files, so the agent of everyone working on the project reads them.'
+      ? 'These files reach the agent of everyone working on the project once they are committed.'
       : 'Nothing changed: the block and the skill were already up to date.',
   ];
 }

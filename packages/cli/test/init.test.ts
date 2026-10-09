@@ -224,6 +224,16 @@ describe('upfly init --agents', () => {
     expect(run.stdout).toContain('CLAUDE.md  the Upfly block added at the end');
   });
 
+  it('says the files reach the team once committed, without telling an agent to commit them', () => {
+    const run = upfly(['init', framework(), '--agents']);
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain(
+      'These files reach the agent of everyone working on the project once they are committed.',
+    );
+    expect(run.stdout).not.toMatch(/^\s*Commit\b/m);
+  });
+
   it('changes nothing on a second run, and says so', () => {
     const root = framework();
     upfly(['init', root, '--agents']);
