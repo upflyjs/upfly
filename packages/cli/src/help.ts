@@ -196,11 +196,13 @@ line, the path as written, and, for one optimize would leave as it is, why. Then
 Not followed, every other line a search for the image's path finds, in any letter case and
 as a browser reads a path written percent-encoded or with HTML character references,
 with why Upfly does not follow it: a full address, a path built at runtime, a value in data
-or a component's props, a file type Upfly does not read, a comment. Upfly leaves those as
-written when it converts or moves the image. A line that names another file of the same
-name is in neither list. Last, the verdict: what optimize would do with the image, with the
-configured format and policy, or that it is unused. It reads the whole project, the files
---exclude leaves out included, measures only that image, and changes nothing.
+or a component's props, a file type Upfly does not read, a comment. When Upfly converts or
+moves the image, it rewrites the path in a comment along with the references, where it can
+tell the comment names this image, and leaves the other lines as written. A line that names
+another file of the same name is in neither list. Last, the verdict: what optimize would do
+with the image, with the configured format and policy, or that it is unused. It reads the
+whole project, the files --exclude leaves out included, measures only that image, and
+changes nothing.
 
 image is a path from the current folder, and must be inside the project.
 
@@ -257,11 +259,12 @@ Moves an image, or each image in a folder, and updates each reference to it that
 can rewrite to name the new place, in the form it was written in. A move Upfly cannot make
 safely is refused with the reason: a destination outside the project or already holding a
 file, a move between the bundled source and a folder the site is served from, an image a
-path built at runtime also matches. A reference that cannot follow is listed with the
-reason, and so is every other line that still names the old path, such as a full address
-or a comment, found by a search of every file: Upfly leaves those as written. Without
---apply it changes no project file and shows a summary of the plan, with the full plan in
-.upfly/move.txt. It deletes no image.
+path built at runtime also matches. A path in a comment is rewritten along with the
+references, where Upfly can tell the comment names the image. A reference that cannot
+follow is listed with the reason, and so is every other line that still names the old path,
+such as a full address, found by a search of every file: Upfly leaves those as written.
+Without --apply it changes no project file and shows a summary of the plan, with the full
+plan in .upfly/move.txt. It deletes no image.
 
 from and to are paths from the current folder, inside the project. A to that is a folder,
 or ends in a slash, takes from in under its own name.

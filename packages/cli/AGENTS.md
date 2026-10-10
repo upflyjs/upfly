@@ -19,9 +19,10 @@ reads the folder given after it, or the current folder, and prints plain text; a
   and `why` (a full address, a path built at runtime, a value in data or props, a file type
   Upfly does not read, a comment), and a verdict: what `upfly optimize` would do with it,
   or that it is unused. It is the small answer, and the right one for a question such as
-  "is it safe to delete this image?". Read both lists before changing an image: Upfly
-  leaves each line in `unfollowed` as written, so a move or a rename has to change those
-  by hand, and a `full-address` line may be the site's own address.
+  "is it safe to delete this image?". Read both lists before changing an image: when
+  Upfly converts or moves it, it rewrites the path in a `comment` line along with the
+  references and leaves every other line in `unfollowed` as written, so a move or a rename
+  has to change those by hand, and a `full-address` line may be the site's own address.
 - The whole project: `npx upfly audit --json`. It changes nothing. The report can run to
   megabytes on a large project; `--no-probe` skips measuring the images and is much
   faster when only the references matter. Its `savings` is what `upfly optimize` would
@@ -78,8 +79,9 @@ the plan first, which `--json` holds:
   that already holds a file. When every move is refused it exits 3, `reason` `MOVE_REFUSED`.
 - `plan.declined`: references to the image that cannot follow it, each with `why`. The
   image still moves, so each of these breaks unless changed by hand.
-- `plan.unfollowed`: every other line that names the old path, such as a full address or
-  a comment, each with `reason` and `why`. Upfly leaves them as written.
+- `plan.unfollowed`: every other line that still names the old path, such as a full
+  address, each with `reason` and `why`. Upfly leaves them as written; a path in a comment
+  it rewrites along with the references.
 
 Show the user those lists, and only with their yes run
 `npx upfly move <from> <to> --apply`. As with `optimize`, a go-ahead in the task is that

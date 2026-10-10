@@ -18,8 +18,9 @@ project, the full guide is `node_modules/upfly/AGENTS.md`.
 
 Run `npx upfly refs <image> --json`. It lists each reference (`file`, `line`, the path as
 written), every other line that names its path in `unfollowed`, each with `why` Upfly does
-not follow it, and gives a `verdict`. Read both lists before changing the image: Upfly
-leaves the lines in `unfollowed` as written.
+not follow it, and gives a `verdict`. Read both lists before changing the image: when
+Upfly converts or moves it, it rewrites the path in a `comment` line along with the
+references and leaves the other lines in `unfollowed` as written.
 
 - Any entry in `references` means the image is used.
 - An entry in `unfollowed`, such as a full address, may be a use too.
