@@ -2929,6 +2929,18 @@ The promise is that the run's changes are the only ones a reviewer has to look a
 | `packages/mcp` | `upfly-mcp` | the MCP server: one tool per command, each running the `upfly` installed with it. |
 | `packages/vscode` | `upfly-vscode` | the editor surface (not yet written). |
 
+**The Node.js versions.** Upfly runs on Node.js 22.0.0 or later. Below it sharp 0.35 cannot load
+in the 20 line before 20.10 (its ES module build imports JSON with `with { type: 'json' }`), and
+20.10 fails on file names holding an emoji; Node.js 20 is also past its end of life and untested in
+CI. `upfly-core` and `upfly-mcp` keep the narrower range their dependencies declare (@babel/parser 8:
+`^22.18.0 || >=24.11.0`), so npm warns no one they accept, and on a Node.js 22 below 22.18 an install
+warns and the command runs. `upfly` says `>=18` on purpose: npm installs the
+newest version whose `engines` admit the running Node.js before it falls back to the `latest` tag,
+and every 1.x and 2.x release of `upfly`, the Express middleware, says `>=18`, so a narrower range
+would hand a Node.js between them Upfly 2. The command's first file, `packages/cli/bin/upfly.cjs`,
+is CommonJS in syntax any Node.js reads and loads nothing until the version passes; below 22.0.0 it
+prints one line naming the version needed and exits 2.
+
 `packages/core/src` is grouped by pipeline stage. At the top, `index.ts` is the public entry,
 `internal.ts` the entry `upfly-core/internal`, `pipeline.ts` (`runPipeline`) and
 `optimize-project.ts` (`optimizeProject`) wire the stages, and

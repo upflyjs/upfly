@@ -134,7 +134,7 @@ user's.
 |---|---|
 | 0 | The command ran. What `audit` and `optimize` find does not change it. |
 | 1 | `check` found something that fails it. |
-| 2 | The command line or the config file is wrong. The message says what. |
+| 2 | The command line or the config file is wrong, or Node.js is older than Upfly needs. The message says what. |
 | 3 | Upfly refused to act, for safety. The message says why and what to do. |
 | 4 | Something failed that Upfly did not anticipate. |
 

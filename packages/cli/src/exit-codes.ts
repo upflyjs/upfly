@@ -4,7 +4,7 @@ export const EXIT_CODES = {
   OK: 0,
   /** `check` found findings above the configured thresholds. */
   FINDINGS: 1,
-  /** The command line or the configuration file was invalid. */
+  /** The command line or the configuration file was invalid, or Node.js is too old for Upfly. */
   USAGE: 2,
   /** Refused to act for safety, such as a dirty git tree or another tool's config file. */
   ABORTED: 3,

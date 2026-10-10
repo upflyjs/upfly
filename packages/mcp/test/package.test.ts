@@ -17,7 +17,6 @@ describe('upfly-mcp beside upfly and upfly-core', () => {
 
     expect(cli.version).toBe(core.version);
     expect(mcp.version).toBe(core.version);
-    expect(cli.engines).toEqual(core.engines);
     expect(mcp.engines).toEqual(core.engines);
   });
 

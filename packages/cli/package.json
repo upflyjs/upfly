@@ -23,10 +23,10 @@
   ],
   "type": "module",
   "engines": {
-    "node": "^22.18.0 || >=24.11.0"
+    "node": ">=18"
   },
   "bin": {
-    "upfly": "./dist/bin.js"
+    "upfly": "./bin/upfly.cjs"
   },
   "exports": {
     ".": {
@@ -35,6 +35,7 @@
     }
   },
   "files": [
+    "bin/",
     "dist/",
     "!dist/.tsbuildinfo",
     "!dist/**/*.map",
