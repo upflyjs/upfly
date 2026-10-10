@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { runPipeline } from 'upfly-core';
+import { type PipelineOutput, runPipeline } from 'upfly-core';
 import {
   type DiscoveryResult,
   PROJECT_MARKERS,
@@ -131,25 +131,29 @@ async function writeConfig(
   // The same decision every command makes when no folder is declared, kept whole for its reasons.
   const captured: { decision?: ServingRootDecision } = {};
   const progress = progressReporter(io, 'init', options.json);
-  const output = await runPipeline({
-    root,
-    servingRoots: (discovery, scanned) => {
-      const decision = decideServingRoots({
-        root: discovery.root,
-        directories: discovery.directories,
-        assets: discovery.assets,
-        sourceFiles: discovery.sourceFiles,
-        unscannedFiles: discovery.unscannedFiles,
-        references: scanned.references,
-      });
-      captured.decision = decision;
-      return decision.servingRoots;
-    },
-    publicDirs: (servingRoots) => servingRoots.dirs,
-    probeOptions: null,
-    onProgress: (event) => progress.update(event),
-  });
-  progress.clear();
+  let output: PipelineOutput;
+  try {
+    output = await runPipeline({
+      root,
+      servingRoots: (discovery, scanned) => {
+        const decision = decideServingRoots({
+          root: discovery.root,
+          directories: discovery.directories,
+          assets: discovery.assets,
+          sourceFiles: discovery.sourceFiles,
+          unscannedFiles: discovery.unscannedFiles,
+          references: scanned.references,
+        });
+        captured.decision = decision;
+        return decision.servingRoots;
+      },
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: null,
+      onProgress: (event) => progress.update(event),
+    });
+  } finally {
+    progress.clear();
+  }
   const decision = captured.decision;
   if (decision === undefined) throw new Error('the serving roots were never decided');
 

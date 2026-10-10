@@ -1,5 +1,5 @@
 import { WriteStream } from 'node:tty';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type Output,
   PLAIN,
@@ -188,6 +188,7 @@ describe('progressReporter', () => {
     const progress = progressReporter(io, 'optimize', false);
     progress.update({ stage: 'measuring', done: 120, total: 2910 });
     expect(err).toEqual(['\r\u001b[2Kmeasuring images: 120 of 2910']);
+    progress.clear();
   });
 
   it('shows every measuring count on a terminal, and writes twenty of a big run as JSON lines', () => {
@@ -209,6 +210,7 @@ describe('progressReporter', () => {
     expect(json.out.at(-1)).toBe(
       '{"type":"progress","command":"audit","stage":"measuring","done":1004,"total":1004}\n',
     );
+    shown.clear();
   });
 
   it('names a count of one in the singular', () => {
@@ -216,6 +218,7 @@ describe('progressReporter', () => {
     const progress = progressReporter(io, 'optimize', false);
     progress.update({ stage: 'measured', images: 1 });
     expect(err).toEqual(['\r\u001b[2Kmeasured: 1 image']);
+    progress.clear();
   });
 
   it('says nothing when stderr is a file or a pipe', () => {
@@ -224,6 +227,117 @@ describe('progressReporter', () => {
     progress.update({ stage: 'scanned', references: 12 });
     progress.clear();
     expect([...out, ...err]).toEqual([]);
+  });
+
+  it('never keeps the process alive: Node does not wait for its timer', () => {
+    const timers = () => process.getActiveResourcesInfo().filter((kind) => kind === 'Timeout');
+    const before = timers().length;
+    const { io } = capture(true);
+    const progress = progressReporter(io, 'audit', false);
+    progress.update({ stage: 'scanned', references: 12 });
+    expect(timers()).toHaveLength(before);
+    progress.clear();
+  });
+
+  describe('on a terminal, while the next stage works', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('moves one to three dots beside the line, changing it four times a second', () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'audit', false);
+      progress.update({ stage: 'discovered', images: 3, files: 9 });
+      vi.advanceTimersByTime(1000);
+      expect(err).toEqual([
+        '\r\u001b[2Kdiscovered: 3 images, 9 files',
+        '\r\u001b[2Kdiscovered: 3 images, 9 files .',
+        '\r\u001b[2Kdiscovered: 3 images, 9 files ..',
+        '\r\u001b[2Kdiscovered: 3 images, 9 files ...',
+        '\r\u001b[2Kdiscovered: 3 images, 9 files .',
+      ]);
+      progress.clear();
+    });
+
+    it("writes each stage's line as it reads without them, with no dot left over", () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'audit', false);
+      progress.update({ stage: 'scanned', references: 12 });
+      vi.advanceTimersByTime(600);
+      expect(err.at(-1)).toBe('\r\u001b[2Kscanned: 12 references ..');
+      progress.update({ stage: 'resolved', linked: 9 });
+      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked');
+      vi.advanceTimersByTime(249);
+      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked');
+      vi.advanceTimersByTime(1);
+      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked .');
+      progress.clear();
+    });
+
+    it('leaves the measuring count as it is while it moves, and moves the dots where it stops', () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'optimize', false);
+      for (let done = 1; done <= 30; done += 1) {
+        progress.update({ stage: 'measuring', done, total: 31 });
+        vi.advanceTimersByTime(200);
+      }
+      expect(err).toHaveLength(30);
+      expect(err.every((text) => !text.endsWith('.'))).toBe(true);
+      vi.advanceTimersByTime(50);
+      expect(err.at(-1)).toBe('\r\u001b[2Kmeasuring images: 30 of 31 .');
+      progress.update({ stage: 'measuring', done: 31, total: 31 });
+      expect(err.at(-1)).toBe('\r\u001b[2Kmeasuring images: 31 of 31');
+      progress.clear();
+    });
+
+    it('moves the dots alone before the first line, while the project is walked', () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'check', false);
+      vi.advanceTimersByTime(750);
+      progress.update({ stage: 'discovered', images: 3, files: 9 });
+      expect(err).toEqual([
+        '\r\u001b[2K.',
+        '\r\u001b[2K..',
+        '\r\u001b[2K...',
+        '\r\u001b[2Kdiscovered: 3 images, 9 files',
+      ]);
+      progress.clear();
+    });
+
+    it('stops the dots when it clears the line, so nothing is written after', () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'audit', false);
+      progress.update({ stage: 'audited', findings: 2 });
+      vi.advanceTimersByTime(300);
+      progress.clear();
+      vi.advanceTimersByTime(5000);
+      expect(err).toEqual([
+        '\r\u001b[2Kaudited: 2 findings',
+        '\r\u001b[2Kaudited: 2 findings .',
+        '\r\u001b[2K',
+      ]);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('starts no timer and writes no dot when stderr is a file or a pipe, or under --json', () => {
+      const piped = capture(false);
+      const json = capture(true);
+      const quiet = progressReporter(piped.io, 'audit', false);
+      const lines = progressReporter(json.io, 'audit', true);
+      quiet.update({ stage: 'scanned', references: 12 });
+      lines.update({ stage: 'scanned', references: 12 });
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(5000);
+      quiet.clear();
+      lines.clear();
+      expect([...piped.out, ...piped.err, ...json.err]).toEqual([]);
+      expect(json.out).toEqual([
+        '{"type":"progress","command":"audit","stage":"scanned","references":12}\n',
+      ]);
+    });
   });
 });
 

@@ -60,25 +60,30 @@ export async function runAudit(options: AuditOptions, io: Io): Promise<ExitCode>
   const extraIgnores = [...(settings.exclude ?? []), ...options.exclude];
 
   const progress = progressReporter(io, 'audit', options.json);
-  const output = await runPipeline({
-    root,
-    servingRoots: servingRootsFor(
-      publicDirs === null ? undefined : { dirs: publicDirs, declared: true },
-    ),
-    publicDirs: (servingRoots) => servingRoots.dirs,
-    probeOptions: probeOptionsFor(options, format),
-    encodeOnly: (built) => convertibleImages({ ...built, format }),
-    extraIgnores,
-    onProgress: (event) => progress.update(event),
-  });
-  const savings = options.probe
-    ? await plannedSavings(output, {
-        format,
-        publicPolicy: policyFor({ policy: null }, settings),
-        extraIgnores,
-      })
-    : null;
-  progress.clear();
+  let output: PipelineOutput;
+  let savings: Savings | null;
+  try {
+    output = await runPipeline({
+      root,
+      servingRoots: servingRootsFor(
+        publicDirs === null ? undefined : { dirs: publicDirs, declared: true },
+      ),
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: probeOptionsFor(options, format),
+      encodeOnly: (built) => convertibleImages({ ...built, format }),
+      extraIgnores,
+      onProgress: (event) => progress.update(event),
+    });
+    savings = options.probe
+      ? await plannedSavings(output, {
+          format,
+          publicPolicy: policyFor({ policy: null }, settings),
+          extraIgnores,
+        })
+      : null;
+  } finally {
+    progress.clear();
+  }
 
   const report = buildReport({
     graph: output.graph,

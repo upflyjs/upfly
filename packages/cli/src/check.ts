@@ -96,17 +96,21 @@ export async function runCheck(options: CheckOptions, io: Io): Promise<ExitCode>
 
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
   const progress = progressReporter(io, 'check', options.json);
-  const output = await runPipeline({
-    root,
-    servingRoots: servingRootsFor(
-      publicDirs === null ? undefined : { dirs: publicDirs, declared: true },
-    ),
-    publicDirs: (servingRoots) => servingRoots.dirs,
-    probeOptions: null,
-    extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
-    onProgress: (event) => progress.update(event),
-  });
-  progress.clear();
+  let output: PipelineOutput;
+  try {
+    output = await runPipeline({
+      root,
+      servingRoots: servingRootsFor(
+        publicDirs === null ? undefined : { dirs: publicDirs, declared: true },
+      ),
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: null,
+      extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
+      onProgress: (event) => progress.update(event),
+    });
+  } finally {
+    progress.clear();
+  }
 
   const unknown = output.audit.findings.find(
     (finding): finding is ServingRootUnknownFinding => finding.kind === 'serving-root-unknown',

@@ -181,16 +181,44 @@ export function stopWith(
 }
 
 /**
+ * How long the line on a terminal stands unchanged before the dots beside it move, and then
+ * between moves. Well under a second, so the line still changes once a second while the work
+ * holds the thread for most of one.
+ */
+const DOTS_MS = 250;
+
+/**
  * Reports progress: a JSON line under `--json`, one overwritten line on a terminal, and
  * nothing when stderr is a file or a pipe. The terminal counts every image measured; the
  * JSON lines keep the counts `reportsMeasuring` names, twenty for a big project.
+ *
+ * On a terminal, a line left unchanged for a quarter of a second gains one dot, then two,
+ * then three, then one again, until the next line replaces it, so a stage that takes seconds
+ * never looks stuck. Each line is written as it reads, with no dot; a count that keeps moving
+ * never gets one. Their timer never keeps the process alive. A command calls `clear` however
+ * its work ends, a failure included, so the dots stop and nothing is printed after them.
  */
 export function progressReporter(
   io: Io,
   command: CommandName,
   json: boolean,
 ): { update(event: ProgressEvent): void; clear(): void } {
+  const terminal = !json && io.stderr.isTTY === true;
+  let line = '';
+  let dots = 0;
   let shown = false;
+  const draw = (text: string): void => {
+    io.stderr.write(`\r\u001b[2K${text}`);
+    shown = true;
+  };
+  // Started before the first line, which comes only once the project is walked, and that can
+  // take seconds. Unreferenced, so a run that never clears the line still ends when its work does.
+  let timer: NodeJS.Timeout | null = terminal
+    ? setInterval(() => {
+        dots = (dots % 3) + 1;
+        draw(`${line}${line === '' ? '' : ' '}${'.'.repeat(dots)}`);
+      }, DOTS_MS).unref()
+    : null;
   return {
     update(event) {
       if (json) {
@@ -199,11 +227,15 @@ export function progressReporter(
         emit(io, { type: 'progress', command, ...event });
         return;
       }
-      if (io.stderr.isTTY !== true) return;
-      io.stderr.write(`\r\u001b[2K${describeProgress(event)}`);
-      shown = true;
+      if (!terminal) return;
+      line = describeProgress(event);
+      dots = 0;
+      timer?.refresh();
+      draw(line);
     },
     clear() {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
       if (shown) io.stderr.write('\r\u001b[2K');
       shown = false;
     },

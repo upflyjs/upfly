@@ -125,17 +125,21 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
 
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
   const progress = progressReporter(io, 'refs', options.json);
-  const result = await optimizeProject({
-    root,
-    ...(publicDirs === null ? {} : { declared: { dirs: publicDirs, declared: true } }),
-    format,
-    publicPolicy: policyFor({ policy: null }, settings),
-    apply: false,
-    extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
-    only: { paths: [path] },
-    onProgress: (event) => progress.update(event),
-  });
-  progress.clear();
+  let result: OptimizeProjectResult;
+  try {
+    result = await optimizeProject({
+      root,
+      ...(publicDirs === null ? {} : { declared: { dirs: publicDirs, declared: true } }),
+      format,
+      publicPolicy: policyFor({ policy: null }, settings),
+      apply: false,
+      extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
+      only: { paths: [path] },
+      onProgress: (event) => progress.update(event),
+    });
+  } finally {
+    progress.clear();
+  }
 
   const node = result.pipeline.graph.assets.find((candidate) => candidate.asset.relative === path);
   if (node === undefined) {
