@@ -1,6 +1,8 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { MEGABYTE, heapHeldBy, heapInUse, megabyteOfText } from '../../test/heap-held.js';
 import { compareStrings } from '../paths.js';
+import type { NotText } from '../read-text.js';
 import { findSurvivingPaths, foldCase, respellAs, spellingsFor } from './old-path-search.js';
 
 /**
@@ -688,20 +690,143 @@ describe('searching every file once, with exactly the answers of one search per 
   });
 });
 
-describe('what a search holds in memory', () => {
-  it('neither searches a file that is not text nor counts it a gap', async () => {
-    const result = await findSurvivingPaths({
-      moves: [{ from: 'public/img/hero.png', to: 'public/img/hero.webp' }],
-      files: ['lib/native.so', 'notes.txt'],
-      readFile: async (relative) => (relative === 'lib/native.so' ? null : 'see /img/hero.png\n'),
-      servingDirs: SERVING,
+/** A file that is not text, handed over `size` bytes at a time. */
+function notText(bytes: Buffer, size = bytes.length): NotText {
+  return {
+    chunks: async function* () {
+      for (let at = 0; at < bytes.length; at += size) yield bytes.subarray(at, at + size);
+    },
+  };
+}
+
+/** One search for `public/img/hero.png`, moving to `hero.webp`, over these files. */
+function searchFor(files: Record<string, string | NotText>, from = 'public/img/hero.png') {
+  return findSurvivingPaths({
+    moves: [{ from, to: from.replace(/\.png$/, '.webp') }],
+    files: Object.keys(files),
+    readFile: async (relative) => files[relative] ?? '',
+    servingDirs: SERVING,
+  });
+}
+
+describe('a file that is not text, searched as its bytes', () => {
+  it('finds a path among the bytes, and counts the file among those searched', async () => {
+    const result = await searchFor({
+      'lib/native.so': notText(Buffer.from('\x7fELF\x02\x01\0\0/img/hero.png\0\x10', 'latin1')),
+      'notes.txt': 'see /img/hero.png\n',
     });
 
-    expect(result.survivors.map((survivor) => survivor.file)).toEqual(['notes.txt']);
-    expect(result.filesSearched).toBe(1);
+    expect(
+      result.survivors.map(({ file, line, offset, spelling, text }) => [
+        file,
+        line,
+        offset,
+        spelling,
+        text,
+      ]),
+    ).toEqual([
+      ['lib/native.so', 1, 8, '/img/hero.png', '/img/hero.png'],
+      ['notes.txt', 1, 4, '/img/hero.png', 'see /img/hero.png'],
+    ]);
+    expect(result.filesSearched).toBe(2);
     expect(result.filesNotText).toBe(1);
     expect(result.unsearchable).toEqual([]);
-    expect(result.lines.join('\n')).toContain('1 file not read because it is not text');
+    expect(result.lines.join('\n')).toContain(
+      '1 file not text, such as a database or a library, searched as bytes',
+    );
+  });
+
+  it('finds each path once, at its offset and line, across the edges of the windows and however the bytes are handed over', async () => {
+    // Three megabytes and a little: a path across the end of the first megabyte, one across
+    // the end of the second, one just before it, with line breaks between them.
+    const bytes = Buffer.alloc(3 * MEGABYTE + 5, 0x20);
+    bytes[0] = 0;
+    const place = (at: number, text: string) => bytes.write(text, at, 'latin1');
+    place(100, '\n\n');
+    place(MEGABYTE - 6, '"/img/hero.png"');
+    place(MEGABYTE + 500, '\n');
+    place(2 * MEGABYTE - 40, '/IMG/HERO.PNG');
+    place(2 * MEGABYTE - 3, '"/img/hero.png"');
+    place(3 * MEGABYTE - 1, '\n');
+    const expected = [
+      [3, MEGABYTE - 5],
+      [4, 2 * MEGABYTE - 40],
+      [4, 2 * MEGABYTE - 2],
+    ];
+
+    for (const size of [MEGABYTE, 100_003, bytes.length]) {
+      const result = await searchFor({ 'cache.bin': notText(bytes, size) });
+      expect(result.survivors.map(({ line, offset }) => [line, offset])).toEqual(expected);
+    }
+  });
+
+  it('finds a path written percent-encoded, in other letter case, and a name beyond ASCII as its bytes, in capitals or escaped', async () => {
+    const among = (text: string) =>
+      notText(Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(text), Buffer.from([0])]));
+
+    const encoded = await searchFor(
+      { 'pages.db': among('<img src="/img/our%20hero.png">') },
+      'public/img/our hero.png',
+    );
+    const capitals = await searchFor({ 'pages.db': among('<img src="/IMG/Hero.PNG">') });
+    const beyond = await searchFor(
+      {
+        'raw.db': among('/img/café.png'),
+        'capitals.db': among('/IMG/CAFÉ.PNG'),
+        'escaped.db': among('/img/caf%C3%A9.png'),
+      },
+      'public/img/café.png',
+    );
+
+    expect(encoded.survivors.map((survivor) => survivor.spelling)).toEqual(['/img/our%20hero.png']);
+    expect(capitals.survivors.map((survivor) => survivor.spelling)).toEqual(['/IMG/Hero.PNG']);
+    expect(beyond.survivors.map(({ file, spelling }) => [file, spelling])).toEqual([
+      ['capitals.db', '/IMG/CAFÉ.PNG'],
+      ['escaped.db', '/img/caf%C3%A9.png'],
+      ['raw.db', '/img/café.png'],
+    ]);
+  });
+
+  it('lists a file whose bytes stop being readable part way as a gap, and keeps what it found before', async () => {
+    const first = Buffer.alloc(2 * MEGABYTE);
+    first.write('"/img/hero.png"', 1_000, 'latin1');
+    const failing: NotText = {
+      chunks: async function* () {
+        yield first;
+        throw new Error('EIO: i/o error, read');
+      },
+    };
+
+    const result = await searchFor({ 'data.db': failing });
+
+    expect(result.survivors.map((survivor) => survivor.file)).toEqual(['data.db']);
+    expect(result.unsearchable).toEqual([{ file: 'data.db', reason: 'EIO: i/o error, read' }]);
+    expect(result.filesSearched).toBe(0);
+  });
+});
+
+describe('what a search holds in memory', () => {
+  it('holds a few megabytes of a file that is not text while it searches it, whatever its size', async () => {
+    // Forty-eight megabytes of random bytes, as a compiled library reads, the path in the
+    // thirtieth. Each chunk measures what the search still holds when it asks for the next:
+    // the heap, and the bytes outside it, where a chunk kept would be.
+    const held: number[] = [];
+    const library: NotText = {
+      chunks: async function* () {
+        for (let index = 0; index < 48; index++) {
+          held.push(heapInUse() + process.memoryUsage().arrayBuffers);
+          const chunk = randomBytes(MEGABYTE);
+          if (index === 30) chunk.write('"/img/hero.png"', 1_000, 'latin1');
+          yield chunk;
+        }
+      },
+    };
+
+    const result = await searchFor({ 'torch_cpu.dll': library });
+
+    expect(result.survivors.map((survivor) => survivor.offset)).toEqual([30 * MEGABYTE + 1_001]);
+    // Read whole as text, the file alone was 96 MB of heap.
+    expect(Math.max(...held) - (held[0] ?? 0)).toBeLessThan(8 * MEGABYTE);
   });
 
   it('holds the text of one file at a time, and keeps none in what it finds', async () => {

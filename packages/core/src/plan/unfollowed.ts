@@ -21,17 +21,20 @@ import { TEMPLATE_HOLES, type TemplateHole } from '../adapters/reference-path.js
 import { withheldReferences } from '../audit/resolution-health.js';
 import type { Graph } from '../graph/graph.js';
 import { compareStrings, extensionOf, relativePath } from '../paths.js';
-import { ownCopy } from '../read-text.js';
+import { type NotText, ownCopy, textOfBytes } from '../read-text.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import { isLinked, linkedPaths } from '../resolve/reference.js';
 import { type ServingRoots, resolveReferences } from '../resolve/resolve.js';
 import { hashText } from '../scan/text-hash.js';
 import type { ExcludedRoot, RawReference, Reference, UnscannedFile } from '../types.js';
 import {
+  type FileWindow,
   type PathOccurrence,
   type Unsearchable,
+  bytesAround,
   findPathOccurrences,
   foldCase,
+  isControl,
   lineIndex,
   lineTextAt,
   spellingsFor,
@@ -89,10 +92,10 @@ export interface UnfollowedInput {
   /** The files in `files` that the run's ignore rules excluded. */
   readonly excludedFiles: readonly string[];
   /**
-   * Reads one file by its POSIX-relative path, null for a file that is not text, which is not
-   * searched (`readTextUnlessBinary`). Rejecting is a reported `Unsearchable`.
+   * Reads one file by its POSIX-relative path: its text, or the bytes of a file that is not
+   * text (`readForSearch`), searched as they are. Rejecting is a reported `Unsearchable`.
    */
-  readonly readFile: (relative: string) => Promise<string | null>;
+  readonly readFile: (relative: string) => Promise<string | NotText>;
   readonly servingRoots: ServingRoots;
   /** The aliases the resolver used, so a path written through one is read the same way. */
   readonly aliases: AliasMap;
@@ -153,6 +156,7 @@ const UNPLACED_ROOT =
 const UNKNOWN_ALIAS = 'written through an alias that no configuration Upfly reads defines';
 const IN_SHOWN_TEXT = 'in the text of a page, which shows the path rather than loads it';
 const NOT_READ_HERE = 'in a value Upfly takes no path from, such as HTML written inside a string';
+const NOT_TEXT = 'in a file that is not text, which Upfly does not read';
 const FOLDER_ITSELF =
   'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide';
 const INSIDE_THE_FOLDER =
@@ -237,15 +241,16 @@ export async function findUnfollowedLines(input: UnfollowedInput): Promise<Unfol
       readFile: input.readFile,
       servingDirs: input.servingRoots.dirs,
     },
-    (file, text, occurrences) => {
+    (file, window, occurrences) => {
       placesIn(
-        { file, text, occurrences },
+        { file, window, occurrences },
         references.get(file) ?? [],
         spellings,
         context,
         candidates,
       );
-      hashes.set(file, hashText(text));
+      // Only a comment's path is rewritten, and bytes hold no comment Upfly reads.
+      if (!window.bytes) hashes.set(file, hashText(window.text));
     },
   );
   const { lines, comments } = chosen(candidates, context, hashes);
@@ -271,14 +276,14 @@ function imagesBySpelling(input: UnfollowedInput): Map<string, string[]> {
 }
 
 /**
- * Adds the places in one file that may list each line, by image, file and line, in the order
- * they sit. A line with a reference to the image is one of its references, and a place that
- * settles a line stops the search of the rest.
+ * Adds the places in one file, or in one window of a file that is not text, that may list each
+ * line, by image, file and line, in the order they sit. A line with a reference to the image is
+ * one of its references, and a place that settles a line stops the search of the rest.
  */
 function placesIn(
   read: {
     readonly file: string;
-    readonly text: string;
+    readonly window: FileWindow;
     readonly occurrences: readonly PathOccurrence[];
   },
   inFile: readonly Reference[],
@@ -286,20 +291,39 @@ function placesIn(
   context: Context,
   candidates: Map<string, Candidate[]>,
 ): void {
-  const { file, text } = read;
-  const referenced = referencedLines(inFile, context.root, lineIndex(text));
-  const regions = lazily(() => regionsOf(file, text));
+  const { file, window } = read;
+  const { references, regions } = readOf(file, window, inFile);
+  const referenced = referencedLines(references, context.root, lineIndex(window.text));
 
   for (const { image, occurrence } of longestPerImage(read.occurrences, spellings)) {
     if (referenced.has(`${image}\n${occurrence.line}`)) continue;
     const key = `${image}\n${file}\n${occurrence.line}`;
     const held = candidates.get(key) ?? [];
     if (held.some((candidate) => candidate.raw === undefined)) continue;
-    const verdict = placeOf(image, occurrence, text, inFile, regions, context);
+    const verdict = placeOf(image, occurrence, window, references, regions, context);
     if (verdict === 'covered' || verdict === 'elsewhere') continue;
     held.push(candidateFor(image, file, occurrence, verdict));
     candidates.set(key, held);
   }
+}
+
+/**
+ * What the scan and the parsers say of a window: the references in it, and what holds each
+ * offset. Neither applies to bytes: the scan's references sit at offsets in a file's text, and
+ * no parser reads a file that is not text.
+ */
+function readOf(
+  file: string,
+  window: FileWindow,
+  inFile: readonly Reference[],
+): { readonly references: readonly Reference[]; readonly regions: (() => RegionAt) | null } {
+  if (window.bytes) return { references: [], regions: null };
+  return { references: inFile, regions: lazily(() => regionsOf(file, window.text)) };
+}
+
+/** The line around a place, as a list shows it; among bytes, the run of text around it. */
+function lineAround(window: FileWindow, start: number, end: number): string {
+  return window.bytes ? bytesAround(window.text, start, end) : lineTextAt(window.text, start);
 }
 
 /** One place that may list its line, from the verdict on it. */
@@ -406,20 +430,30 @@ function referencedLines(
   return lines;
 }
 
-/** What one place the search found means for one image. */
+/**
+ * What one place the search found means for one image.
+ *
+ * Among a file's bytes, what sits next to a path is other data rather than more of its text: a
+ * compiled module puts the next value's type letter right after a string, where text would
+ * have a quote. So there a name that seems to carry on past the match, or a folder that seems
+ * to begin before it, is no sign of another file, and the path is resolved as it is written.
+ */
 function placeOf(
   image: string,
   occurrence: PathOccurrence,
-  text: string,
+  window: FileWindow,
   references: readonly Reference[],
-  regions: () => RegionAt,
+  regions: (() => RegionAt) | null,
   context: Context,
 ): Verdict {
-  const start = occurrence.offset;
+  const { text, bytes } = window;
+  const start = occurrence.offset - window.offset;
   const end = start + occurrence.spelling.length;
-  const token = tokenAround(text, start, end);
-  const written = ownCopy(shown(text.slice(token.start, token.end)));
-  const reference = innermost(references, start);
+  const token = tokenAround(text, start, end, bytes);
+  const asWritten = (held: string) => ownCopy(bytes ? textOfBytes(held) : held);
+  // Among bytes the name ends where the match does, so the path is shown ending there too.
+  const written = ownCopy(shown(asWritten(text.slice(token.start, bytes ? end : token.end))));
+  const reference = innermost(references, occurrence.offset);
   if (reference !== undefined) {
     const read = readReference(
       reference,
@@ -434,20 +468,21 @@ function placeOf(
   // A name that carries on past the match, or a folder name the match begins inside, is
   // another file's: `logo.png.webp`, `old-img/logo.png`.
   if (
-    !opensSegment(text, start, token.start, occurrence.searched) ||
-    namesCarryOn(text, end, token.end)
+    !bytes &&
+    (!opensSegment(text, start, token.start, occurrence.searched) ||
+      namesCarryOn(text, end, token.end))
   ) {
     return 'elsewhere';
   }
   const address = addressIn(text.slice(token.start, end));
   if (address !== null) {
-    return addressOwners(address.path, context.addresses)?.has(image) === true
+    return addressOwners(asWritten(address.path), context.addresses)?.has(image) === true
       ? {
           reason: 'full-address',
           why: FULL_ADDRESS,
           loads: true,
           text: written,
-          host: ownCopy(address.host),
+          host: asWritten(address.host),
         }
       : 'elsewhere';
   }
@@ -461,9 +496,9 @@ function placeOf(
     // root, as prose and data often write one.
     resolve: {
       file: join(context.root, occurrence.file),
-      start: from,
-      end,
-      rawPath: ownCopy(text.slice(from, end)),
+      start: window.offset + from,
+      end: window.offset + end,
+      rawPath: asWritten(text.slice(from, end)),
       kind: 'attr',
       shape: 'html.attribute.other',
       ceiling: 'high',
@@ -561,16 +596,20 @@ type RegionAt = (offset: number) => MarkdownRegion | null;
  * whether a page still loads the image through it. Only a place a parser read and found to
  * load nothing does not: a comment, a code example, or text a page shows. Everything else
  * counts as loading, a value no reader took a path from among them.
+ *
+ * @param regions what the file holds where, or null for a file that is not text, which no
+ * parser reads
  */
 function whereItSits(
   file: string,
   offset: number,
-  regions: () => RegionAt,
+  regions: (() => RegionAt) | null,
   context: Pick<Context, 'excluded' | 'unscanned'>,
 ): Place {
   if (context.excluded.has(file)) return { reason: 'other', why: EXCLUDED_FILE, loads: true };
   const unscanned = context.unscanned.get(file);
   if (unscanned !== undefined) return { ...unreadFile(unscanned), loads: true };
+  if (regions === null) return { reason: 'other', why: NOT_TEXT, loads: true };
   const region = regions()(offset);
   switch (region) {
     case 'comment':
@@ -757,12 +796,26 @@ function decoded(path: string): string {
  */
 const PATH_END = /[\s"'`()<>[\],;|^=*!]/;
 
-/** The run of path characters around a match. */
-function tokenAround(text: string, start: number, end: number): { start: number; end: number } {
+/**
+ * The same among bytes held one to a character, less U+00A0, which there is the second byte of
+ * a UTF-8 character such as `à` rather than a space. A control character ends a path there too.
+ */
+const PATH_END_IN_BYTES = /[ "'`()<>[\],;|^=*!]/;
+
+/** The run of path characters around a match, in a text or among bytes. */
+function tokenAround(
+  text: string,
+  start: number,
+  end: number,
+  bytes: boolean,
+): { start: number; end: number } {
+  const ends = bytes
+    ? (at: number) => isControl(text, at) || PATH_END_IN_BYTES.test(text.charAt(at))
+    : (at: number) => PATH_END.test(text[at] ?? ' ');
   let from = start;
-  while (from > 0 && !PATH_END.test(text[from - 1] ?? ' ')) from -= 1;
+  while (from > 0 && !ends(from - 1)) from -= 1;
   let to = end;
-  while (to < text.length && !PATH_END.test(text[to] ?? ' ')) to += 1;
+  while (to < text.length && !ends(to)) to += 1;
   return { start: from, end: to };
 }
 
@@ -835,8 +888,8 @@ export interface FolderLinesInput {
   readonly files: readonly string[];
   /** The files in `files` that the run's ignore rules excluded. */
   readonly excludedFiles: readonly string[];
-  /** Reads one file, as `UnfollowedInput.readFile`: null for a file that is not text. */
-  readonly readFile: (relative: string) => Promise<string | null>;
+  /** Reads one file, as `UnfollowedInput.readFile`: its text, or the bytes of one that is not. */
+  readonly readFile: (relative: string) => Promise<string | NotText>;
   readonly servingRoots: ServingRoots;
   /** `file:line` for every line the move already lists. */
   readonly listed: ReadonlySet<string>;
@@ -891,14 +944,16 @@ export async function linesNamingFolders(input: FolderLinesInput): Promise<{
       readFile: input.readFile,
       servingDirs: input.servingRoots.dirs,
     },
-    (file, text, occurrences) => {
-      const lineAt = lineIndex(text);
-      const edited = new Set((input.rewritten.get(file) ?? []).map(lineAt));
-      const inFile = references.get(file) ?? [];
-      const regions = lazily(() => regionsOf(file, text));
+    (file, window, occurrences) => {
+      const { text } = window;
+      const read = readOf(file, window, references.get(file) ?? []);
+      // The move's edits sit at offsets in a file's text, which bytes do not have.
+      const edits = window.bytes ? [] : (input.rewritten.get(file) ?? []);
+      const edited = new Set(edits.map(lineIndex(text)));
       for (const place of occurrences) {
-        const end = place.offset + place.spelling.length;
-        if (!wholeSegment(text, place.offset, end, place.searched)) continue;
+        const start = place.offset - window.offset;
+        const end = start + place.spelling.length;
+        if (!wholeSegment(text, start, end, place.searched)) continue;
         const at = `${file}:${place.line}`;
         // The move already lists the line, or rewrites a reference on it.
         if (input.listed.has(at) || edited.has(place.line) || seen.has(at)) continue;
@@ -909,14 +964,14 @@ export async function linesNamingFolders(input: FolderLinesInput): Promise<{
         seen.add(at);
         // Inside a reference Upfly read, the line counts as loading, given as null.
         const sits =
-          innermost(inFile, place.offset) === undefined
-            ? whereItSits(file, place.offset, regions, context)
+          innermost(read.references, place.offset) === undefined
+            ? whereItSits(file, start, read.regions, context)
             : null;
         lines.push({
           image: folder[0],
           file,
           line: place.line,
-          text: shown(lineTextAt(text, place.offset)),
+          text: shown(lineAround(window, start, end)),
           reason: 'folder',
           ...folderVerdict(namesInside(text, end), sits),
         });

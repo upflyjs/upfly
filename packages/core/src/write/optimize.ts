@@ -8,11 +8,12 @@
  * planner, so that each rule has one implementation.
  */
 
+import { createHash } from 'node:crypto';
 import type { AuditResult } from '../audit/audit.js';
 import type { Mention } from '../audit/sweep.js';
 import { UpflyError } from '../errors.js';
 import type { Graph } from '../graph/graph.js';
-import { isBinaryExtension } from '../graph/unscanned.js';
+import { holdsNoPathAPageLoads } from '../graph/unscanned.js';
 import { mapInOrder } from '../map-in-order.js';
 import { compareStrings, extensionOf } from '../paths.js';
 import type { ProjectBuilds } from '../plan/builds.js';
@@ -49,9 +50,10 @@ import {
   type EncodeFormat,
   type ImageProbe,
 } from '../probe/probe.js';
+import type { NotText } from '../read-text.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import type { ServingRoots } from '../resolve/resolve.js';
-import { hashText } from '../scan/text-hash.js';
+import { TEXT_HASH_ALGORITHM, hashText } from '../scan/text-hash.js';
 import { applyEdits } from './edits.js';
 import { acquireLock } from './lock.js';
 import { type Declined, type Manifest, UPFLY_DIRECTORY, pathsTouched } from './manifest.js';
@@ -239,15 +241,19 @@ async function mentionsThatWouldSurvive(
 
   const found = await findSurvivingPaths({
     moves: deleting.map((conversion) => ({ from: conversion.asset, to: conversion.target })),
-    // A binary format holds no text a path could be written in, and reading a project's
-    // PDFs and videos as text would take most of the run. A file of any other name whose
-    // first bytes say it is not text, a compiled library or a database, is not read either:
-    // as text it can take more memory than the run has.
-    files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
+    // A video, a font or a PDF holds no path a page loads, and reading a project's media
+    // would take most of the run. Any other file whose first bytes say it is not text, a
+    // database or a compiled library, is searched as its bytes a chunk at a time: a page can
+    // still load the image through a path written there.
+    files: scope.files.filter((file) => !holdsNoPathAPageLoads(extensionOf(file))),
     readFile: async (relative) => {
-      const text = await input.store.readTextUnlessBinary(relative);
-      if (text !== null) read?.set(relative, hashText(text));
-      return text;
+      const content = await input.store.readForSearch(relative);
+      if (read === undefined) return content;
+      if (typeof content === 'string') {
+        read.set(relative, hashText(content));
+        return content;
+      }
+      return hashedAsRead(content, (hash) => read.set(relative, hash));
     },
     servingDirs: input.servingRoots.dirs,
   });
@@ -351,6 +357,23 @@ function commentsMoved(plan: OptimizationPlan, blocked: Blocked): OptimizationPl
 }
 
 /**
+ * The same bytes, their hash recorded once the search has read them all, so a file that is not
+ * text is compared before and after the encodes as a text is, without a second read.
+ */
+function hashedAsRead(file: NotText, record: (hash: string) => void): NotText {
+  return {
+    chunks: async function* () {
+      const hash = createHash(TEXT_HASH_ALGORITHM);
+      for await (const chunk of file.chunks()) {
+        hash.update(chunk);
+        yield chunk;
+      }
+      record(hash.digest('hex'));
+    },
+  };
+}
+
+/**
  * What kind of place each surviving occurrence is, and which of them sit inside a comment
  * naming the asset, from the same reading that lists the lines a move cannot follow.
  *
@@ -386,7 +409,7 @@ async function placesOf(
     images: [...named].sort(compareStrings),
     files,
     excludedFiles: (scope.excludedFiles ?? []).filter((file) => files.includes(file)),
-    readFile: (relative) => input.store.readTextUnlessBinary(relative),
+    readFile: (relative) => input.store.readForSearch(relative),
     servingRoots: input.servingRoots,
     aliases: input.aliases ?? { rules: [], skipped: [] },
   });

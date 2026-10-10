@@ -6,7 +6,7 @@
 
 import { join } from 'node:path';
 import { listExcludedFiles } from './discover/discover.js';
-import { isBinaryExtension } from './graph/unscanned.js';
+import { holdsNoPathAPageLoads } from './graph/unscanned.js';
 import { extensionOf } from './paths.js';
 import type { PipelineOutput } from './pipeline.js';
 import type { Unsearchable } from './plan/old-path-search.js';
@@ -17,7 +17,7 @@ import {
   findUnfollowedLines,
   linesNamingFolders,
 } from './plan/unfollowed.js';
-import { readTextUnlessBinary } from './read-text.js';
+import { readForSearch } from './read-text.js';
 import type { DiscoveryResult } from './types.js';
 
 /** What a text search reads, from one walk. */
@@ -80,9 +80,9 @@ export async function folderLines(
   return await linesNamingFolders({
     graph: pipeline.graph,
     folders,
-    files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
+    files: scope.files.filter((file) => !holdsNoPathAPageLoads(extensionOf(file))),
     excludedFiles: scope.excludedFiles,
-    readFile: (relative) => readTextUnlessBinary(join(root, relative)),
+    readFile: (relative) => readForSearch(join(root, relative)),
     servingRoots: pipeline.servingRoots,
     listed: covered.listed,
     rewritten: covered.rewritten,
@@ -91,9 +91,10 @@ export async function folderLines(
 
 /**
  * Every line of the project that names one of the images and is not one of its references,
- * with why Upfly does not follow it. The search reads the files the run excluded too, and no
- * file that is not text, by its extension or by its first bytes, which holds no text a path
- * could be written in.
+ * with why Upfly does not follow it. The search reads the files the run excluded too, and a
+ * file that is not text as its bytes, as a database holds a page's paths; it leaves out only
+ * the formats that hold no path a page loads, such as a video or a font
+ * (`holdsNoPathAPageLoads`).
  *
  * @param pipeline the project as `runPipeline` read it
  * @param images the images, POSIX-relative to the project
@@ -108,9 +109,9 @@ export async function unfollowedLines(
   const result = await findUnfollowedLines({
     graph: pipeline.graph,
     images,
-    files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
+    files: scope.files.filter((file) => !holdsNoPathAPageLoads(extensionOf(file))),
     excludedFiles: scope.excludedFiles,
-    readFile: (relative) => readTextUnlessBinary(join(root, relative)),
+    readFile: (relative) => readForSearch(join(root, relative)),
     servingRoots: pipeline.servingRoots,
     aliases: pipeline.aliases,
     excludedRoots: pipeline.discovery.excludedRoots,

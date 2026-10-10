@@ -9,6 +9,7 @@
  */
 
 import { UpflyError } from '../errors.js';
+import type { NotText } from '../read-text.js';
 import { hashText } from '../scan/text-hash.js';
 import type { Edit } from '../types.js';
 import { applyEdits, invertEdits, validateEdits } from './edits.js';
@@ -56,10 +57,11 @@ export interface FileStore {
   /** Decoded as UTF-8, the encoding `writeText` writes. */
   readText(path: string): Promise<string>;
   /**
-   * As `readText`, or null when the file is not text (`readTextUnlessBinary`): how a search of
-   * every file reads one, so a library or an archive is never held in memory as text.
+   * As `readText`, or, for a file that is not text, its bytes to read a chunk at a time
+   * (`readForSearch`): how a search of every file reads one, so a library or a database is never
+   * held in memory whole and a path written in it is still found.
    */
-  readTextUnlessBinary(path: string): Promise<string | null>;
+  readForSearch(path: string): Promise<string | NotText>;
   writeText(path: string, text: string): Promise<void>;
   /**
    * Creates a file only if it does not exist, atomically, and returns `false` if it did.

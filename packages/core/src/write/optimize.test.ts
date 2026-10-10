@@ -98,10 +98,16 @@ function harness(initial: Record<string, string>) {
       if (text === undefined) throw new Error(`no such file: ${path}`);
       return text;
     },
-    // The disk's rule, on the text this store holds: a NUL in the first 8,000 characters.
-    async readTextUnlessBinary(path) {
+    // The disk's rule, on the text this store holds: a NUL in the first 8,000 characters
+    // hands over its bytes, as they would be on disk.
+    async readForSearch(path) {
       const text = await store.readText(path);
-      return text.slice(0, 8000).includes('\0') ? null : text;
+      if (!text.slice(0, 8000).includes('\0')) return text;
+      return {
+        chunks: async function* () {
+          yield Buffer.from(text);
+        },
+      };
     },
     async writeText(path, text) {
       tree.set(path, text);
@@ -755,22 +761,24 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     };
   }
 
-  /** The project, with a record of every file whose text the run was handed, by either read. */
+  /** The project, with a record of every file the run read, and of those it read as bytes. */
   function recorded(project: ReturnType<typeof servedProject>) {
     const read: string[] = [];
+    const asBytes: string[] = [];
     const store: FileStore = {
       ...project.store,
       readText: async (path) => {
         read.push(path);
         return project.store.readText(path);
       },
-      readTextUnlessBinary: async (path) => {
-        const text = await project.store.readTextUnlessBinary(path);
-        if (text !== null) read.push(path);
-        return text;
+      readForSearch: async (path) => {
+        const content = await project.store.readForSearch(path);
+        read.push(path);
+        if (typeof content !== 'string') asBytes.push(path);
+        return content;
       },
     };
-    return { read, input: { ...project.input, store } };
+    return { read, asBytes, input: { ...project.input, store } };
   }
 
   it('converts normally when the only mention is one it will rewrite', async () => {
@@ -820,6 +828,34 @@ describe('replace refuses to delete an original a mention would outlive', () => 
       'converted, but the original was kept: about.html:1 still names its path, written while Upfly was converting, in a form Upfly cannot rewrite',
     );
     expect(result.manifest?.operations.map((operation) => operation.kind)).not.toContain('delete');
+  });
+
+  it('says a database written during the encodes names the original since, its bytes compared as a text is', async () => {
+    // The database names nothing before the encodes and the image after them. Its bytes are
+    // hashed as the search reads them, so the two searches tell that it changed.
+    const { input, tree, probe } = servedProject(
+      {
+        'index.html': '<img src="/logo.png">',
+        'db.sqlite3': 'SQLite format 3\0<p>About</p>',
+        'public/logo.png': 'PNG',
+      },
+      ['index.html', 'db.sqlite3'],
+    );
+    const saving: ImageProbe = {
+      ...probe,
+      async encodeToFile(options) {
+        tree.set('db.sqlite3', 'SQLite format 3\0<img src="/logo.png">');
+        return probe.encodeToFile(options);
+      },
+    };
+
+    const result = await optimize({ ...input, probe: saving, apply: true });
+
+    expect(tree.get('public/logo.png')).toBe('PNG');
+    const kept = result.plan.keptOriginals.find((entry) => entry.asset === 'public/logo.png');
+    expect(kept?.reason).toBe(
+      'converted, but the original was kept: db.sqlite3:1 still names its path, written while Upfly was converting, in a form Upfly cannot rewrite',
+    );
   });
 
   it('says a mention found after the encodes was written meanwhile only when its file changed', async () => {
@@ -950,10 +986,10 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     );
   });
 
-  it('reads no file whose first bytes say it is not text, whatever its name, and a path inside one keeps no original', async () => {
+  it('searches a file whose first bytes say it is not text as its bytes, whatever its name, and a path inside one keeps the original', async () => {
     // A library or a compiled module under a name Upfly has no rule for, as a Python
-    // environment holds: read as text, one of a few hundred megabytes took more memory than
-    // the run had. A NUL byte in the first 8,000 says it is not text.
+    // environment holds. Read as text, one of a few hundred megabytes took more memory than
+    // the run had; searched as its bytes, a chunk at a time, it still keeps what it names.
     const project = recorded(
       servedProject(
         {
@@ -968,11 +1004,14 @@ describe('replace refuses to delete an original a mention would outlive', () => 
 
     const result = await optimize(project.input);
 
-    expect(project.read).not.toContain('venv/lib/torch_cpu.dll');
-    expect(project.read).not.toContain('venv/app/__pycache__/main.cpython-312.pyc');
-    expect(result.plan.conversions.map((conversion) => conversion.replacesOriginal)).toEqual([
-      true,
+    expect([...new Set(project.asBytes)]).toEqual([
+      'venv/app/__pycache__/main.cpython-312.pyc',
+      'venv/lib/torch_cpu.dll',
     ]);
+    expect(result.plan.conversions).toEqual([]);
+    expect(
+      result.plan.declined.find((entry) => entry.path === 'public/logo.png')?.reason,
+    ).toContain('venv/app/__pycache__/main.cpython-312.pyc:2 (and 1 more)');
   });
 
   it('refuses it as well when that mention spells the path in another letter case', async () => {

@@ -1,6 +1,7 @@
 /**
- * A file's text for a search that reads every file of a project, none for a file that is not
- * text, and the copies that let a search's results outlive the text they came from.
+ * A file as a search that reads every file of a project reads it: the text of a text file, and
+ * the bytes of any other a chunk at a time; and the copies that let a search's results outlive
+ * the text they came from.
  */
 
 import { open } from 'node:fs/promises';
@@ -12,32 +13,80 @@ import { open } from 'node:fs/promises';
  */
 export const TEXT_TEST_BYTES = 8000;
 
+/** How many bytes of a file that is not text one read takes. */
+export const CHUNK_BYTES = 1 << 20;
+
+/** A file that is not text, which a search reads as bytes, a chunk at a time. */
+export interface NotText {
+  /** The file's bytes in order, a chunk at a time, read from the start on each call. */
+  readonly chunks: () => AsyncIterable<Uint8Array>;
+}
+
 /**
- * A file's text, decoded as UTF-8 exactly as `readFile(path, 'utf8')` decodes it, or null when
- * the file is not text: a NUL byte within its first 8,000 bytes.
+ * A file's text, decoded as UTF-8 exactly as `readFile(path, 'utf8')` decodes it, or, when the
+ * file is not text (a NUL byte within its first 8,000 bytes), its bytes to read a chunk at a
+ * time.
  *
- * Decoded as UTF-8, a compiled library, a database or an archive becomes a string up to twice
- * its size, every byte that is not UTF-8 a character of its own, so a search that read one of
- * a few hundred megabytes as text could run out of memory. No text in an 8-bit encoding holds
- * a NUL byte, so no file a path could be found in is left out; UTF-16 text is, and a path
- * written in it never matched the UTF-8 the search reads.
+ * Decoded as UTF-8, a compiled library becomes a string up to twice its size, every byte that is
+ * not UTF-8 a character of its own, so one of a few hundred megabytes could take more memory than
+ * the run has. Its bytes can still hold a path as plain text, as a database holds the pages a
+ * site renders from it, so such a file is read in chunks rather than left out.
  *
  * @param path the file's absolute path
- * @returns the text, or null for a file that is not text
+ * @returns the text, or the bytes of a file that is not text
  * @throws as `readFile` throws, for a file that cannot be read
  */
-export async function readTextUnlessBinary(path: string): Promise<string | null> {
+export async function readForSearch(path: string): Promise<string | NotText> {
   const file = await open(path, 'r');
   try {
     const head = Buffer.alloc(TEXT_TEST_BYTES);
     const { bytesRead } = await file.read(head, 0, TEXT_TEST_BYTES, 0);
-    if (head.subarray(0, bytesRead).includes(0)) return null;
+    if (head.subarray(0, bytesRead).includes(0)) return { chunks: () => chunksOf(path) };
     // A read at a given position leaves the file's own position at the start, so this reads
     // the whole file.
     return await file.readFile('utf8');
   } finally {
     await file.close();
   }
+}
+
+/** A file's bytes from its start, `CHUNK_BYTES` at a time, the file closed however it ends. */
+async function* chunksOf(path: string): AsyncGenerator<Uint8Array> {
+  const file = await open(path, 'r');
+  try {
+    for (let at = 0; ; ) {
+      const chunk = Buffer.allocUnsafe(CHUNK_BYTES);
+      const { bytesRead } = await file.read(chunk, 0, CHUNK_BYTES, at);
+      if (bytesRead === 0) return;
+      at += bytesRead;
+      yield chunk.subarray(0, bytesRead);
+    }
+  } finally {
+    await file.close();
+  }
+}
+
+/**
+ * Bytes as a string of one character each, U+0000 to U+00FF: what a search reads a file that is
+ * not text as, so the string is no longer than the bytes and every byte keeps its place.
+ *
+ * @param bytes any bytes
+ * @returns one character for each byte
+ */
+export function oneCharacterPerByte(bytes: Uint8Array): string {
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('latin1');
+}
+
+/**
+ * What bytes held one to a character say as UTF-8, for showing a person what a file that is not
+ * text writes: a name beyond ASCII written in UTF-8 reads as itself, and a byte that starts no
+ * UTF-8 character reads as U+FFFD.
+ *
+ * @param held a string of characters U+0000 to U+00FF, as `oneCharacterPerByte` makes one
+ * @returns the text those bytes encode
+ */
+export function textOfBytes(held: string): string {
+  return Buffer.from(held, 'latin1').toString('utf8');
 }
 
 /**

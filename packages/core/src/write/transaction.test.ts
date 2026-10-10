@@ -72,7 +72,7 @@ function interruptible(store: FileStore): {
       hashAlgorithm: store.hashAlgorithm,
       hash: (path) => store.hash(path),
       readText: (path) => store.readText(path),
-      readTextUnlessBinary: (path) => store.readTextUnlessBinary(path),
+      readForSearch: (path) => store.readForSearch(path),
       async writeText(path, text) {
         mutate();
         await store.writeText(path, text);
@@ -113,7 +113,7 @@ function memoryFiles(files: Map<string, string>): FileStore {
       return text;
     },
     // Every file these tests hold is text.
-    async readTextUnlessBinary(path) {
+    async readForSearch(path) {
       const text = files.get(path);
       if (text === undefined) throw new Error(`no such file: ${path}`);
       return text;

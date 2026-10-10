@@ -1,6 +1,6 @@
 /**
- * Search each file's text for the old path of a moved or replaced asset, without reading
- * the graph.
+ * Search each file's text, or the bytes of a file that is not text (`windowsOf`), for the old
+ * path of a moved or replaced asset, without reading the graph.
  *
  * Independence is the point: a check built on the graph inherits the graph's blind spots.
  * It searches the path, not the basename: a move keeps the file name, so the basename would
@@ -14,7 +14,7 @@
 
 import { plural } from '../format.js';
 import { compareStrings } from '../paths.js';
-import { ownCopy } from '../read-text.js';
+import { type NotText, oneCharacterPerByte, ownCopy, textOfBytes } from '../read-text.js';
 import { type Reading, readingsOf } from './readings.js';
 
 /** One occurrence of an old path that survived the move. */
@@ -23,7 +23,8 @@ export interface Survivor {
   readonly file: string;
   readonly line: number;
   /**
-   * Offset of the match in the file's text, in UTF-16 code units like an edit's `start`.
+   * Offset of the match in the file's text, in UTF-16 code units like an edit's `start`; in a
+   * file that is not text, in bytes.
    *
    * `optimize` searches before writing, when the old path still appears in the references
    * the plan is about to rewrite. Those are not survivors, and only the offset tells them
@@ -34,11 +35,15 @@ export interface Survivor {
    * The text that matched, as the file spells it, so a reader knows what to look for on that
    * line: one of the spellings searched for in any letter case, since Windows and macOS find
    * `img/hero.png` by `IMG/Hero.png`, or text a browser decodes to one, such as `a%20b.png`.
+   * In a file that is not text, its bytes read as UTF-8.
    */
   readonly spelling: string;
   /** The spelling searched for that the text reads as, which says which path it names. */
   readonly searched: string;
-  /** The matching line, trimmed and capped. Evidence, so nobody has to open the file. */
+  /**
+   * The matching line, trimmed and capped; in a file that is not text, the run of printable
+   * bytes around the match. Evidence, so nobody has to open the file.
+   */
   readonly text: string;
 }
 
@@ -50,8 +55,9 @@ export interface Unsearchable {
 
 export interface OldPathSearchResult {
   readonly survivors: readonly Survivor[];
+  /** Files searched, text or not. */
   readonly filesSearched: number;
-  /** Files the search did not read because they are not text, so no path is written in them. */
+  /** The files among them that are not text, searched as their bytes. */
   readonly filesNotText: number;
   readonly unsearchable: readonly Unsearchable[];
   /** Every spelling looked for, so the search is reproducible by hand. */
@@ -70,11 +76,11 @@ export interface OldPathSearchInput {
    */
   readonly files: readonly string[];
   /**
-   * Reads one file by its POSIX-relative path, resolving to null for a file that is not text
-   * (`readTextUnlessBinary`), which is neither searched nor a gap in the search. Rejecting is a
-   * reported `Unsearchable`.
+   * Reads one file by its POSIX-relative path: its text, or the bytes of a file that is not
+   * text (`readForSearch`). Rejecting, or failing while the bytes are read, is a reported
+   * `Unsearchable`.
    */
-  readonly readFile: (relative: string) => Promise<string | null>;
+  readonly readFile: (relative: string) => Promise<string | NotText>;
   /**
    * Serving directories, so the URL spelling of a served asset can be derived. They come
    * from configuration or detection, not from the graph. Required: without them
@@ -269,32 +275,12 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
   const destinations = [
     ...new Set(input.moves.flatMap((move) => spellingsFor(move.to, input.servingDirs))),
   ];
-  const spellingIndex = indexNeedles(spellings.map(foldCase));
-  const destinationIndex = indexNeedles(destinations.map(foldCase));
-  const searched = { spellings, index: spellingIndex };
+  const needles = needlesFor(spellings, destinations);
 
   const survivors: Survivor[] = [];
-  const unsearchable: Unsearchable[] = [];
-  let filesSearched = 0;
-  let filesNotText = 0;
-
-  for (const file of [...input.files].sort(compareStrings)) {
-    let text: string | null;
-    try {
-      text = await input.readFile(file);
-    } catch (cause) {
-      // A file that could not be read is a hole in the search, and "nothing found" over a
-      // hole reads as a guarantee, so it is listed.
-      unsearchable.push({ file, reason: (cause as Error).message });
-      continue;
-    }
-    if (text === null) {
-      filesNotText++;
-      continue;
-    }
-    filesSearched++;
-    survivors.push(...survivorsIn(file, text, searched, destinationIndex));
-  }
+  const read = await searchEachFile(input, needles, (file, window) => {
+    survivors.push(...survivorsIn(file, window, needles));
+  });
 
   survivors.sort(
     (a, b) =>
@@ -307,11 +293,9 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
 
   return {
     survivors,
-    filesSearched,
-    filesNotText,
-    unsearchable,
+    ...read,
     spellings,
-    lines: render(survivors, { filesSearched, filesNotText, unsearchable }, spellings),
+    lines: render(survivors, read, spellings),
   };
 }
 
@@ -320,9 +304,12 @@ export interface PathOccurrence {
   /** POSIX-relative path of the file it was found in. */
   readonly file: string;
   readonly line: number;
-  /** Offset of the match in the file's text, in UTF-16 code units. */
+  /** Offset of the match in the file's text, in UTF-16 code units; in bytes in a file that is not text. */
   readonly offset: number;
-  /** The text that matched, as the file spells it. */
+  /**
+   * The text that matched, as the file spells it. In a file that is not text, its bytes one
+   * to a character, as the window holds them, so the match ends at `offset` plus its length.
+   */
   readonly spelling: string;
   /** The spelling searched for that the text reads as, which says which path it names. */
   readonly searched: string;
@@ -333,8 +320,8 @@ export interface PathOccurrencesInput {
   readonly paths: readonly string[];
   /** Every file to search, as `OldPathSearchInput.files`. */
   readonly files: readonly string[];
-  /** Reads one file, as `OldPathSearchInput.readFile`: null for a file that is not text. */
-  readonly readFile: (relative: string) => Promise<string | null>;
+  /** Reads one file, as `OldPathSearchInput.readFile`: its text, or the bytes of one that is not. */
+  readonly readFile: (relative: string) => Promise<string | NotText>;
   /** Serving directories, as `OldPathSearchInput.servingDirs`. */
   readonly servingDirs: readonly string[];
 }
@@ -346,8 +333,9 @@ export interface PathOccurrencesResult {
    * match several of them, each ending where the file name ends.
    */
   readonly occurrences: readonly PathOccurrence[];
+  /** Files searched, text or not. */
   readonly filesSearched: number;
-  /** Files not read because they are not text, as `OldPathSearchResult.filesNotText`. */
+  /** The files among them that are not text, as `OldPathSearchResult.filesNotText`. */
   readonly filesNotText: number;
   readonly unsearchable: readonly Unsearchable[];
   /** Every spelling looked for. */
@@ -355,52 +343,53 @@ export interface PathOccurrencesResult {
 }
 
 /**
+ * The part of a file a search holds at once: the whole text of a file that is text, or a window
+ * over the bytes of one that is not, each byte one character (`oneCharacterPerByte`).
+ */
+export interface FileWindow {
+  readonly text: string;
+  /** Where `text` starts in the file: in UTF-16 code units in a text, in bytes otherwise. */
+  readonly offset: number;
+  /** Whether the file is not text, so `text` holds its bytes. */
+  readonly bytes: boolean;
+}
+
+/**
  * Every place the paths occur in the files, in any spelling, any letter case and any reading:
  * the same search as `findSurvivingPaths`, reporting every match rather than one per place,
- * and discounting nothing. What a match means is for the caller to work out, so each file that
- * holds one is handed to `each` with its text, while it is read. No text is kept: a project's
- * files together can hold more text than a run has memory, so whatever a caller needs from a
- * text it takes then.
+ * and discounting nothing. What a match means is for the caller to work out, so the text that
+ * holds one is handed to `each` while it is read. No text is kept: a project's files together
+ * can hold more text than a run has memory, so whatever a caller needs from a text it takes
+ * then.
  *
  * @param input the paths, the files and how to read them
- * @param each called once for each file that holds an occurrence, in the files' order
+ * @param each called with each file that holds an occurrence, in the files' order, or with each
+ * window of one that is not text, and the occurrences that start in it
  */
 export async function findPathOccurrences(
   input: PathOccurrencesInput,
-  each: (file: string, text: string, occurrences: readonly PathOccurrence[]) => void = () => {},
+  each: (
+    file: string,
+    window: FileWindow,
+    occurrences: readonly PathOccurrence[],
+  ) => void = () => {},
 ): Promise<PathOccurrencesResult> {
   const spellings = [
     ...new Set(input.paths.flatMap((path) => spellingsFor(path, input.servingDirs))),
   ].sort((a, b) => b.length - a.length || compareStrings(a, b));
-  const index = indexNeedles(spellings.map(foldCase));
+  const needles = needlesFor(spellings, []);
 
   const occurrences: PathOccurrence[] = [];
-  const unsearchable: Unsearchable[] = [];
-  let filesSearched = 0;
-  let filesNotText = 0;
-
-  for (const file of [...input.files].sort(compareStrings)) {
-    let text: string | null;
-    try {
-      text = await input.readFile(file);
-    } catch (cause) {
-      unsearchable.push({ file, reason: (cause as Error).message });
-      continue;
-    }
-    if (text === null) {
-      filesNotText++;
-      continue;
-    }
-    filesSearched++;
-    const found = spansIn(readingsOf(text), index);
-    if (found.length === 0) continue;
-    const lineAt = lineIndex(text);
-    const inFile = found
+  const read = await searchEachFile(input, needles, (file, window) => {
+    const found = ownSpans(window, spansIn(readingsOf(window.text), needles.of(window).index));
+    if (found.length === 0) return;
+    const lineAt = lineIndex(window.text);
+    const inWindow = found
       .map(({ rank, start, end }) => ({
         file,
-        line: lineAt(start),
-        offset: start,
-        spelling: ownCopy(text.slice(start, end)),
+        line: window.linesBefore + lineAt(start),
+        offset: window.offset + start,
+        spelling: ownCopy(window.text.slice(start, end)),
         searched: spellings[rank] ?? '',
       }))
       .sort(
@@ -409,40 +398,242 @@ export async function findPathOccurrences(
           b.searched.length - a.searched.length ||
           compareStrings(a.searched, b.searched),
       );
-    each(file, text, inFile);
-    occurrences.push(...inFile);
-  }
+    each(file, window, inWindow);
+    occurrences.push(...inWindow);
+  });
 
-  // Files are searched in order, so the occurrences already run by file, then offset.
-  return { occurrences, filesSearched, filesNotText, unsearchable, spellings };
+  // Files are searched in order, and a file's windows too, so the occurrences already run by
+  // file, then offset.
+  return { occurrences, ...read, spellings };
 }
 
-/** What a search looks for: the spellings, longest first, and their folded needles. */
+/** What one search looks for: the spellings, longest first, and their folded needles. */
 interface Searched {
   readonly spellings: readonly string[];
+  /** The spellings' needles, each filed under its spelling's place in `spellings`. */
   readonly index: NeedleIndex;
+  /** Where the moves put things, so a match inside one is the rewrite working. */
+  readonly destinations: NeedleIndex;
+}
+
+/** One search's needles for a text, and, made when a file that is not text first needs them, for bytes. */
+interface Needles {
+  /** The needles for a window: the bytes' needles for a file that is not text. */
+  readonly of: (window: FileWindow) => Searched;
+  /** How far a window over bytes reaches past its own stretch on either side. */
+  readonly reach: () => number;
 }
 
 /**
- * The survivors in one file: one for each place a spelling ends, its longest spelling there.
- * The indexes hold folded needles and each reading of the text is searched folded, so a
- * match is found in any letter case and any reading and reported as the file spells it.
+ * The needles of one search. A text is searched for each spelling folded to lower case. Bytes,
+ * held one to a character, are searched for its UTF-8 bytes too, in its own letter case and in
+ * upper and lower case, since the bytes of a letter beyond ASCII change with its case and a
+ * fold a byte at a time cannot see that; and for the spelling itself, which a percent-escape
+ * or a character reference decodes to, or which Latin-1 writes byte for byte.
+ */
+function needlesFor(spellings: readonly string[], destinations: readonly string[]): Needles {
+  const text: Searched = {
+    spellings,
+    index: indexNeedles(spellings, (spelling) => [foldCase(spelling)]),
+    destinations: indexNeedles(destinations, (spelling) => [foldCase(spelling)]),
+  };
+  const bytes = lazily(() => {
+    let longest = 0;
+    const forms = (spelling: string) => {
+      const made = byteForms(spelling);
+      for (const form of made) longest = Math.max(longest, form.length);
+      return made;
+    };
+    const searched: Searched = {
+      spellings,
+      index: indexNeedles(spellings, forms),
+      destinations: indexNeedles(destinations, forms),
+    };
+    return { searched, reach: reachFor(longest) };
+  });
+  return {
+    of: (window) => (window.bytes ? bytes().searched : text),
+    reach: () => bytes().reach,
+  };
+}
+
+/** What a spelling is looked for as in bytes held one to a character: see `needlesFor`. */
+function byteForms(spelling: string): string[] {
+  const cases = [spelling, spelling.toLowerCase(), spelling.toUpperCase()];
+  const forms = [...cases, ...cases.map((form) => oneCharacterPerByte(Buffer.from(form, 'utf8')))];
+  return [...new Set(forms.map(foldCase))];
+}
+
+/** How many bytes of a file that is not text one window reports the matches of. */
+const WINDOW_BYTES = 1 << 20;
+
+/**
+ * How far a window over bytes reaches into its neighbours on either side, for needles up to
+ * `longest` long: far enough that a match starting in the window's own stretch ends inside it,
+ * however it is written, since a percent-escape spells one byte in three characters and a
+ * character reference one character in up to a few dozen, and that what holds a match, such as
+ * a destination's path around it, is read whole.
+ */
+function reachFor(longest: number): number {
+  return Math.max(16 * 1024, 40 * longest);
+}
+
+/** A window as the walk hands it over: where it sits among the file's lines, and its own stretch. */
+interface Window extends FileWindow {
+  /** Line breaks in the file before `offset`. */
+  readonly linesBefore: number;
+  /** Where the stretch whose matches are this window's starts and ends in `text`. */
+  readonly from: number;
+  readonly to: number;
+}
+
+/** What reading every file came to: how many were searched, and what could not be. */
+type FilesRead = Pick<OldPathSearchResult, 'filesSearched' | 'filesNotText' | 'unsearchable'>;
+
+/**
+ * Reads each file in order and hands it to `search`: a text whole, and a file that is not text
+ * a window at a time (`windowsOf`), so no file of any size is held whole. A file that cannot be
+ * read, or stops being readable part way, is a hole in the search, and "nothing found" over a
+ * hole reads as a guarantee, so it is listed.
+ */
+async function searchEachFile(
+  input: Pick<PathOccurrencesInput, 'files' | 'readFile'>,
+  needles: Needles,
+  search: (file: string, window: Window) => void,
+): Promise<FilesRead> {
+  const unsearchable: Unsearchable[] = [];
+  let filesSearched = 0;
+  let filesNotText = 0;
+  for (const file of [...input.files].sort(compareStrings)) {
+    let content: string | NotText;
+    try {
+      content = await input.readFile(file);
+    } catch (cause) {
+      unsearchable.push({ file, reason: (cause as Error).message });
+      continue;
+    }
+    if (typeof content === 'string') {
+      filesSearched++;
+      search(file, {
+        text: content,
+        offset: 0,
+        bytes: false,
+        linesBefore: 0,
+        from: 0,
+        to: content.length,
+      });
+      continue;
+    }
+    const windows = windowsOf(content, needles.reach());
+    try {
+      for (;;) {
+        let next: IteratorResult<Window>;
+        try {
+          next = await windows.next();
+        } catch (cause) {
+          unsearchable.push({ file, reason: (cause as Error).message });
+          break;
+        }
+        if (next.done === true) {
+          filesSearched++;
+          filesNotText++;
+          break;
+        }
+        search(file, next.value);
+      }
+    } finally {
+      // Closes the file when `search` throws part way.
+      await windows.return(undefined);
+    }
+  }
+  return { filesSearched, filesNotText, unsearchable };
+}
+
+/**
+ * The windows over a file that is not text: its bytes one to a character, a stretch of
+ * `WINDOW_BYTES` at a time, each with `reach` bytes of the stretches on either side, so a match
+ * that starts in a stretch is whole in its window whatever stretch it ends in. Each match is
+ * reported by the one window it starts in, and what no later window needs is let go as they
+ * move on.
+ */
+async function* windowsOf(file: NotText, reach: number): AsyncGenerator<Window> {
+  // `held` is the file from `heldAt` on, as far as it has been read; `own` is where the next
+  // window's own stretch starts.
+  let held = '';
+  let heldAt = 0;
+  let linesBefore = 0;
+  let own = 0;
+  const window = (ownEnd: number): Window => ({
+    text: held.slice(0, ownEnd + reach - heldAt),
+    offset: heldAt,
+    bytes: true,
+    linesBefore,
+    from: own - heldAt,
+    to: ownEnd - heldAt,
+  });
+  const moveOn = (ownEnd: number): void => {
+    own = ownEnd;
+    const keep = Math.max(heldAt, own - reach) - heldAt;
+    linesBefore += breaksBefore(held, keep);
+    held = held.slice(keep);
+    heldAt += keep;
+  };
+  for await (const chunk of file.chunks()) {
+    held += oneCharacterPerByte(chunk);
+    while (heldAt + held.length >= own + WINDOW_BYTES + reach) {
+      yield window(own + WINDOW_BYTES);
+      moveOn(own + WINDOW_BYTES);
+    }
+  }
+  const end = heldAt + held.length;
+  while (own < end) {
+    const ownEnd = Math.min(own + WINDOW_BYTES, end);
+    yield window(ownEnd);
+    moveOn(ownEnd);
+  }
+}
+
+/** How many line breaks `text` holds before `end`. */
+function breaksBefore(text: string, end: number): number {
+  let breaks = 0;
+  for (let at = text.indexOf('\n'); at !== -1 && at < end; at = text.indexOf('\n', at + 1)) {
+    breaks++;
+  }
+  return breaks;
+}
+
+/** The spans that start in the window's own stretch: the rest are a neighbour's. */
+function ownSpans(window: Window, spans: readonly Span[]): Span[] {
+  return spans.filter((span) => window.from <= span.start && span.start < window.to);
+}
+
+/** A value worked out the first time it is asked for, and kept. */
+function lazily<T>(make: () => T): () => T {
+  let value: { readonly made: T } | undefined;
+  return () => {
+    value ??= { made: make() };
+    return value.made;
+  };
+}
+
+/**
+ * The survivors in one file, or in one window of a file that is not text: one for each place a
+ * spelling ends, its longest spelling there. The indexes hold folded needles and each reading
+ * of the text is searched folded, so a match is found in any letter case and any reading and
+ * reported as the file spells it.
  *
  * Where two readings name different paths at one place, as `a%20b.png` names the file
  * `a%20b.png` to a program that opens it by name and `a b.png` to a browser, each is a
  * survivor. One that is only the end of a longer spelling found there is not.
  */
-function survivorsIn(
-  file: string,
-  text: string,
-  searched: Searched,
-  destinations: NeedleIndex,
-): Survivor[] {
+function survivorsIn(file: string, window: Window, needles: Needles): Survivor[] {
+  const { text } = window;
+  const searched = needles.of(window);
   const readings = readingsOf(text);
-  const found = spansIn(readings, searched.index);
+  const found = ownSpans(window, spansIn(readings, searched.index));
   if (found.length === 0) return [];
 
-  const insideDestination = containedIn(spansIn(readings, destinations));
+  const insideDestination = containedIn(spansIn(readings, searched.destinations));
   const byPlace = new Map<number, Span[]>();
   for (const span of found) {
     // Inside a destination path means the move wrote this text, so it is the rewrite
@@ -460,13 +651,14 @@ function survivorsIn(
     for (const span of spans.sort((a, b) => a.rank - b.rank || a.start - b.start)) {
       if (kept.some((longer) => longer.needle.endsWith(span.needle))) continue;
       kept.push(span);
+      const matched = text.slice(span.start, span.end);
       survivors.push({
         file,
-        line: lineAt(span.start),
-        offset: span.start,
-        spelling: ownCopy(text.slice(span.start, span.end)),
+        line: window.linesBefore + lineAt(span.start),
+        offset: window.offset + span.start,
+        spelling: window.bytes ? textOfBytes(matched) : ownCopy(matched),
         searched: searched.spellings[span.rank] ?? '',
-        text: lineTextAt(text, span.start),
+        text: window.bytes ? bytesAround(text, span.start, span.end) : lineTextAt(text, span.start),
       });
     }
   }
@@ -522,25 +714,35 @@ type NeedleIndex = ReadonlyMap<string, ReadonlyMap<number, ReadonlyMap<string, n
 
 /** Where one needle occurs in one text. */
 interface Matches {
-  /** The needle's position in the list the index was built from; lower is searched first. */
+  /** The place in the list the index was built from of the spelling the needle is for. */
   readonly rank: number;
   readonly needle: string;
   /** Start offsets, ascending, none overlapping another match of the same needle. */
   readonly offsets: readonly number[];
 }
 
-function indexNeedles(needles: readonly string[]): NeedleIndex {
+/**
+ * The needles for a list of spellings, each filed under the spelling's place in the list.
+ *
+ * @param forms the needles one spelling is looked for as
+ */
+function indexNeedles(
+  spellings: readonly string[],
+  forms: (spelling: string) => readonly string[],
+): NeedleIndex {
   const index = new Map<string, Map<number, Map<string, number>>>();
-  needles.forEach((needle, rank) => {
-    // An empty string names no path, and a search for one could never move past it.
-    if (needle === '') return;
-    const ending = needle.slice(-ENDING_LENGTH);
-    const byLength = index.get(ending) ?? new Map<number, Map<string, number>>();
-    index.set(ending, byLength);
-    const sameLength = byLength.get(needle.length) ?? new Map<string, number>();
-    byLength.set(needle.length, sameLength);
-    // Two spellings can fold to one needle, and the first keeps its rank.
-    if (!sameLength.has(needle)) sameLength.set(needle, rank);
+  spellings.forEach((spelling, rank) => {
+    for (const needle of forms(spelling)) {
+      // An empty string names no path, and a search for one could never move past it.
+      if (needle === '') continue;
+      const ending = needle.slice(-ENDING_LENGTH);
+      const byLength = index.get(ending) ?? new Map<number, Map<string, number>>();
+      index.set(ending, byLength);
+      const sameLength = byLength.get(needle.length) ?? new Map<string, number>();
+      byLength.set(needle.length, sameLength);
+      // Two spellings can fold to one needle, and the first keeps its rank.
+      if (!sameLength.has(needle)) sameLength.set(needle, rank);
+    }
   });
   return index;
 }
@@ -557,7 +759,8 @@ function indexNeedles(needles: readonly string[]): NeedleIndex {
  * its end, which is what repeated `indexOf` keeps.
  */
 function occurrencesIn(text: string, index: NeedleIndex): Matches[] {
-  const found = new Map<number, { needle: string; offsets: number[] }>();
+  // By needle, since one spelling can be looked for as several.
+  const found = new Map<string, { rank: number; offsets: number[] }>();
   for (const [ending, byLength] of index) {
     for (let at = text.indexOf(ending); at !== -1; at = text.indexOf(ending, at + 1)) {
       const end = at + ending.length;
@@ -566,14 +769,14 @@ function occurrencesIn(text: string, index: NeedleIndex): Matches[] {
         const candidate = text.slice(end - length, end);
         const rank = needles.get(candidate);
         if (rank === undefined) continue;
-        const matches = found.get(rank);
-        if (matches === undefined) found.set(rank, { needle: candidate, offsets: [end - length] });
+        const matches = found.get(candidate);
+        if (matches === undefined) found.set(candidate, { rank, offsets: [end - length] });
         else matches.offsets.push(end - length);
       }
     }
   }
 
-  return [...found].map(([rank, { needle, offsets }]) => {
+  return [...found].map(([needle, { rank, offsets }]) => {
     const kept: number[] = [];
     let free = 0;
     for (const offset of offsets) {
@@ -643,6 +846,35 @@ export function lineTextAt(text: string, offset: number): string {
 }
 
 /**
+ * What surrounds a match in a window over bytes, where a line can run for megabytes: the bytes
+ * on either side up to the nearest control character, at most `TEXT_CAP` in all, read as UTF-8.
+ *
+ * @param text the window's text, its bytes one to a character
+ * @param start where the match starts in `text`
+ * @param end where it ends
+ */
+export function bytesAround(text: string, start: number, end: number): string {
+  const room = Math.max(0, TEXT_CAP - (end - start)) >> 1;
+  let from = start;
+  while (from > 0 && start - from < room && !isControl(text, from - 1)) from--;
+  let to = end;
+  while (to < text.length && to - end < room && !isControl(text, to)) to++;
+  // Marked where the cap cut the run, not where a control character or the window ended it.
+  const before = from === 0 || isControl(text, from - 1) ? '' : '...';
+  const after = to === text.length || isControl(text, to) ? '' : '...';
+  return `${before}${textOfBytes(text.slice(from, to)).trim()}${after}`;
+}
+
+/**
+ * Whether the character at `at` is a control character, which no text a person reads holds
+ * and which ends a run of text among a file's bytes.
+ */
+export function isControl(text: string, at: number): boolean {
+  const code = text.charCodeAt(at);
+  return code < 0x20 || code === 0x7f;
+}
+
+/**
  * The finding and what the search cannot see, printed whatever the finding, as in
  * `move-check.ts`: a clean result is where an unstated limit is read as a guarantee, and
  * this search finds only a path written down as text.
@@ -691,8 +923,8 @@ function render(
 
   if (filesNotText > 0) {
     lines.push(
-      `    - ${plural(filesNotText, 'file')} not read because ${filesNotText === 1 ? 'it is' : 'they are'} not text: a NUL byte in the`,
-      '      first 8,000 bytes, as in a library, an archive or a database.',
+      `    - ${plural(filesNotText, 'file')} not text, such as a database or a library, searched as bytes:`,
+      '      a path stored in one compressed or in UTF-16 is not found.',
     );
   }
 

@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { readTextUnlessBinary } from '../read-text.js';
+import { type NotText, readForSearch } from '../read-text.js';
 import type { FileStore } from './transaction.js';
 
 /** Retries for a file another process is holding open. */
@@ -40,7 +40,7 @@ export interface FileOperations {
    */
   read(path: string): Promise<Uint8Array>;
   readText(path: string): Promise<string>;
-  readTextUnlessBinary(path: string): Promise<string | null>;
+  readForSearch(path: string): Promise<string | NotText>;
   write(path: string, text: string): Promise<void>;
   /** Create only if absent, atomically (`O_EXCL`). `false` when the file was already there. */
   createExclusive(path: string, text: string): Promise<boolean>;
@@ -59,7 +59,7 @@ export interface FileOperations {
 export const nodeFileOperations: FileOperations = {
   read: (path) => readFile(path),
   readText: (path) => readFile(path, 'utf8'),
-  readTextUnlessBinary,
+  readForSearch,
   write: (path, text) => writeFile(path, text, 'utf8'),
   // `wx`: the kernel creates the file or fails with EEXIST, with nothing in between.
   // EEXIST is the ordinary answer, so it alone becomes `false`; anything else (a read-only
@@ -130,8 +130,8 @@ export function createFileStoreOn(operations: FileOperations, root: string): Fil
       return operations.readText(absolute(path));
     },
 
-    async readTextUnlessBinary(path: string): Promise<string | null> {
-      return operations.readTextUnlessBinary(absolute(path));
+    async readForSearch(path: string): Promise<string | NotText> {
+      return operations.readForSearch(absolute(path));
     },
 
     async writeText(path: string, text: string): Promise<void> {

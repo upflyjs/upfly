@@ -46,7 +46,7 @@ function memoryStore(files = new Map<string, string>()) {
       return text;
     },
     // Every file these tests hold is text.
-    readTextUnlessBinary: (path) => store.readText(path),
+    readForSearch: (path) => store.readText(path),
     async writeText(path, text) {
       files.set(path, text);
     },

@@ -402,7 +402,8 @@ describe('the search behind the list', () => {
         },
         servingDirs: ['public'],
       },
-      (file, text, occurrences) => handed.push([file, text === texts[file], occurrences.length]),
+      (file, window, occurrences) =>
+        handed.push([file, window.text === texts[file], occurrences.length]),
     );
 
     expect(found.occurrences.map((occurrence) => [occurrence.offset, occurrence.spelling])).toEqual(
@@ -456,10 +457,10 @@ describe('the search behind the list', () => {
 });
 
 describe('files that are not text', () => {
-  it('lists no line from a file whose first bytes say it is not text, whatever its name', async () => {
+  it('lists a line from a file whose first bytes say it is not text, whatever its name, as one a page loads', async () => {
     // A Python environment's compiled module and a native library hold the path among their
-    // bytes. Read as text, a library of a few hundred megabytes takes more memory than a run
-    // has; a NUL byte in the first 8,000 says neither is text.
+    // bytes, which are searched as they are rather than read as text: a library of a few
+    // hundred megabytes read as text took more memory than a run has.
     const root = await project({
       'public/img/a.png': 'IMAGE',
       'index.html': '<img src="/img/a.png">\n',
@@ -468,6 +469,17 @@ describe('files that are not text', () => {
       'notes.txt': 'see /img/a.png\n',
     });
 
-    expect(Object.keys(await linesFor(root, 'public/img/a.png'))).toEqual(['notes.txt:1']);
+    const lines = await linesFor(root, 'public/img/a.png');
+
+    expect(Object.keys(lines)).toEqual([
+      'notes.txt:1',
+      'venv/app/__pycache__/main.cpython-312.pyc:2',
+      'venv/lib/native.so:1',
+    ]);
+    expect(lines['venv/lib/native.so:1']).toMatchObject({
+      text: '/img/a.png',
+      why: 'in a .so file, a type Upfly does not read',
+      loads: true,
+    });
   });
 });
