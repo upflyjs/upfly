@@ -4,7 +4,6 @@
  * `refs` and `move` list every line that names an image.
  */
 
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { listExcludedFiles } from './discover/discover.js';
 import { isBinaryExtension } from './graph/unscanned.js';
@@ -18,6 +17,7 @@ import {
   findUnfollowedLines,
   linesNamingFolders,
 } from './plan/unfollowed.js';
+import { readTextUnlessBinary } from './read-text.js';
 import type { DiscoveryResult } from './types.js';
 
 /** What a text search reads, from one walk. */
@@ -82,7 +82,7 @@ export async function folderLines(
     folders,
     files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
     excludedFiles: scope.excludedFiles,
-    readFile: (relative) => readFile(join(root, relative), 'utf8'),
+    readFile: (relative) => readTextUnlessBinary(join(root, relative)),
     servingRoots: pipeline.servingRoots,
     listed: covered.listed,
     rewritten: covered.rewritten,
@@ -92,7 +92,8 @@ export async function folderLines(
 /**
  * Every line of the project that names one of the images and is not one of its references,
  * with why Upfly does not follow it. The search reads the files the run excluded too, and no
- * binary file, which holds no text a path could be written in.
+ * file that is not text, by its extension or by its first bytes, which holds no text a path
+ * could be written in.
  *
  * @param pipeline the project as `runPipeline` read it
  * @param images the images, POSIX-relative to the project
@@ -109,7 +110,7 @@ export async function unfollowedLines(
     images,
     files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
     excludedFiles: scope.excludedFiles,
-    readFile: (relative) => readFile(join(root, relative), 'utf8'),
+    readFile: (relative) => readTextUnlessBinary(join(root, relative)),
     servingRoots: pipeline.servingRoots,
     aliases: pipeline.aliases,
     excludedRoots: pipeline.discovery.excludedRoots,

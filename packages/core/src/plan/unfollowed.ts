@@ -88,8 +88,11 @@ export interface UnfollowedInput {
   readonly files: readonly string[];
   /** The files in `files` that the run's ignore rules excluded. */
   readonly excludedFiles: readonly string[];
-  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
-  readonly readFile: (relative: string) => Promise<string>;
+  /**
+   * Reads one file by its POSIX-relative path, null for a file that is not text, which is not
+   * searched (`readTextUnlessBinary`). Rejecting is a reported `Unsearchable`.
+   */
+  readonly readFile: (relative: string) => Promise<string | null>;
   readonly servingRoots: ServingRoots;
   /** The aliases the resolver used, so a path written through one is read the same way. */
   readonly aliases: AliasMap;
@@ -838,8 +841,8 @@ export interface FolderLinesInput {
   readonly files: readonly string[];
   /** The files in `files` that the run's ignore rules excluded. */
   readonly excludedFiles: readonly string[];
-  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
-  readonly readFile: (relative: string) => Promise<string>;
+  /** Reads one file, as `UnfollowedInput.readFile`: null for a file that is not text. */
+  readonly readFile: (relative: string) => Promise<string | null>;
   readonly servingRoots: ServingRoots;
   /** `file:line` for every line the move already lists. */
   readonly listed: ReadonlySet<string>;

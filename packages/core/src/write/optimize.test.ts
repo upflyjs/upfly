@@ -97,6 +97,11 @@ function harness(initial: Record<string, string>) {
       if (text === undefined) throw new Error(`no such file: ${path}`);
       return text;
     },
+    // The disk's rule, on the text this store holds: a NUL in the first 8,000 characters.
+    async readTextUnlessBinary(path) {
+      const text = await store.readText(path);
+      return text.slice(0, 8000).includes('\0') ? null : text;
+    },
     async writeText(path, text) {
       tree.set(path, text);
     },
@@ -749,6 +754,24 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     };
   }
 
+  /** The project, with a record of every file whose text the run was handed, by either read. */
+  function recorded(project: ReturnType<typeof servedProject>) {
+    const read: string[] = [];
+    const store: FileStore = {
+      ...project.store,
+      readText: async (path) => {
+        read.push(path);
+        return project.store.readText(path);
+      },
+      readTextUnlessBinary: async (path) => {
+        const text = await project.store.readTextUnlessBinary(path);
+        if (text !== null) read.push(path);
+        return text;
+      },
+    };
+    return { read, input: { ...project.input, store } };
+  }
+
   it('converts normally when the only mention is one it will rewrite', async () => {
     // At plan time every mention still reads as the old path, including the reference
     // the run is about to repoint. A guard that did not exclude those would refuse every
@@ -903,18 +926,6 @@ describe('replace refuses to delete an original a mention would outlive', () => 
       'docs/manual.pdf': 'a binary stream that happens to hold /logo.png',
       'public/logo.png': 'PNG',
     };
-    const recorded = (project: ReturnType<typeof servedProject>) => {
-      const read: string[] = [];
-      const store: FileStore = {
-        ...project.store,
-        readText: async (path) => {
-          read.push(path);
-          return project.store.readText(path);
-        },
-      };
-      return { read, input: { ...project.input, store } };
-    };
-
     const binary = recorded(servedProject(tree, ['index.html', 'docs/manual.pdf']));
     const converted = await optimize(binary.input);
     const text = recorded(
@@ -936,6 +947,31 @@ describe('replace refuses to delete an original a mention would outlive', () => 
     expect(kept.plan.declined.find((entry) => entry.path === 'public/logo.png')?.reason).toContain(
       'notes.txt:1',
     );
+  });
+
+  it('reads no file whose first bytes say it is not text, whatever its name, and a path inside one keeps no original', async () => {
+    // A library or a compiled module under a name Upfly has no rule for, as a Python
+    // environment holds: read as text, one of a few hundred megabytes took more memory than
+    // the run had. A NUL byte in the first 8,000 says it is not text.
+    const project = recorded(
+      servedProject(
+        {
+          'index.html': '<img src="/logo.png">',
+          'venv/lib/torch_cpu.dll': 'MZ\u0090\0\u0003\0\0\0 a resource named /logo.png',
+          'venv/app/__pycache__/main.cpython-312.pyc': '\xcb\r\r\n\0\0\0\0 ICON = "/logo.png"',
+          'public/logo.png': 'PNG',
+        },
+        ['index.html', 'venv/lib/torch_cpu.dll', 'venv/app/__pycache__/main.cpython-312.pyc'],
+      ),
+    );
+
+    const result = await optimize(project.input);
+
+    expect(project.read).not.toContain('venv/lib/torch_cpu.dll');
+    expect(project.read).not.toContain('venv/app/__pycache__/main.cpython-312.pyc');
+    expect(result.plan.conversions.map((conversion) => conversion.replacesOriginal)).toEqual([
+      true,
+    ]);
   });
 
   it('refuses it as well when that mention spells the path in another letter case', async () => {

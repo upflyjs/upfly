@@ -50,6 +50,8 @@ export interface Unsearchable {
 export interface OldPathSearchResult {
   readonly survivors: readonly Survivor[];
   readonly filesSearched: number;
+  /** Files the search did not read because they are not text, so no path is written in them. */
+  readonly filesNotText: number;
   readonly unsearchable: readonly Unsearchable[];
   /** Every spelling looked for, so the search is reproducible by hand. */
   readonly spellings: readonly string[];
@@ -66,8 +68,12 @@ export interface OldPathSearchInput {
    * directories an ignore rule pruned, which the rendered limits say.
    */
   readonly files: readonly string[];
-  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
-  readonly readFile: (relative: string) => Promise<string>;
+  /**
+   * Reads one file by its POSIX-relative path, resolving to null for a file that is not text
+   * (`readTextUnlessBinary`), which is neither searched nor a gap in the search. Rejecting is a
+   * reported `Unsearchable`.
+   */
+  readonly readFile: (relative: string) => Promise<string | null>;
   /**
    * Serving directories, so the URL spelling of a served asset can be derived. They come
    * from configuration or detection, not from the graph. Required: without them
@@ -228,13 +234,15 @@ const LOW_SURROGATE = /[\uDC00-\uDFFF]/;
 export function foldCase(text: string): string {
   const lowered = text.toLowerCase();
   if (lowered.length === text.length) return lowered;
-  let folded = '';
-  for (const character of text) {
-    const lower = character.toLowerCase();
-    folded += lower.length === character.length ? lower : character;
-  }
-  return folded;
+  // The runs between two `İ` keep their length in lower case. Folded a run at a time, the
+  // result is one copy of the text, where a character at a time took tens of bytes for each.
+  return text
+    .split(DOTTED_CAPITAL_I)
+    .map((run) => run.toLowerCase())
+    .join(DOTTED_CAPITAL_I);
 }
+
+const DOTTED_CAPITAL_I = String.fromCodePoint(0x130);
 
 /**
  * Search every file for the old paths, in any letter case, since Windows and macOS find a
@@ -267,15 +275,20 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
   const survivors: Survivor[] = [];
   const unsearchable: Unsearchable[] = [];
   let filesSearched = 0;
+  let filesNotText = 0;
 
   for (const file of [...input.files].sort(compareStrings)) {
-    let text: string;
+    let text: string | null;
     try {
       text = await input.readFile(file);
     } catch (cause) {
       // A file that could not be read is a hole in the search, and "nothing found" over a
       // hole reads as a guarantee, so it is listed.
       unsearchable.push({ file, reason: (cause as Error).message });
+      continue;
+    }
+    if (text === null) {
+      filesNotText++;
       continue;
     }
     filesSearched++;
@@ -294,9 +307,10 @@ export async function findSurvivingPaths(input: OldPathSearchInput): Promise<Old
   return {
     survivors,
     filesSearched,
+    filesNotText,
     unsearchable,
     spellings,
-    lines: render(survivors, filesSearched, unsearchable, spellings),
+    lines: render(survivors, { filesSearched, filesNotText, unsearchable }, spellings),
   };
 }
 
@@ -318,8 +332,8 @@ export interface PathOccurrencesInput {
   readonly paths: readonly string[];
   /** Every file to search, as `OldPathSearchInput.files`. */
   readonly files: readonly string[];
-  /** Reads one file by its POSIX-relative path. Rejecting is a reported `Unsearchable`. */
-  readonly readFile: (relative: string) => Promise<string>;
+  /** Reads one file, as `OldPathSearchInput.readFile`: null for a file that is not text. */
+  readonly readFile: (relative: string) => Promise<string | null>;
   /** Serving directories, as `OldPathSearchInput.servingDirs`. */
   readonly servingDirs: readonly string[];
 }
@@ -332,6 +346,8 @@ export interface PathOccurrencesResult {
    */
   readonly occurrences: readonly PathOccurrence[];
   readonly filesSearched: number;
+  /** Files not read because they are not text, as `OldPathSearchResult.filesNotText`. */
+  readonly filesNotText: number;
   readonly unsearchable: readonly Unsearchable[];
   /** Every spelling looked for. */
   readonly spellings: readonly string[];
@@ -357,13 +373,18 @@ export async function findPathOccurrences(
   const unsearchable: Unsearchable[] = [];
   const texts = new Map<string, string>();
   let filesSearched = 0;
+  let filesNotText = 0;
 
   for (const file of [...input.files].sort(compareStrings)) {
-    let text: string;
+    let text: string | null;
     try {
       text = await input.readFile(file);
     } catch (cause) {
       unsearchable.push({ file, reason: (cause as Error).message });
+      continue;
+    }
+    if (text === null) {
+      filesNotText++;
       continue;
     }
     filesSearched++;
@@ -389,7 +410,7 @@ export async function findPathOccurrences(
       b.searched.length - a.searched.length ||
       compareStrings(a.searched, b.searched),
   );
-  return { occurrences, filesSearched, unsearchable, spellings, texts };
+  return { occurrences, filesSearched, filesNotText, unsearchable, spellings, texts };
 }
 
 /** What a search looks for: the spellings, longest first, and their folded needles. */
@@ -621,10 +642,10 @@ export function lineTextAt(text: string, offset: number): string {
  */
 function render(
   survivors: readonly Survivor[],
-  filesSearched: number,
-  unsearchable: readonly Unsearchable[],
+  read: Pick<OldPathSearchResult, 'filesSearched' | 'filesNotText' | 'unsearchable'>,
   spellings: readonly string[],
 ): string[] {
+  const { filesSearched, filesNotText, unsearchable } = read;
   const lines = [
     survivors.length === 0
       ? `old paths: none of ${plural(spellings.length, 'spelling')} survives in ${plural(filesSearched, 'file')} searched`
@@ -660,6 +681,13 @@ function render(
     '    - a file nobody handed this search. Directories excluded by an ignore rule are not',
     '      in the list, so nothing inside them was read.',
   );
+
+  if (filesNotText > 0) {
+    lines.push(
+      `    - ${plural(filesNotText, 'file')} not read because ${filesNotText === 1 ? 'it is' : 'they are'} not text: a NUL byte in the`,
+      '      first 8,000 bytes, as in a library, an archive or a database.',
+    );
+  }
 
   if (unsearchable.length > 0) {
     lines.push(

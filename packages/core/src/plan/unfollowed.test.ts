@@ -413,3 +413,20 @@ describe('the search behind the list', () => {
     expect(found.filesSearched).toBe(2);
   });
 });
+
+describe('files that are not text', () => {
+  it('lists no line from a file whose first bytes say it is not text, whatever its name', async () => {
+    // A Python environment's compiled module and a native library hold the path among their
+    // bytes. Read as text, a library of a few hundred megabytes takes more memory than a run
+    // has; a NUL byte in the first 8,000 says neither is text.
+    const root = await project({
+      'public/img/a.png': 'IMAGE',
+      'index.html': '<img src="/img/a.png">\n',
+      'venv/app/__pycache__/main.cpython-312.pyc': '\xcb\r\r\n\0\0\0\0ICON = "/img/a.png"\n',
+      'venv/lib/native.so': '\u007fELF\u0002\u0001\u0001\0 /img/a.png\n',
+      'notes.txt': 'see /img/a.png\n',
+    });
+
+    expect(Object.keys(await linesFor(root, 'public/img/a.png'))).toEqual(['notes.txt:1']);
+  });
+});

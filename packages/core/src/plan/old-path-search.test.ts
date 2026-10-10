@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { heapHeldBy } from '../../test/heap-held.js';
 import { compareStrings } from '../paths.js';
-import { findSurvivingPaths, respellAs, spellingsFor } from './old-path-search.js';
+import { findSurvivingPaths, foldCase, respellAs, spellingsFor } from './old-path-search.js';
 
 /**
  * Searching for an old path without asking the graph.
@@ -684,5 +685,40 @@ describe('searching every file once, with exactly the answers of one search per 
     expect(result.survivors.map(({ line, offset }) => [line, offset])).toEqual([
       [4_321, text.indexOf('/img/hero.png')],
     ]);
+  });
+});
+
+describe('what a search holds in memory', () => {
+  it('neither searches a file that is not text nor counts it a gap', async () => {
+    const result = await findSurvivingPaths({
+      moves: [{ from: 'public/img/hero.png', to: 'public/img/hero.webp' }],
+      files: ['lib/native.so', 'notes.txt'],
+      readFile: async (relative) => (relative === 'lib/native.so' ? null : 'see /img/hero.png\n'),
+      servingDirs: SERVING,
+    });
+
+    expect(result.survivors.map((survivor) => survivor.file)).toEqual(['notes.txt']);
+    expect(result.filesSearched).toBe(1);
+    expect(result.filesNotText).toBe(1);
+    expect(result.unsearchable).toEqual([]);
+    expect(result.lines.join('\n')).toContain('1 file not read because it is not text');
+  });
+
+  it('folds the letter case of a text holding a dotted capital I a run at a time, each character where it was', () => {
+    // Only `İ` lengthens in lower case, so it stays as it is and every offset after it holds.
+    expect(foldCase('İSTANBUL/LOGO.PNG and İZMİR.JPG')).toBe('İstanbul/logo.png and İzmİr.jpg');
+  });
+
+  it('folds a text holding a dotted capital I into one copy of it', async () => {
+    // A library read as text holds `İ` among its decoded bytes now and then. Folded a
+    // character at a time, each character cost a string of its own and a join of two. The
+    // text is decoded from bytes, as a file's is: `repeat` alone makes a string in pieces,
+    // which the fold would gather into a copy the text then holds.
+    const text = Buffer.from(`${'A'.repeat(999)}İ`.repeat(2_000)).toString();
+    const { result, bytes } = await heapHeldBy(() => foldCase(text));
+
+    expect(result).toBe(`${'a'.repeat(999)}İ`.repeat(2_000));
+    // One copy is two bytes a character, since `İ` makes the text two-byte.
+    expect(bytes).toBeLessThan(3 * text.length);
   });
 });

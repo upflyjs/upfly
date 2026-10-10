@@ -240,11 +240,13 @@ async function mentionsThatWouldSurvive(
   const found = await findSurvivingPaths({
     moves: deleting.map((conversion) => ({ from: conversion.asset, to: conversion.target })),
     // A binary format holds no text a path could be written in, and reading a project's
-    // PDFs and videos as text would take most of the run.
+    // PDFs and videos as text would take most of the run. A file of any other name whose
+    // first bytes say it is not text, a compiled library or a database, is not read either:
+    // as text it can take more memory than the run has.
     files: scope.files.filter((file) => !isBinaryExtension(extensionOf(file))),
     readFile: async (relative) => {
-      const text = await input.store.readText(relative);
-      read?.set(relative, hashText(text));
+      const text = await input.store.readTextUnlessBinary(relative);
+      if (text !== null) read?.set(relative, hashText(text));
       return text;
     },
     servingDirs: input.servingRoots.dirs,
@@ -384,7 +386,7 @@ async function placesOf(
     images: [...named].sort(compareStrings),
     files,
     excludedFiles: (scope.excludedFiles ?? []).filter((file) => files.includes(file)),
-    readFile: (relative) => input.store.readText(relative),
+    readFile: (relative) => input.store.readTextUnlessBinary(relative),
     servingRoots: input.servingRoots,
     aliases: input.aliases ?? { rules: [], skipped: [] },
   });

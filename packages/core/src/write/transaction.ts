@@ -55,6 +55,11 @@ export interface FileStore {
   hash(path: string): Promise<string | null>;
   /** Decoded as UTF-8, the encoding `writeText` writes. */
   readText(path: string): Promise<string>;
+  /**
+   * As `readText`, or null when the file is not text (`readTextUnlessBinary`): how a search of
+   * every file reads one, so a library or an archive is never held in memory as text.
+   */
+  readTextUnlessBinary(path: string): Promise<string | null>;
   writeText(path: string, text: string): Promise<void>;
   /**
    * Creates a file only if it does not exist, atomically, and returns `false` if it did.

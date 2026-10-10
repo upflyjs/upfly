@@ -2346,6 +2346,22 @@ several moved paths names each of them. The limits are printed with every result
 assembled at runtime, a path spelled some other way (behind a CDN prefix, split across a
 concatenation), and a file nobody handed the search, such as one in an excluded directory.
 
+**A file that is not text is not read.** The search reads every file the walk found, and a
+project can hold compiled libraries, databases and archives under names Upfly has no rule for: a
+Python environment's `.dll`, `.so` and `.pyc`, a vector store's `.sst`. Decoded as UTF-8, such a
+file is a string up to twice its size, every byte that is not UTF-8 a character of its own, and
+the copies the search makes of a text (its case folded, its escapes decoded) multiply that; one
+library of 308 MB took more memory than Node allowed. So the search first looks at a file's
+first 8,000 bytes, as git does, and a NUL byte among them says the file is not text
+(`readTextUnlessBinary`, `read-text.ts`). Such a file is neither searched nor a gap in the
+search, as a known binary type (a video, a font, an archive, left out by its extension) already
+was, and it is still counted among the files Upfly did not read. What this gives up is a path
+written inside a binary file, such as a string compiled into a module, which no longer keeps an
+original. No text in an 8-bit encoding holds a NUL byte, so no page in any of them is left out;
+UTF-16 text is, and a path written in it never matched the UTF-8 the search reads. Case is folded
+a run at a time between the characters whose lower case is longer, so a folded text is one copy
+of it.
+
 `optimize` runs the same search before it writes, treating each original that `replace` would delete
 as a move to its converted file. At that point the old path still appears in the references the plan
 is about to rewrite, so a match inside a planned edit's range is discounted by its offset. An asset
