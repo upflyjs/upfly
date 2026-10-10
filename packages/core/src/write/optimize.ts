@@ -450,6 +450,10 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
   const blocked = await mentionsThatWouldSurvive(first, input, input, readBefore);
   const nothingBlocked =
     blocked.assets.size === 0 && blocked.excluded.size === 0 && blocked.unread.size === 0;
+  // A turn of the event loop first: the search's last pass and the second plan would
+  // otherwise hold the thread as one stretch, about a second on a large project, and a
+  // caller's timers, such as a terminal's progress dots, would stop for all of it.
+  if (!nothingBlocked) await new Promise((done) => setTimeout(done, 0));
   const plan = commentsMoved(nothingBlocked ? first : planWith(blocked), blocked);
 
   if (plan.refusal !== null) {
