@@ -1808,6 +1808,29 @@ validation repositories, 21 measurements fail: 8 files that are not images (HTML
 as `.png`, Git LFS pointers, zero-byte placeholders), 12 unreadable SVGs (no usable width and height,
 malformed XML, or too large for the XML parser) and 1 image past the pixel limit.
 
+### A file sharp cannot read never reaches it
+
+On Windows, sharp 0.35 can end the whole process with `0xC0000409`, printing nothing, when it fails
+to read one file while another of its calls runs on another thread. One call at a time it never
+happens, and the probe measures four images at once. What sets it off is a file no loader recognises
+(an empty file, or text under an image's name, such as the pointer a clone made without Git LFS leaves)
+and a file that is not there at all.
+
+So `createSharpProbe` reads the first 1,000 bytes of a file before each sharp call, the header read
+and the encode that measuring and writing share, and rejects with `NotAnImageError` a file that is
+missing, empty, or begins as no format sharp's prebuilt binaries read from a file: PNG, JPEG, WebP,
+GIF, TIFF, HEIF or AVIF by the `ftyp` brands libvips names, libvips' own format, and SVG, which is
+`<svg` in any letter case within those 1,000 bytes, inflated first when they are gzip. Each test
+accepts at least what libvips 8.18's loader for that format accepts, so every file sharp reads still
+reaches it whatever its name says: a `.png` holding a JPEG is read as the JPEG it is. A file that
+begins right and fails to decode, a truncated PNG or a malformed SVG, still goes to sharp, which says
+why; only a parser of each format could tell such a file apart.
+
+`probeAssets` gives a refused file the reason any unreadable file gets, so the report is unchanged.
+It passes no diagnostic on: a diagnostic is a library's own words, and no library was asked. A test
+pins the formats the installed sharp reads from a file, so a sharp that reads one more fails it
+until the check knows how that format begins.
+
 ### Two paths are the same file more often than they look
 
 Windows and macOS fold case; Linux does not. `Reaktor.jpg` and `reaktor.png` convert to `Reaktor.webp`

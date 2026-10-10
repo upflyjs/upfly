@@ -161,7 +161,8 @@ function png(width: number, height: number, red: number): Promise<Buffer> {
 
 /**
  * A plain site whose folder is served as it is, made to produce every finding: a converting
- * photo, two identical copies, an image too wide, a file that is not an image, a typo, a
+ * photo, two identical copies, an image too wide, a file that is not an image, a PNG cut short
+ * that the imaging library fails to read and says why, a typo, a
  * missing image beside its SVG, a reference into node_modules, a path built at runtime, an
  * alias nothing maps, a script that does not parse, an image named only in a text file, a
  * path-like string in JSON that leads nowhere, an unused image and an unused SVG.
@@ -199,6 +200,11 @@ async function everythingSite(): Promise<string> {
   copyFileSync(join(root, 'img/copy-a.png'), join(root, 'img/copy-b.png'));
   write(root, 'img/wide.png', await png(4001, 2, 200));
   write(root, 'img/not-image.png', 'not an image\n');
+  write(
+    root,
+    'img/cut-short.png',
+    readFileSync(fixture('plain-html/images/logo.png')).subarray(0, 30),
+  );
   write(root, 'img/maybe.png', readFileSync(fixture('plain-html/images/texture.png')));
   write(root, 'img/unused.png', readFileSync(fixture('vite-react/public/screenshot.png')));
   write(root, 'img/hero.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>\n');

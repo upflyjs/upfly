@@ -4,6 +4,7 @@ import {
   DEFAULT_ENCODE_QUALITY,
   type EncodeFormat,
   type ImageProbe,
+  NotAnImageError,
   type ProbeDiagnostic,
   probeAssets,
 } from './probe.js';
@@ -304,6 +305,70 @@ describe('probeAssets', () => {
       });
 
       expect(JSON.stringify(result)).not.toContain('Input file');
+    });
+
+    describe('a file the probe refused itself, asking no library', () => {
+      const refused = () => new NotAnImageError('/repo/zero.png is empty');
+
+      it('gets the reason any unreadable file gets, and no library text', async () => {
+        const diagnostics: ProbeDiagnostic[] = [];
+        const [result] = await probeAssets([asset('zero.png')], {
+          probe: {
+            ...fakeProbe(),
+            metadata: async () => {
+              throw refused();
+            },
+          },
+          formats: ['webp'],
+          onDiagnostic: (entry) => diagnostics.push(entry),
+        });
+
+        expect(result?.metadata).toBeNull();
+        expect(result?.skipped.map((skip) => [skip.measurement, skip.code])).toEqual([
+          ['metadata', 'not-an-image'],
+          ['webp', 'not-an-image'],
+        ]);
+        expect(diagnostics).toEqual([]);
+      });
+
+      it('fails an encode refused after the header read, with no library text', async () => {
+        const diagnostics: ProbeDiagnostic[] = [];
+        const [result] = await probeAssets([asset('photo.jpg')], {
+          probe: {
+            ...fakeProbe({ format: 'jpeg' }),
+            encodedBytes: async () => {
+              throw refused();
+            },
+          },
+          formats: ['webp'],
+          onDiagnostic: (entry) => diagnostics.push(entry),
+        });
+
+        expect(result?.skipped.map((skip) => [skip.measurement, skip.code])).toEqual([
+          ['webp', 'encode-failed'],
+        ]);
+        expect(diagnostics).toEqual([]);
+      });
+
+      it('keeps the lossy measurement when only the lossless encode is refused', async () => {
+        const diagnostics: ProbeDiagnostic[] = [];
+        const [result] = await probeAssets([asset('logo.png')], {
+          probe: {
+            ...fakeProbe(),
+            encodedBytes: async ({ lossless }) => {
+              if (lossless === true) throw refused();
+              return 400;
+            },
+          },
+          formats: ['webp'],
+          onDiagnostic: (entry) => diagnostics.push(entry),
+        });
+
+        expect(result?.encoded).toEqual([
+          { format: 'webp', quality: DEFAULT_ENCODE_QUALITY.webp, bytes: 400 },
+        ]);
+        expect(diagnostics).toEqual([]);
+      });
     });
 
     describe('failures classified by what the reader can do, not by what libvips said', () => {

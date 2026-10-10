@@ -247,14 +247,14 @@ describe('createSharpProbe', () => {
       const path = join(temp, 'zero.png');
       await writeFile(path, Buffer.alloc(0));
 
-      await expect(probe.metadata(path)).rejects.toThrow(/unsupported image format/i);
+      await expect(probe.metadata(path)).rejects.toThrow(/is empty/);
     });
 
     it('rejects a text file wearing a .png extension', async () => {
       const path = join(temp, 'text.png');
       await writeFile(path, 'this is not a png, it merely has the extension');
 
-      await expect(probe.metadata(path)).rejects.toThrow(/unsupported image format/i);
+      await expect(probe.metadata(path)).rejects.toThrow(/does not begin as any image format/);
     });
 
     it('rejects a truncated image', async () => {

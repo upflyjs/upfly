@@ -9,8 +9,14 @@
 
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { constants, gunzipSync } from 'node:zlib';
 import type { EncodeFormat, ImageMetadata, ImageProbe } from './probe.js';
-import { DEFAULT_ENCODE_QUALITY, MAX_ENCODE_PIXELS, STILL_ONLY_FORMATS } from './probe.js';
+import {
+  DEFAULT_ENCODE_QUALITY,
+  MAX_ENCODE_PIXELS,
+  NotAnImageError,
+  STILL_ONLY_FORMATS,
+} from './probe.js';
 
 /**
  * Build the sharp-backed probe.
@@ -49,6 +55,7 @@ export async function createSharpProbe(
         `${format} is written as a single still image, so an animation cannot be encoded to it without stacking its frames into one picture`,
       );
     }
+    await mustBeReadable(path);
 
     // Without `animated`, sharp encodes the first frame alone, and every animated GIF
     // would report a saving only achievable by destroying the animation.
@@ -95,6 +102,7 @@ export async function createSharpProbe(
       // A plain read, not `{ animated: true }`: the animated read reports every frame
       // stacked into one strip, so an oversized-by-dimensions finding would be wrong by
       // the frame count. The plain read gives one frame's size and still reports `pages`.
+      await mustBeReadable(path);
       const result = await sharp(path).metadata();
       const format = result.format ?? 'unknown';
 
@@ -126,6 +134,99 @@ export async function createSharpProbe(
       return size;
     },
   };
+}
+
+/**
+ * How much of a file is read to tell whether sharp reads it: libvips looks for an SVG's `<svg`
+ * within the first 1,000 bytes, and tells every other format it reads by the first 12.
+ */
+const HEAD_BYTES = 1000;
+
+/**
+ * Rejects a file whose own bytes show sharp cannot read it, before sharp is asked: an empty
+ * file, text under an image's name such as a Git LFS pointer, a file that is gone.
+ *
+ * On Windows, sharp 0.35 can end the whole process, printing nothing, when it fails to
+ * recognise one file while it reads another, and the probe measures several images at once.
+ * A file sharp would refuse is refused here instead, with the same outcome in the report. A
+ * file in a format sharp reads goes to sharp whatever its name says, and sharp still decides
+ * whether it decodes.
+ */
+async function mustBeReadable(path: string): Promise<void> {
+  let head: Buffer;
+  try {
+    const file = await open(path, 'r');
+    try {
+      const buffer = Buffer.alloc(HEAD_BYTES);
+      const { bytesRead } = await file.read(buffer, 0, HEAD_BYTES, 0);
+      head = buffer.subarray(0, bytesRead);
+    } finally {
+      await file.close();
+    }
+  } catch (error) {
+    const missing = (error as NodeJS.ErrnoException).code === 'ENOENT';
+    throw new NotAnImageError(missing ? `${path} is missing` : `${path} could not be read`);
+  }
+  if (head.length === 0) throw new NotAnImageError(`${path} is empty`);
+  if (!inFormatSharpReads(head)) {
+    throw new NotAnImageError(`${path} does not begin as any image format sharp reads`);
+  }
+}
+
+/** The major brands libvips reads as HEIF or AVIF, as `ftyp` names them at bytes 8 to 11. */
+const HEIF_BRANDS: ReadonlySet<string> = new Set([
+  'heic',
+  'heix',
+  'hevc',
+  'heim',
+  'heis',
+  'hevm',
+  'hevs',
+  'mif1',
+  'msf1',
+  'avif',
+]);
+
+/**
+ * Whether a file beginning with `head` is in a format sharp's prebuilt binaries read from a
+ * file: PNG, JPEG, WebP, GIF, TIFF, HEIF or AVIF, libvips' own format, or SVG. Each test
+ * accepts at least what libvips 8.18's loader for that format accepts, so no file sharp reads
+ * is turned away.
+ */
+function inFormatSharpReads(head: Buffer): boolean {
+  const text = (start: number, end: number) => head.toString('latin1', start, end);
+  const first = head.length >= 4 ? head.readUInt32BE(0) : -1;
+  return (
+    text(0, 8) === '\x89PNG\r\n\x1a\n' ||
+    (head[0] === 0xff && head[1] === 0xd8) ||
+    (text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') ||
+    text(0, 4) === 'GIF8' ||
+    // TIFF and BigTIFF, in either byte order.
+    [0x49492a00, 0x4d4d002a, 0x49492b00, 0x4d4d002b].includes(first) ||
+    (text(4, 8) === 'ftyp' && HEIF_BRANDS.has(text(8, 12))) ||
+    // libvips' own format, written in either byte order.
+    [0x08f2a6b6, 0xb6a6f208].includes(first) ||
+    namesSvg(head)
+  );
+}
+
+/**
+ * Whether libvips would take a file beginning with `head` for an SVG: `<svg` in any letter
+ * case within its first 1,000 bytes, inflated first when they are gzip, as an `.svgz` is.
+ * libvips also stops at a byte that is not UTF-8 before the tag; that case is left to sharp.
+ */
+function namesSvg(head: Buffer): boolean {
+  let text = head;
+  if (head.length >= 18 && head[0] === 0x1f && head[1] === 0x8b) {
+    try {
+      // A sync flush inflates what the first bytes hold, though the stream goes on past them.
+      text = gunzipSync(head, { finishFlush: constants.Z_SYNC_FLUSH }).subarray(0, HEAD_BYTES);
+    } catch {
+      // libvips inflates with zlib too; a stream that fails here is left for sharp to judge.
+      return true;
+    }
+  }
+  return text.toString('latin1').toLowerCase().includes('<svg');
 }
 
 /**

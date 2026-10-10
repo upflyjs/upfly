@@ -156,6 +156,14 @@ export interface ProbeSkip {
 }
 
 /**
+ * How an `ImageProbe` rejects a file it can tell from the file itself is no image it reads,
+ * without asking its imaging library: an empty file, text under an image's name, a file that
+ * is gone. `probeAssets` records the reason any unreadable file gets, and passes no library
+ * message on, since no library gave one.
+ */
+export class NotAnImageError extends Error {}
+
+/**
  * A failing imaging library's own message, for `ProbeOptions.onDiagnostic`.
  *
  * Not a field on `ProbeSkip`, so the report, which is built from `ProbeSkip`, has no way
@@ -463,6 +471,7 @@ async function losslessSize(
   try {
     return await options.probe.encodedBytes({ path: asset.path, format, animated, lossless: true });
   } catch (error) {
+    if (error instanceof NotAnImageError) return Number.POSITIVE_INFINITY;
     options.onDiagnostic?.({
       asset: asset.relative,
       measurement: format,
@@ -486,6 +495,7 @@ async function probeOne(
     error: unknown,
   ): void => {
     skipped.push({ measurement, code, reason: FAILURE_REASON[code] });
+    if (error instanceof NotAnImageError) return;
     options.onDiagnostic?.({ asset: asset.relative, measurement, code, detail: describe(error) });
   };
 
