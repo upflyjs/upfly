@@ -227,6 +227,18 @@ async function loadCode(root: string, file: string): Promise<Loaded> {
   }
 }
 
+/**
+ * Whether the project's `upfly.config.json` is the v2 VS Code extension's, which this CLI never
+ * reads, whatever configuration file is beside it. Only the JSON is read.
+ *
+ * @param root the project directory
+ */
+export async function holdsExtensionConfig(root: string): Promise<boolean> {
+  if (!existsSync(join(root, 'upfly.config.json'))) return false;
+  const json = await readJson(root);
+  return json.kind === 'parsed' && isV2Only(json.value);
+}
+
 /** A JSON file with a v2 key and nothing that marks it as this CLI's. */
 function isV2Only(value: unknown): boolean {
   if (!isRecord(value)) return false;

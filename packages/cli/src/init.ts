@@ -24,7 +24,7 @@ import {
 } from './agents.js';
 import type { InitOptions } from './args.js';
 import { isDirectory } from './audit.js';
-import { CONFIG_FILES, CONFIG_SCHEMA, loadConfig } from './config.js';
+import { CONFIG_FILES, CONFIG_SCHEMA, holdsExtensionConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { headline, spaced } from './layout.js';
@@ -110,7 +110,10 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
   } else {
     const styles = stylesFor(io.stdout, io.env, options);
     const upfly = upflyCommand(io.env, io.script);
-    io.stdout.write(spaced(render(written, existing, agents, styles, upfly).split('\n')));
+    const extension = written === null && (await holdsExtensionConfig(root));
+    io.stdout.write(
+      spaced(render(written, existing, extension, agents, styles, upfly).split('\n')),
+    );
   }
   return EXIT_CODES.OK;
 }
@@ -183,13 +186,18 @@ const FORMAT_REASON: Reason = {
 
 /** Why the files already there stop `init`, and what to do instead. */
 async function existsMessage(root: string, files: readonly string[]): Promise<string> {
+  // Only the JSON is read, and without running anything: a code config is left unloaded.
+  if (files.length === 1 && files[0] === FILE && (await holdsExtensionConfig(root))) {
+    return extensionMessage();
+  }
   const named =
     files.length === 1 ? `${files[0]} already exists` : `${files.join(' and ')} already exist`;
-  // Only the JSON form is read, and without running anything: a code config is left unloaded.
-  if (files.length === 1 && files[0] === FILE && (await loadConfig(root)).kind === 'refused') {
-    return `${named}, and holds the settings of the Upfly VS Code extension (v2), which init leaves alone. To configure this CLI, create upfly.config.ts beside it, which Upfly reads instead.`;
-  }
   return `${named}, and init never changes a configuration file. Edit it instead.`;
+}
+
+/** What `init` says of the extension's file, with `--agents` or without. */
+function extensionMessage(): string {
+  return `${FILE} already exists, and holds the settings of the Upfly VS Code extension (v2), which init leaves alone. To configure this CLI, create upfly.config.ts beside it, which Upfly reads instead.`;
 }
 
 /** Why each folder was chosen, or why none was written. */
@@ -238,17 +246,27 @@ function walkedPaths(discovery: DiscoveryResult): ReadonlySet<string> {
   return paths;
 }
 
+/**
+ * What `init` printed: the config it wrote, or the one already there, then the agents' files.
+ *
+ * @param extension whether the `upfly.config.json` there is the v2 extension's, which is no
+ * config of this CLI's to keep
+ */
 function render(
   written: Written | null,
   existing: readonly string[],
+  extension: boolean,
   agents: AgentFiles | null,
   styles: Styles,
   upfly: UpflyCommand,
 ): string {
+  const kept = existing.filter((file) => !(extension && file === FILE));
   const config =
-    written === null
-      ? [`${styles.accent('Kept')} ${existing.join(' and ')}, which was already there.`]
-      : configLines(written, styles);
+    written !== null
+      ? configLines(written, styles)
+      : kept.length === 0
+        ? [extensionMessage()]
+        : [`${styles.accent('Kept')} ${kept.join(' and ')}, which was already there.`];
   const next =
     agents === null
       ? [`To point this project's coding agents at Upfly, run \`${upfly} init --agents\`.`]

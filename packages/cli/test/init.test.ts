@@ -284,6 +284,35 @@ describe('upfly init --agents', () => {
     expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
   });
 
+  it('never calls the v2 extension file a kept configuration, and still points the agents at Upfly', () => {
+    const root = framework();
+    write(root, 'upfly.config.json', KILL_SWITCH);
+
+    const run = upfly(['init', root, '--agents']);
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).not.toContain('Kept upfly.config.json');
+    expect(run.stdout).toContain(
+      'upfly.config.json already exists, and holds the settings of the Upfly VS Code extension (v2), which init leaves alone. To configure this CLI, create upfly.config.ts beside it, which Upfly reads instead.',
+    );
+    expect(readFileSync(join(root, 'upfly.config.json'))).toEqual(KILL_SWITCH);
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+  });
+
+  it('keeps a code config with the v2 extension file beside it, and calls only that one kept', () => {
+    // What plain init advises: an upfly.config.ts beside the extension's file, which Upfly then
+    // leaves unread.
+    const root = framework();
+    write(root, 'upfly.config.json', KILL_SWITCH);
+    write(root, 'upfly.config.ts', "export default { publicDirs: ['public'] };\n");
+
+    const run = upfly(['init', root, '--agents']);
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain('Kept upfly.config.ts, which was already there.');
+    expect(run.stdout).not.toContain('upfly.config.json, which was already there');
+  });
+
   it('leaves a CLAUDE.md that imports AGENTS.md as it is, and a GEMINI.md gets the block', () => {
     const root = framework();
     write(root, 'CLAUDE.md', '@AGENTS.md\n');
