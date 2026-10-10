@@ -14,6 +14,7 @@
 
 import { plural } from '../format.js';
 import { compareStrings } from '../paths.js';
+import { ownCopy } from '../read-text.js';
 import { type Reading, readingsOf } from './readings.js';
 
 /** One occurrence of an old path that survived the move. */
@@ -351,18 +352,22 @@ export interface PathOccurrencesResult {
   readonly unsearchable: readonly Unsearchable[];
   /** Every spelling looked for. */
   readonly spellings: readonly string[];
-  /** The text of each file that holds an occurrence, so a caller can read around one. */
-  readonly texts: ReadonlyMap<string, string>;
 }
 
 /**
  * Every place the paths occur in the files, in any spelling, any letter case and any reading:
  * the same search as `findSurvivingPaths`, reporting every match rather than one per place,
- * and discounting nothing. What a match means is for the caller to work out, which is why the
- * texts that hold one come back with it.
+ * and discounting nothing. What a match means is for the caller to work out, so each file that
+ * holds one is handed to `each` with its text, while it is read. No text is kept: a project's
+ * files together can hold more text than a run has memory, so whatever a caller needs from a
+ * text it takes then.
+ *
+ * @param input the paths, the files and how to read them
+ * @param each called once for each file that holds an occurrence, in the files' order
  */
 export async function findPathOccurrences(
   input: PathOccurrencesInput,
+  each: (file: string, text: string, occurrences: readonly PathOccurrence[]) => void = () => {},
 ): Promise<PathOccurrencesResult> {
   const spellings = [
     ...new Set(input.paths.flatMap((path) => spellingsFor(path, input.servingDirs))),
@@ -371,7 +376,6 @@ export async function findPathOccurrences(
 
   const occurrences: PathOccurrence[] = [];
   const unsearchable: Unsearchable[] = [];
-  const texts = new Map<string, string>();
   let filesSearched = 0;
   let filesNotText = 0;
 
@@ -390,27 +394,27 @@ export async function findPathOccurrences(
     filesSearched++;
     const found = spansIn(readingsOf(text), index);
     if (found.length === 0) continue;
-    texts.set(file, text);
     const lineAt = lineIndex(text);
-    for (const { rank, start, end } of found) {
-      occurrences.push({
+    const inFile = found
+      .map(({ rank, start, end }) => ({
         file,
         line: lineAt(start),
         offset: start,
-        spelling: text.slice(start, end),
+        spelling: ownCopy(text.slice(start, end)),
         searched: spellings[rank] ?? '',
-      });
-    }
+      }))
+      .sort(
+        (a, b) =>
+          a.offset - b.offset ||
+          b.searched.length - a.searched.length ||
+          compareStrings(a.searched, b.searched),
+      );
+    each(file, text, inFile);
+    occurrences.push(...inFile);
   }
 
-  occurrences.sort(
-    (a, b) =>
-      compareStrings(a.file, b.file) ||
-      a.offset - b.offset ||
-      b.searched.length - a.searched.length ||
-      compareStrings(a.searched, b.searched),
-  );
-  return { occurrences, filesSearched, filesNotText, unsearchable, spellings, texts };
+  // Files are searched in order, so the occurrences already run by file, then offset.
+  return { occurrences, filesSearched, filesNotText, unsearchable, spellings };
 }
 
 /** What a search looks for: the spellings, longest first, and their folded needles. */
@@ -460,7 +464,7 @@ function survivorsIn(
         file,
         line: lineAt(span.start),
         offset: span.start,
-        spelling: text.slice(span.start, span.end),
+        spelling: ownCopy(text.slice(span.start, span.end)),
         searched: searched.spellings[span.rank] ?? '',
         text: lineTextAt(text, span.start),
       });
@@ -627,12 +631,15 @@ function countBelow(values: readonly number[], limit: number): number {
   return low;
 }
 
-/** The line an offset sits on, trimmed and capped so a report stays readable. */
+/**
+ * The line an offset sits on, trimmed and capped so a report stays readable, in a string of its
+ * own (`ownCopy`), since a result keeps it.
+ */
 export function lineTextAt(text: string, offset: number): string {
   const start = text.lastIndexOf('\n', offset) + 1;
   const end = text.indexOf('\n', offset);
   const line = text.slice(start, end === -1 ? text.length : end).trim();
-  return line.length <= TEXT_CAP ? line : `${line.slice(0, TEXT_CAP)}...`;
+  return ownCopy(line.length <= TEXT_CAP ? line : `${line.slice(0, TEXT_CAP)}...`);
 }
 
 /**

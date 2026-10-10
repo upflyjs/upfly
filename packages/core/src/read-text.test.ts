@@ -2,7 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TEXT_TEST_BYTES, readTextUnlessBinary } from './read-text.js';
+import { readTextUnlessBinary } from './read-text.js';
+
+/** Git's number: a NUL byte within a file's first 8,000 bytes calls it binary. */
+const GIT_TEST_BYTES = 8000;
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -22,7 +25,7 @@ describe('reading a file as text unless it is binary', () => {
   it('reads a text file whole, as readFile decodes it, a character split across the test boundary included', async () => {
     // `é` is two bytes in UTF-8; placed across the 8,000th byte, it shows the head and the
     // rest are decoded as one text, and past it the file is read to its end.
-    const text = `${'a'.repeat(TEXT_TEST_BYTES - 1)}é and /img/logo.png\n${'line\n'.repeat(200_000)}`;
+    const text = `${'a'.repeat(GIT_TEST_BYTES - 1)}é and /img/logo.png\n${'line\n'.repeat(200_000)}`;
     const path = await file(text);
 
     expect(await readTextUnlessBinary(path)).toBe(await readFile(path, 'utf8'));
@@ -30,10 +33,10 @@ describe('reading a file as text unless it is binary', () => {
   });
 
   it('calls a file binary for a NUL byte within its first 8,000 bytes, and text for one after', async () => {
-    const before = Buffer.from(`${'a'.repeat(TEXT_TEST_BYTES - 1)} /img/logo.png`);
-    before[TEXT_TEST_BYTES - 1] = 0;
-    const after = Buffer.from(`${'a'.repeat(TEXT_TEST_BYTES)} /img/logo.png`);
-    after[TEXT_TEST_BYTES] = 0;
+    const before = Buffer.from(`${'a'.repeat(GIT_TEST_BYTES - 1)} /img/logo.png`);
+    before[GIT_TEST_BYTES - 1] = 0;
+    const after = Buffer.from(`${'a'.repeat(GIT_TEST_BYTES)} /img/logo.png`);
+    after[GIT_TEST_BYTES] = 0;
 
     expect(await readTextUnlessBinary(await file(before))).toBeNull();
     expect(await readTextUnlessBinary(await file(after))).toBe(after.toString('utf8'));

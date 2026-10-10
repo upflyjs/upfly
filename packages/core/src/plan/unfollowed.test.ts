@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MEGABYTE, heapHeldBy, heapInUse, megabyteOfText } from '../../test/heap-held.js';
 import { runPipeline, servingRootsFor } from '../pipeline.js';
 import { unfollowedLines } from '../project-search.js';
 import { findPathOccurrences } from './old-path-search.js';
-import type { UnfollowedLine } from './unfollowed.js';
+import { type UnfollowedLine, findUnfollowedLines } from './unfollowed.js';
 
 const LOGO = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -389,16 +390,20 @@ describe('the search behind the list', () => {
       'b.txt': 'nothing here\n',
     };
 
-    const found = await findPathOccurrences({
-      paths: ['public/img/a.png'],
-      files: [...Object.keys(texts), 'gone.txt'],
-      readFile: async (file) => {
-        const text = texts[file];
-        if (text === undefined) throw new Error('ENOENT');
-        return text;
+    const handed: [string, boolean, number][] = [];
+    const found = await findPathOccurrences(
+      {
+        paths: ['public/img/a.png'],
+        files: [...Object.keys(texts), 'gone.txt'],
+        readFile: async (file) => {
+          const text = texts[file];
+          if (text === undefined) throw new Error('ENOENT');
+          return text;
+        },
+        servingDirs: ['public'],
       },
-      servingDirs: ['public'],
-    });
+      (file, text, occurrences) => handed.push([file, text === texts[file], occurrences.length]),
+    );
 
     expect(found.occurrences.map((occurrence) => [occurrence.offset, occurrence.spelling])).toEqual(
       [
@@ -408,9 +413,45 @@ describe('the search behind the list', () => {
         [36, 'img/a.png'],
       ],
     );
-    expect([...found.texts.keys()]).toEqual(['a.html']);
+    // Each file holding one is handed over with its text while it is read, and only then.
+    expect(handed).toEqual([['a.html', true, 4]]);
     expect(found.unsearchable).toEqual([{ file: 'gone.txt', reason: 'ENOENT' }]);
     expect(found.filesSearched).toBe(2);
+  });
+
+  it('holds the text of one file at a time, and keeps none in the lines it lists', async () => {
+    // Twenty unread files of a megabyte, each naming the image once. Each read measures what
+    // the search still holds of the files before it; the lines are measured once it returns.
+    const root = await project({
+      'public/img/hero-image.png': 'IMAGE',
+      'index.html': '<img src="/img/hero-image.png">\n',
+    });
+    const pipeline = await runPipeline({
+      root,
+      servingRoots: servingRootsFor({ declared: true, dirs: ['public'] }),
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: null,
+    });
+    const held: number[] = [];
+
+    const { result, bytes } = await heapHeldBy(() =>
+      findUnfollowedLines({
+        graph: pipeline.graph,
+        images: ['public/img/hero-image.png'],
+        files: Array.from({ length: 20 }, (_, index) => `notes/page${index}.txt`),
+        excludedFiles: [],
+        readFile: async () => {
+          held.push(heapInUse());
+          return megabyteOfText('see /img/hero-image.png');
+        },
+        servingRoots: pipeline.servingRoots,
+        aliases: pipeline.aliases,
+      }),
+    );
+
+    expect(result.lines).toHaveLength(20);
+    expect(Math.max(...held) - (held[0] ?? 0)).toBeLessThan(3 * MEGABYTE);
+    expect(bytes).toBeLessThan(MEGABYTE);
   });
 });
 

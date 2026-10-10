@@ -6,6 +6,9 @@ import { runInNewContext } from 'node:vm';
 setFlagsFromString('--expose-gc');
 const collect = runInNewContext('gc') as () => void;
 
+/** About the size of `megabyteOfText`, in bytes of heap. */
+export const MEGABYTE = 1 << 20;
+
 /**
  * How many bytes of heap a call leaves in use while its result is still held, measured after
  * a full collection on either side, so what a function keeps alive is told apart from what it
@@ -24,4 +27,20 @@ export async function heapHeldBy<T>(
   const result = await make();
   collect();
   return { result, bytes: process.memoryUsage().heapUsed - before };
+}
+
+/** The bytes of heap still in use after a full collection: what something still holds. */
+export function heapInUse(): number {
+  collect();
+  return process.memoryUsage().heapUsed;
+}
+
+/**
+ * Text of about a megabyte holding `line` once, made anew on each call and decoded from bytes as
+ * a file's text is, so each call's text is a string of its own that only what keeps it holds.
+ *
+ * @param line the line to hold, such as one naming an image
+ */
+export function megabyteOfText(line: string): string {
+  return Buffer.from(`${'x'.repeat(MEGABYTE)}\n${line}\n`).toString();
 }

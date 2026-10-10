@@ -2359,8 +2359,16 @@ was, and it is still counted among the files Upfly did not read. What this gives
 written inside a binary file, such as a string compiled into a module, which no longer keeps an
 original. No text in an 8-bit encoding holds a NUL byte, so no page in any of them is left out;
 UTF-16 text is, and a path written in it never matched the UTF-8 the search reads. Case is folded
-a run at a time between the characters whose lower case is longer, so a folded text is one copy
-of it.
+a run at a time between the dotted capital I's, the one character whose lower case is longer, so
+a folded text is one copy of it.
+
+**The search holds one file's text at a time.** A project's files together can hold more text
+than a run has memory, so a search that reads every file reads each place it finds while it holds
+that file's text and keeps none: `findPathOccurrences` hands each file with its text to the caller
+as it reads it, and what a result keeps of a text (a spelling, a line, a path to resolve) is
+copied into a string of its own (`ownCopy`), since V8 keeps a slice of 13 or more characters as a
+view into the whole string it came from. The files the audit cites for an image nothing links to
+are read the same way, one at a time.
 
 `optimize` runs the same search before it writes, treating each original that `replace` would delete
 as a move to its converted file. At that point the old path still appears in the references the plan

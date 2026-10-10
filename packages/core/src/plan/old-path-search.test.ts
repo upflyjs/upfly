@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heapHeldBy } from '../../test/heap-held.js';
+import { MEGABYTE, heapHeldBy, heapInUse, megabyteOfText } from '../../test/heap-held.js';
 import { compareStrings } from '../paths.js';
 import { findSurvivingPaths, foldCase, respellAs, spellingsFor } from './old-path-search.js';
 
@@ -702,6 +702,27 @@ describe('what a search holds in memory', () => {
     expect(result.filesNotText).toBe(1);
     expect(result.unsearchable).toEqual([]);
     expect(result.lines.join('\n')).toContain('1 file not read because it is not text');
+  });
+
+  it('holds the text of one file at a time, and keeps none in what it finds', async () => {
+    // Twenty files of a megabyte, each naming the path once. Each read measures what the
+    // search still holds of the files before it; the survivors are measured once it returns.
+    const held: number[] = [];
+    const { result, bytes } = await heapHeldBy(() =>
+      findSurvivingPaths({
+        moves: [{ from: 'public/img/hero-image.png', to: 'public/img/hero-image.webp' }],
+        files: Array.from({ length: 20 }, (_, index) => `page${index}.txt`),
+        readFile: async () => {
+          held.push(heapInUse());
+          return megabyteOfText('see /img/hero-image.png');
+        },
+        servingDirs: SERVING,
+      }),
+    );
+
+    expect(result.survivors).toHaveLength(20);
+    expect(Math.max(...held) - (held[0] ?? 0)).toBeLessThan(3 * MEGABYTE);
+    expect(bytes).toBeLessThan(MEGABYTE);
   });
 
   it('folds the letter case of a text holding a dotted capital I a run at a time, each character where it was', () => {

@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { MEGABYTE, heapInUse, megabyteOfText } from '../../test/heap-held.js';
 import type { PathSpelling } from '../adapters/reference-path.js';
 import type { AuditResult } from '../audit/audit.js';
 import { buildGraph } from '../graph/graph.js';
@@ -1638,5 +1639,50 @@ describe('what a caller is told, and when it may still say no', () => {
 
     expect(kept.tree.get('.upfly/.gitignore')).toBe('runs/\n');
     expect(dry.tree.has('.upfly/.gitignore')).toBe(false);
+  });
+});
+
+describe('what a run holds in memory', () => {
+  it('reads the files the audit cites for an image nothing links to one at a time, and keeps none of their text', async () => {
+    // Twenty pages of a megabyte, each naming the image's file name on its second line. Each
+    // read measures what the run still holds of the pages before it.
+    const pages = Array.from({ length: 20 }, (_, index) => `docs/page${index}.md`);
+    const project = harness({ 'src/App.jsx': SOURCE, 'src/logo.png': 'PNG' });
+    const held: number[] = [];
+    const store: FileStore = {
+      ...project.store,
+      readText: async (path) => {
+        if (!path.startsWith('docs/')) return project.store.readText(path);
+        held.push(heapInUse());
+        return megabyteOfText('old.png');
+      },
+    };
+    const [first, ...rest] = pages.map((page) => ({
+      asset: 'src/old.png',
+      source: 'scanned-file' as const,
+      where: `${page}:2`,
+      quote: 'old.png',
+    }));
+    if (first === undefined) throw new Error('no page');
+    const input = inputFor({ ...project, store, apply: false });
+
+    await optimize({
+      ...input,
+      audit: {
+        ...input.audit,
+        findings: [
+          {
+            kind: 'possibly-dead',
+            asset: 'src/old.png',
+            bytes: 3,
+            inPublicDir: false,
+            evidence: [first, ...rest],
+          },
+        ],
+      },
+    });
+
+    expect(held).toHaveLength(20);
+    expect(Math.max(...held) - (held[0] ?? 0)).toBeLessThan(3 * MEGABYTE);
   });
 });

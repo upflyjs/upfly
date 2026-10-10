@@ -656,37 +656,58 @@ async function commitUnderLock(
  */
 async function hedgedMentions(input: OptimizeInput): Promise<ReadonlyMap<string, HedgedMention>> {
   const read = mentionReader(input.graph);
-  const texts = new Map<string, Promise<string | null>>();
-  const textOf = (file: string): Promise<string | null> => {
-    const known = texts.get(file);
-    if (known !== undefined) return known;
-    const text = input.store.readText(file).catch(() => null);
-    texts.set(file, text);
-    return text;
-  };
+  const findings = input.audit.findings.flatMap((finding) =>
+    finding.kind === 'possibly-dead' ? [finding] : [],
+  );
+  // Each piece of evidence that needs a file's text waits for it by file, so every file is read
+  // once and let go before the next, whatever the number of findings that cite it.
+  const places = findings.map((finding) => new Array<HedgedMention>(finding.evidence.length));
+  const waiting = new Map<string, ((text: string | null) => void)[]>();
+  findings.forEach((finding, which) => {
+    const found = places[which] as HedgedMention[];
+    finding.evidence.forEach((mention, index) => {
+      const place = mentionPlace(mention, read);
+      if (!('file' in place)) {
+        found[index] = place;
+        return;
+      }
+      const settle = (text: string | null) => {
+        found[index] = place.withText(text);
+      };
+      const list = waiting.get(place.file);
+      if (list === undefined) waiting.set(place.file, [settle]);
+      else list.push(settle);
+    });
+  });
+  for (const [file, settles] of waiting) {
+    const text = await input.store.readText(file).catch(() => null);
+    for (const settle of settles) settle(text);
+  }
+
   const hedged = new Map<string, HedgedMention>();
-  for (const finding of input.audit.findings) {
-    if (finding.kind !== 'possibly-dead') continue;
-    const places = await Promise.all(
-      finding.evidence.map((mention) => mentionPlace(mention, read, textOf)),
-    );
-    const chosen = places.find((place) => place.loads) ?? places[0];
-    if (chosen === undefined) continue;
-    const others = places.length - 1;
+  findings.forEach((finding, which) => {
+    const found = places[which] ?? [];
+    const chosen = found.find((place) => place.loads) ?? found[0];
+    if (chosen === undefined) return;
+    const others = found.length - 1;
     hedged.set(
       finding.asset,
       others === 0 ? chosen : { ...chosen, where: `${chosen.where} (and ${others} more)` },
     );
-  }
+  });
   return hedged;
 }
 
-/** What one piece of the audit's evidence says of the asset it names. */
-async function mentionPlace(
+/**
+ * What one piece of the audit's evidence says of the asset it names, or, for a name found in a
+ * file's text, the file to read and what to make of its text.
+ */
+function mentionPlace(
   mention: Mention,
   read: (file: string, text: string | null, offset: number) => MentionPlace,
-  textOf: (file: string) => Promise<string | null>,
-): Promise<HedgedMention> {
+):
+  | HedgedMention
+  | { readonly file: string; readonly withText: (text: string | null) => HedgedMention } {
   const { where } = mention;
   if (mention.source === 'unresolved-reference') {
     return {
@@ -698,14 +719,22 @@ async function mentionPlace(
   const cited = /^(.*):(\d+)$/.exec(where);
   const file = cited?.[1] ?? where;
   if (mention.source === 'unscanned-file') return { where, ...read(file, null, 0) };
-  const text = await textOf(file);
-  const offset =
-    text === null || cited === null ? -1 : offsetOn(text, Number(cited[2]), mention.quote);
-  // The file changed or went since the scan read it, so what holds the name is not known.
-  if (text === null || offset === -1) {
-    return { where, says: 'names it in text that has changed since Upfly read it', loads: true };
-  }
-  return { where, ...read(file, text, offset) };
+  return {
+    file,
+    withText: (text) => {
+      const offset =
+        text === null || cited === null ? -1 : offsetOn(text, Number(cited[2]), mention.quote);
+      // The file changed or went since the scan read it, so what holds the name is not known.
+      if (text === null || offset === -1) {
+        return {
+          where,
+          says: 'names it in text that has changed since Upfly read it',
+          loads: true,
+        };
+      }
+      return { where, ...read(file, text, offset) };
+    },
+  };
 }
 
 /** Where `quote` first sits on the one-based `line` of `text`, or -1. */

@@ -1,6 +1,6 @@
 /**
- * A file's text for a search that reads every file of a project, and none for a file that is
- * not text.
+ * A file's text for a search that reads every file of a project, none for a file that is not
+ * text, and the copies that let a search's results outlive the text they came from.
  */
 
 import { open } from 'node:fs/promises';
@@ -38,4 +38,21 @@ export async function readTextUnlessBinary(path: string): Promise<string | null>
   } finally {
     await file.close();
   }
+}
+
+/**
+ * The same characters in a string of their own.
+ *
+ * V8 keeps a slice of 13 or more characters, and a regular expression's match, as a view into
+ * the string it came from, so a path or a line that a result keeps from a file's text would keep
+ * the whole text in memory for as long as the result. Every string a search keeps from a text
+ * goes through this.
+ *
+ * @param text a string, usually a slice of a file's text
+ * @returns an equal string that holds no other
+ */
+export function ownCopy(text: string): string {
+  // Joined to a space, the characters are copied into a new string; sliced off it, they are
+  // a view into that copy alone.
+  return ` ${text}`.slice(1);
 }

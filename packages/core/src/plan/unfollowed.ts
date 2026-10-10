@@ -21,6 +21,7 @@ import { TEMPLATE_HOLES, type TemplateHole } from '../adapters/reference-path.js
 import { withheldReferences } from '../audit/resolution-health.js';
 import type { Graph } from '../graph/graph.js';
 import { compareStrings, extensionOf, relativePath } from '../paths.js';
+import { ownCopy } from '../read-text.js';
 import type { AliasMap } from '../resolve/aliases.js';
 import { isLinked, linkedPaths } from '../resolve/reference.js';
 import { type ServingRoots, resolveReferences } from '../resolve/resolve.js';
@@ -28,7 +29,6 @@ import { hashText } from '../scan/text-hash.js';
 import type { ExcludedRoot, RawReference, Reference, UnscannedFile } from '../types.js';
 import {
   type PathOccurrence,
-  type PathOccurrencesResult,
   type Unsearchable,
   findPathOccurrences,
   foldCase,
@@ -217,13 +217,6 @@ interface Context {
  */
 export async function findUnfollowedLines(input: UnfollowedInput): Promise<UnfollowedResult> {
   const { graph } = input;
-  const found = await findPathOccurrences({
-    paths: input.images,
-    files: input.files,
-    readFile: input.readFile,
-    servingDirs: input.servingRoots.dirs,
-  });
-
   const context: Context = {
     input,
     root: graph.root,
@@ -232,11 +225,30 @@ export async function findUnfollowedLines(input: UnfollowedInput): Promise<Unfol
     excluded: new Set(input.excludedFiles),
     unscanned: new Map(graph.unscannedFiles.map((file) => [file.relative, file])),
   };
-  const { lines, comments } = chosen(
-    placesByLine(found, imagesBySpelling(input), context),
-    context,
-    new Map([...found.texts].map(([file, text]) => [file, hashText(text)])),
+  const spellings = imagesBySpelling(input);
+  const references = referencesByFile(graph);
+  const candidates = new Map<string, Candidate[]>();
+  const hashes = new Map<string, string>();
+  // Each file's places are read while the search holds its text, which goes with the next file.
+  const found = await findPathOccurrences(
+    {
+      paths: input.images,
+      files: input.files,
+      readFile: input.readFile,
+      servingDirs: input.servingRoots.dirs,
+    },
+    (file, text, occurrences) => {
+      placesIn(
+        { file, text, occurrences },
+        references.get(file) ?? [],
+        spellings,
+        context,
+        candidates,
+      );
+      hashes.set(file, hashText(text));
+    },
   );
+  const { lines, comments } = chosen(candidates, context, hashes);
   lines.sort(
     (a, b) => compareStrings(a.image, b.image) || compareStrings(a.file, b.file) || a.line - b.line,
   );
@@ -259,35 +271,35 @@ function imagesBySpelling(input: UnfollowedInput): Map<string, string[]> {
 }
 
 /**
- * The places that may list each line, by image, file and line, in the order they sit. A line
- * with a reference to the image is one of its references, and a place that settles a line
- * stops the search of the rest.
+ * Adds the places in one file that may list each line, by image, file and line, in the order
+ * they sit. A line with a reference to the image is one of its references, and a place that
+ * settles a line stops the search of the rest.
  */
-function placesByLine(
-  found: PathOccurrencesResult,
+function placesIn(
+  read: {
+    readonly file: string;
+    readonly text: string;
+    readonly occurrences: readonly PathOccurrence[];
+  },
+  inFile: readonly Reference[],
   spellings: ReadonlyMap<string, readonly string[]>,
   context: Context,
-): Map<string, Candidate[]> {
-  const references = referencesByFile(context.input.graph, found.texts);
-  const candidates = new Map<string, Candidate[]>();
-  for (const [file, occurrences] of byFile(found.occurrences)) {
-    const text = found.texts.get(file) ?? '';
-    const inFile = references.get(file) ?? [];
-    const referenced = referencedLines(inFile, context.root, lineIndex(text));
-    const regions = lazily(() => regionsOf(file, text));
+  candidates: Map<string, Candidate[]>,
+): void {
+  const { file, text } = read;
+  const referenced = referencedLines(inFile, context.root, lineIndex(text));
+  const regions = lazily(() => regionsOf(file, text));
 
-    for (const { image, occurrence } of longestPerImage(occurrences, spellings)) {
-      if (referenced.has(`${image}\n${occurrence.line}`)) continue;
-      const key = `${image}\n${file}\n${occurrence.line}`;
-      const held = candidates.get(key) ?? [];
-      if (held.some((candidate) => candidate.raw === undefined)) continue;
-      const verdict = placeOf(image, occurrence, text, inFile, regions, context);
-      if (verdict === 'covered' || verdict === 'elsewhere') continue;
-      held.push(candidateFor(image, file, occurrence, verdict));
-      candidates.set(key, held);
-    }
+  for (const { image, occurrence } of longestPerImage(read.occurrences, spellings)) {
+    if (referenced.has(`${image}\n${occurrence.line}`)) continue;
+    const key = `${image}\n${file}\n${occurrence.line}`;
+    const held = candidates.get(key) ?? [];
+    if (held.some((candidate) => candidate.raw === undefined)) continue;
+    const verdict = placeOf(image, occurrence, text, inFile, regions, context);
+    if (verdict === 'covered' || verdict === 'elsewhere') continue;
+    held.push(candidateFor(image, file, occurrence, verdict));
+    candidates.set(key, held);
   }
-  return candidates;
 }
 
 /** One place that may list its line, from the verdict on it. */
@@ -342,17 +354,6 @@ function chosen(
   return { lines, comments };
 }
 
-/** The occurrences grouped by file, in the search's order. */
-function byFile(occurrences: readonly PathOccurrence[]): Map<string, PathOccurrence[]> {
-  const files = new Map<string, PathOccurrence[]>();
-  for (const occurrence of occurrences) {
-    const list = files.get(occurrence.file);
-    if (list === undefined) files.set(occurrence.file, [occurrence]);
-    else list.push(occurrence);
-  }
-  return files;
-}
-
 /**
  * For each image, the longest of its own spellings matched at each place, in file order. The
  * spellings of one path overlap (`/img/hero.png` ends with `img/hero.png`), so one place
@@ -377,18 +378,11 @@ function longestPerImage(
   return [...longest.values()].sort((a, b) => a.occurrence.offset - b.occurrence.offset);
 }
 
-/**
- * The graph's references by POSIX path: in each file `texts` holds, which are those holding an
- * occurrence, or in every file when it is null.
- */
-function referencesByFile(
-  graph: Graph,
-  texts: ReadonlyMap<string, string> | null,
-): Map<string, Reference[]> {
+/** The graph's references by the POSIX path of the file that holds them. */
+function referencesByFile(graph: Graph): Map<string, Reference[]> {
   const files = new Map<string, Reference[]>();
   for (const reference of graph.references) {
     const file = relativePath(graph.root, reference.file);
-    if (texts !== null && !texts.has(file)) continue;
     const list = files.get(file);
     if (list === undefined) files.set(file, [reference]);
     else list.push(reference);
@@ -424,7 +418,7 @@ function placeOf(
   const start = occurrence.offset;
   const end = start + occurrence.spelling.length;
   const token = tokenAround(text, start, end);
-  const written = shown(text.slice(token.start, token.end));
+  const written = ownCopy(shown(text.slice(token.start, token.end)));
   const reference = innermost(references, start);
   if (reference !== undefined) {
     const read = readReference(
@@ -453,7 +447,7 @@ function placeOf(
           why: FULL_ADDRESS,
           loads: true,
           text: written,
-          host: address.host,
+          host: ownCopy(address.host),
         }
       : 'elsewhere';
   }
@@ -469,7 +463,7 @@ function placeOf(
       file: join(context.root, occurrence.file),
       start: from,
       end,
-      rawPath: text.slice(from, end),
+      rawPath: ownCopy(text.slice(from, end)),
       kind: 'attr',
       shape: 'html.attribute.other',
       ceiling: 'high',
@@ -875,85 +869,62 @@ export async function linesNamingFolders(input: FolderLinesInput): Promise<{
   readonly unsearchable: readonly Unsearchable[];
 }> {
   if (input.folders.length === 0) return { lines: [], unsearchable: [] };
-  const found = await findPathOccurrences({
-    paths: input.folders,
-    files: input.files,
-    readFile: input.readFile,
-    servingDirs: input.servingRoots.dirs,
-  });
   const byFolder = new Map(
     input.folders.map((folder) => [
       folder,
       new Set(spellingsFor(folder, input.servingRoots.dirs).map(foldCase)),
     ]),
   );
-  const covered = coveredLines(input, found.texts);
-  const sits = placeReader(input, found.texts);
-
-  const lines: UnfollowedLine[] = [];
-  const seen = new Set<string>();
-  for (const place of found.occurrences) {
-    const text = found.texts.get(place.file) ?? '';
-    const end = place.offset + place.spelling.length;
-    if (!wholeSegment(text, place.offset, end, place.searched)) continue;
-    const at = `${place.file}:${place.line}`;
-    if (covered(place.file, place.line) || seen.has(at)) continue;
-    const folder = [...byFolder].find(([, spellings]) => spellings.has(foldCase(place.searched)));
-    if (folder === undefined) continue;
-    seen.add(at);
-    lines.push({
-      image: folder[0],
-      file: place.file,
-      line: place.line,
-      text: shown(lineTextAt(text, place.offset)),
-      reason: 'folder',
-      ...folderVerdict(namesInside(text, end), sits(place.file, place.offset)),
-    });
-  }
-  lines.sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line);
-  return { lines, unsearchable: found.unsearchable };
-}
-
-/** Whether the move already lists a line, or rewrites a reference on it. */
-function coveredLines(
-  input: FolderLinesInput,
-  texts: ReadonlyMap<string, string>,
-): (file: string, line: number) => boolean {
-  const edited = new Map<string, ReadonlySet<number>>();
-  for (const [file, offsets] of input.rewritten) {
-    const text = texts.get(file);
-    if (text === undefined) continue;
-    const lineAt = lineIndex(text);
-    edited.set(file, new Set(offsets.map(lineAt)));
-  }
-  return (file, line) =>
-    input.listed.has(`${file}:${line}`) || edited.get(file)?.has(line) === true;
-}
-
-/**
- * What holds a place in a file the search read: a reference Upfly read, which counts as
- * loading, given as null, or the place `whereItSits` says.
- */
-function placeReader(
-  input: FolderLinesInput,
-  texts: ReadonlyMap<string, string>,
-): (file: string, offset: number) => Place | null {
-  const references = referencesByFile(input.graph, texts);
+  const references = referencesByFile(input.graph);
   const context = {
     excluded: new Set(input.excludedFiles),
     unscanned: new Map(input.graph.unscannedFiles.map((file) => [file.relative, file])),
   };
-  const readers = new Map<string, () => RegionAt>();
-  return (file, offset) => {
-    if (innermost(references.get(file) ?? [], offset) !== undefined) return null;
-    let regions = readers.get(file);
-    if (regions === undefined) {
-      const text = texts.get(file) ?? '';
-      regions = lazily(() => regionsOf(file, text));
-      readers.set(file, regions);
-    }
-    return whereItSits(file, offset, regions, context);
-  };
+
+  const lines: UnfollowedLine[] = [];
+  const seen = new Set<string>();
+  // Each file's lines are read while the search holds its text, which goes with the next file.
+  const found = await findPathOccurrences(
+    {
+      paths: input.folders,
+      files: input.files,
+      readFile: input.readFile,
+      servingDirs: input.servingRoots.dirs,
+    },
+    (file, text, occurrences) => {
+      const lineAt = lineIndex(text);
+      const edited = new Set((input.rewritten.get(file) ?? []).map(lineAt));
+      const inFile = references.get(file) ?? [];
+      const regions = lazily(() => regionsOf(file, text));
+      for (const place of occurrences) {
+        const end = place.offset + place.spelling.length;
+        if (!wholeSegment(text, place.offset, end, place.searched)) continue;
+        const at = `${file}:${place.line}`;
+        // The move already lists the line, or rewrites a reference on it.
+        if (input.listed.has(at) || edited.has(place.line) || seen.has(at)) continue;
+        const folder = [...byFolder].find(([, spellings]) =>
+          spellings.has(foldCase(place.searched)),
+        );
+        if (folder === undefined) continue;
+        seen.add(at);
+        // Inside a reference Upfly read, the line counts as loading, given as null.
+        const sits =
+          innermost(inFile, place.offset) === undefined
+            ? whereItSits(file, place.offset, regions, context)
+            : null;
+        lines.push({
+          image: folder[0],
+          file,
+          line: place.line,
+          text: shown(lineTextAt(text, place.offset)),
+          reason: 'folder',
+          ...folderVerdict(namesInside(text, end), sits),
+        });
+      }
+    },
+  );
+  lines.sort((a, b) => compareStrings(a.file, b.file) || a.line - b.line);
+  return { lines, unsearchable: found.unsearchable };
 }
 
 /**
@@ -1013,8 +984,10 @@ export function mentionReader(
     excluded: new Set<string>(),
     unscanned: new Map(graph.unscannedFiles.map((file) => [file.relative, file])),
   };
-  const references = lazily(() => referencesByFile(graph, null));
-  const readers = new Map<string, () => RegionAt>();
+  const references = lazily(() => referencesByFile(graph));
+  // The regions of the last file read, parsed once for all its places. Only that file's: a
+  // caller reads one file at a time, and every text kept here would stay for the reader's life.
+  let last: { readonly file: string; readonly regions: () => RegionAt } | null = null;
   return (file, text, offset) => {
     const reference = text === null ? undefined : innermost(references().get(file) ?? [], offset);
     if (reference !== undefined) {
@@ -1025,12 +998,10 @@ export function mentionReader(
         loads: false,
       };
     }
-    let regions = readers.get(file);
-    if (regions === undefined) {
-      regions = lazily(() => (text === null ? () => null : regionsOf(file, text)));
-      readers.set(file, regions);
+    if (last?.file !== file) {
+      last = { file, regions: lazily(() => (text === null ? () => null : regionsOf(file, text))) };
     }
-    const place = whereItSits(file, offset, regions, context);
+    const place = whereItSits(file, offset, last.regions, context);
     return { says: `names it ${placeAlone(place)}`, loads: place.loads };
   };
 }
