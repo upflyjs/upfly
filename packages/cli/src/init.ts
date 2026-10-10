@@ -93,6 +93,7 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
   if (typeof written === 'number') return written;
   if (plan !== null) writeAgentFiles(root, plan);
   const agents = plan === null ? null : plan.files;
+  const extension = await holdsExtensionConfig(root);
 
   if (options.json) {
     emit(io, {
@@ -110,7 +111,6 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
   } else {
     const styles = stylesFor(io.stdout, io.env, options);
     const upfly = upflyCommand(io.env, io.script);
-    const extension = written === null && (await holdsExtensionConfig(root));
     io.stdout.write(
       spaced(render(written, existing, extension, agents, styles, upfly).split('\n')),
     );
