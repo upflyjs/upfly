@@ -41,10 +41,19 @@ export async function readForSearch(path: string): Promise<string | NotText> {
   try {
     const head = Buffer.alloc(TEXT_TEST_BYTES);
     const { bytesRead } = await file.read(head, 0, TEXT_TEST_BYTES, 0);
-    if (head.subarray(0, bytesRead).includes(0)) return { chunks: () => chunksOf(path) };
-    // A read at a given position leaves the file's own position at the start, so this reads
-    // the whole file.
-    return await file.readFile('utf8');
+    // A read at a given position leaves the file's own position at the start, so each read
+    // below reads the whole file.
+    if (!head.subarray(0, bytesRead).includes(0)) return await file.readFile('utf8');
+    // Most files that are not text are small, as compiled modules are, and opening each one a
+    // second time took a search over tens of thousands of them seconds longer. One no larger
+    // than a chunk is read whole through this open.
+    if ((await file.stat()).size > CHUNK_BYTES) return { chunks: () => chunksOf(path) };
+    const bytes = await file.readFile();
+    return {
+      chunks: async function* () {
+        yield bytes;
+      },
+    };
   } finally {
     await file.close();
   }

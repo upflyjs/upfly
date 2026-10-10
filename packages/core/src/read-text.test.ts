@@ -73,6 +73,16 @@ describe('reading a file for a search: a text whole, any other file as its bytes
     expect(Buffer.concat(await chunksOf(await readForSearch(await file(utf16))))).toEqual(utf16);
   });
 
+  it('reads a small file that is not text whole through the open that tested it, so its bytes need no second open', async () => {
+    const bytes = Buffer.from('\0SQLite row: <img src="/img/logo.png">', 'latin1');
+    const path = await file(bytes);
+
+    const read = await readForSearch(path);
+    await rm(path);
+
+    expect(Buffer.concat(await chunksOf(read))).toEqual(bytes);
+  });
+
   it('hands over a large file a chunk at a time, from its start each time it is asked', async () => {
     const bytes = Buffer.alloc(2 * CHUNK_BYTES + 5, 7);
     bytes[0] = 0;
