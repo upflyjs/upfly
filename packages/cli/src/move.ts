@@ -18,17 +18,17 @@ import {
 import type { MoveOptions } from './args.js';
 import { isDirectory, scopeWords } from './audit.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
-import { type GitState, RUN_TRAILER, commitPaths, gitState, ignoredPaths } from './git.js';
+import { type GitState, RUN_TRAILER, commitPaths, gitState } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
   type Refusal,
   engineRefusal,
   gitRefusal,
-  ignoredByGit,
   notes,
   openProject,
   some,
+  uncommittable,
   unfinishedRun,
 } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
@@ -101,7 +101,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
       extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
       onProgress: (event) => progress.update(event),
       beforeWrite: (plan) => {
-        guard.refusal = options.commit ? ignoredRefusal(root, plan) : null;
+        guard.refusal = options.commit ? uncommitted(root, plan) : null;
         return guard.refusal === null;
       },
     });
@@ -202,18 +202,12 @@ function nothingMoves(plan: MovePlan, paths: Paths): Refusal | null {
   };
 }
 
-/** Why `--commit` cannot hold the run, when git ignores a file it would write. */
-function ignoredRefusal(root: string, plan: MovePlan): Refusal | null {
-  const ignored = ignoredPaths(root, [
+/** Why one commit could not hold the run: a file it would write that git ignores, or one inside a submodule. */
+function uncommitted(root: string, plan: MovePlan): Refusal | null {
+  return uncommittable(root, [
     ...plan.moves.flatMap((move) => [move.from, move.to]),
     ...plan.rewrites.map((rewrite) => rewrite.file),
   ]);
-  if (ignored.length === 0) return null;
-  return {
-    code: EXIT_CODES.ABORTED,
-    reason: 'IGNORED_BY_GIT',
-    message: ignoredByGit(root, ignored),
-  };
 }
 
 function commitMessage(manifest: Manifest, plan: MovePlan): string {

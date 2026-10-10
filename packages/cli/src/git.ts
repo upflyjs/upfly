@@ -278,16 +278,23 @@ export function commitPaths(
       `this repository is part way through a ${ground.started}, so nothing was committed`,
     );
   }
-  const list = nulList(paths);
-  const executable = executableAfterMove(root, moved);
   // The commit is made from an index of its own, HEAD with these paths as they are on disk,
   // so nothing staged for another path joins it. `git commit --only` makes the same commit
   // but gives a path new to HEAD the mode on disk, and Windows keeps no executable bit there.
   const folder = mkdtempSync(join(tmpdir(), 'upfly-commit-'));
   const own = { GIT_INDEX_FILE: join(folder, 'index') };
+  let list: string;
+  let executable: string[];
   try {
-    headInto(root, ground, paths, own);
+    const recorded = headInto(root, ground, paths, own);
+    const named = paths.map((path) => recorded.get(path) ?? path);
+    list = nulList(named);
+    executable = executableAfterMove(
+      root,
+      moved.map((move) => ({ from: recorded.get(move.from) ?? move.from, to: move.to })),
+    );
     stage(root, list, executable, own);
+    mustHoldEvery(root, ground.prefix, named, own);
     must(git(root, ['commit', '--quiet', '-m', message], undefined, { env: own }), 'commit');
   } finally {
     rmSync(folder, { recursive: true, force: true });
@@ -364,15 +371,17 @@ function inGitFolder(root: string, line: string | undefined): boolean {
  * carries those sizes and times, and `read-tree -m` keeps them for every entry whose content
  * already matches. What is left to read is each file the user had staged differently, and
  * each file in `paths`.
+ *
+ * Returns the name git records for each of `paths` it holds only in another letter case.
  */
 function headInto(
   root: string,
   ground: CommitGround,
   paths: readonly string[],
   own: { readonly GIT_INDEX_FILE: string },
-): void {
+): ReadonlyMap<string, string> {
   // A branch with no commit starts from an empty index, which is the whole of its first commit.
-  if (!ground.head) return;
+  if (!ground.head) return new Map();
   try {
     copyFileSync(ground.index, own.GIT_INDEX_FILE);
   } catch {
@@ -389,20 +398,151 @@ function headInto(
   // the commit as it was. `--index-info` records each again with no size or time, which makes
   // `git add` read it, and names paths from the repository's top, as `ls-files --full-name`
   // prints them.
-  const written = new Set(paths.map((path) => ground.prefix + path));
   const listed = must(
     git(root, ['ls-files', '--stage', '-z', '--full-name'], undefined, { env: own }),
     'ls-files',
   ).stdout;
   // Each entry is `<mode> <object> <stage>\t<path>`, the form `--index-info` reads back.
-  const entries = listed
-    .split('\0')
-    .filter((entry) => written.has(entry.slice(entry.indexOf('\t') + 1)));
-  if (entries.length === 0) return;
-  must(
-    git(root, ['update-index', '-z', '--index-info'], nulList(entries), { env: own }),
-    'update-index',
+  const entries = listed.split('\0').filter((entry) => entry !== '');
+  const recorded = recordedNames(root, ground.prefix, paths, entries.map(nameOf));
+  const written = new Set(paths.map((path) => ground.prefix + (recorded.get(path) ?? path)));
+  const runs = entries.filter((entry) => written.has(nameOf(entry)));
+  if (runs.length > 0) {
+    must(
+      git(root, ['update-index', '-z', '--index-info'], nulList(runs), { env: own }),
+      'update-index',
+    );
+  }
+  return recorded;
+}
+
+/**
+ * The name git records for each of `paths` it holds only in another letter case, where git
+ * folds case as the filesystem does. `git add` passes over a file renamed so outside git
+ * without a word, as it matches the new name against the old one in the index; under the name
+ * git records, the run's change goes into the commit and no rename the person never committed
+ * goes with it.
+ *
+ * @param names every path the index records, from the repository's top
+ */
+function recordedNames(
+  root: string,
+  prefix: string,
+  paths: readonly string[],
+  names: readonly string[],
+): ReadonlyMap<string, string> {
+  const exact = new Set(names);
+  const unrecorded = paths.filter((path) => !exact.has(prefix + path));
+  if (unrecorded.length === 0) return new Map();
+  const folded = new Map<string, string[]>();
+  for (const name of names) {
+    const key = name.toLowerCase();
+    folded.set(key, [...(folded.get(key) ?? []), name]);
+  }
+  const recorded = new Map<string, string>();
+  for (const path of unrecorded) {
+    const [only, ...more] = folded.get((prefix + path).toLowerCase()) ?? [];
+    // Two names for one file on disk leave nothing to choose by; the check before the commit
+    // then refuses it.
+    if (only?.startsWith(prefix) && more.length === 0)
+      recorded.set(path, only.slice(prefix.length));
+  }
+  const folds =
+    git(root, ['config', '--bool', '--get', 'core.ignorecase']).stdout.trim() === 'true';
+  return recorded.size > 0 && folds ? recorded : new Map();
+}
+
+/**
+ * Throws unless the commit's own index holds each of `paths` as it is on disk, and holds no
+ * path that is gone from it. `git add` passes over some paths without a word, such as a file
+ * in a repository nested inside this one, and a commit made then would leave that file out.
+ */
+function mustHoldEvery(
+  root: string,
+  prefix: string,
+  paths: readonly string[],
+  own: { readonly GIT_INDEX_FILE: string },
+): void {
+  const listed = must(
+    git(root, ['ls-files', '--stage', '-z', '--full-name'], undefined, { env: own }),
+    'ls-files',
+  ).stdout;
+  const objects = new Map(
+    listed
+      .split('\0')
+      .filter((entry) => entry !== '')
+      .map((entry) => [nameOf(entry), entry.split(' ')[1]]),
   );
+  const present = paths.filter((path) => existsSync(join(root, path)));
+  const kept = new Set(present);
+  // `hash-object` applies the same filters `git add` did, so both name one object for a file.
+  // It reads these paths from the repository's top, which is where it runs from.
+  const hashed =
+    present.length === 0
+      ? []
+      : must(
+          git(
+            root,
+            ['hash-object', '--stdin-paths'],
+            `${present.map((path) => quoted(prefix + path)).join('\n')}\n`,
+          ),
+          'hash-object',
+        ).stdout.split('\n');
+  const leftOut = [
+    ...present.filter((path, index) => objects.get(prefix + path) !== hashed[index]),
+    ...paths.filter((path) => !kept.has(path) && objects.has(prefix + path)),
+  ].sort(compare);
+  if (leftOut.length > 0) {
+    const named = leftOut.slice(0, 3).join(', ');
+    const rest = leftOut.length > 3 ? ` and ${leftOut.length - 3} more` : '';
+    throw new Error(`git would leave ${named}${rest} out of the commit, so nothing was committed`);
+  }
+}
+
+/**
+ * A path as `--stdin-paths` reads it: one per line, so a path holding a line break, or one
+ * that starts with a quotation mark, goes in quotes with C-style escapes.
+ */
+function quoted(path: string): string {
+  if (!/[\n\r]/.test(path) && !path.startsWith('"')) return path;
+  const escaped = path
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r');
+  return `"${escaped}"`;
+}
+
+/** The path of an index entry as `ls-files --stage` prints it: `<mode> <object> <stage>\t<path>`. */
+function nameOf(entry: string): string {
+  return entry.slice(entry.indexOf('\t') + 1);
+}
+
+/**
+ * Which of `paths` sit inside a submodule, each with the submodule's folder. A commit of this
+ * repository holds a submodule only as the commit it points at, so `git add` refuses a path
+ * inside one.
+ *
+ * @param root the project directory, inside a git work tree
+ * @param paths POSIX paths relative to `root`
+ * @throws when git refuses; the message carries git's own reason
+ */
+export function pathsInSubmodules(
+  root: string,
+  paths: readonly string[],
+): { readonly path: string; readonly submodule: string }[] {
+  if (paths.length === 0) return [];
+  // From the project folder, and a submodule's entry has the mode 160000.
+  const submodules = must(git(root, ['ls-files', '--stage', '-z']), 'ls-files')
+    .stdout.split('\0')
+    .filter((entry) => entry.startsWith('160000 '))
+    .map(nameOf);
+  return paths
+    .flatMap((path) => {
+      const submodule = submodules.find((folder) => path.startsWith(`${folder}/`));
+      return submodule === undefined ? [] : [{ path, submodule }];
+    })
+    .sort((a, b) => compare(a.path, b.path));
 }
 
 /** Adds the paths in `list` to an index: the one `env` names, or else the project's own. */

@@ -5,7 +5,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -30,6 +31,17 @@ const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+/** Whether the temporary folder's filesystem folds letter case, as Windows' and macOS's do by default. */
+const FOLDS_CASE = (() => {
+  const probe = mkdtempSync(join(tmpdir(), 'upfly-case-'));
+  try {
+    writeFileSync(join(probe, 'a'), '');
+    return existsSync(join(probe, 'A'));
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+})();
 
 /** Upfly's own folder and git's, left out when comparing a project's files. */
 const NOT_THE_PROJECT = ['.git', '.upfly'];
@@ -413,6 +425,44 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
     });
     expect(snapshot(root, ['.git'])).toEqual(before);
   });
+
+  it('with --commit, before writing anything, when a file the run would write is inside a submodule', () => {
+    const theme = copyFixture('plain-html', tempFolder(roots, 'upfly-theme-'));
+    commitAll(theme);
+    const root = copyFixture('plain-html', tempFolder(roots, 'upfly-with-theme-'));
+    commitAll(root);
+    git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', theme, 'theme');
+    git(root, 'commit', '--quiet', '-m', 'the theme');
+    const before = snapshot(root, ['.git']);
+
+    const run = upfly(['optimize', root, '--apply', '--commit', '--json']);
+
+    expect(run.status).toBe(3);
+    expect(result(run.stdout)).toMatchObject({
+      reason: 'IN_SUBMODULE',
+      message: expect.stringContaining('Leave it out with --exclude theme/ and run again'),
+    });
+    expect(snapshot(root, ['.git'])).toEqual(before);
+  });
+
+  it.skipIf(!FOLDS_CASE)(
+    'with --commit, commits a page renamed only in letter case outside git, under the name git records',
+    () => {
+      const root = copyFixture('plain-html', tempFolder(roots, 'upfly-case-'));
+      commitAll(root);
+      // In two steps, as a filesystem that folds case needs.
+      renameSync(join(root, 'index.html'), join(root, 'index.tmp'));
+      renameSync(join(root, 'index.tmp'), join(root, 'INDEX.html'));
+
+      const run = upfly(['optimize', root, '--apply', '--commit', '--json']);
+
+      expect(run.status).toBe(0);
+      expect(git(root, 'show', 'HEAD:index.html')).toBe(
+        readFileSync(join(root, 'INDEX.html'), 'utf8'),
+      );
+      expect(git(root, 'status', '--porcelain')).toBe('');
+    },
+  );
 
   it('with --commit, before writing anything, while a merge is part way through', () => {
     // A commit made now would end the merge, taking the other branch as a second parent. A

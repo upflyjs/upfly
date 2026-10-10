@@ -2897,8 +2897,23 @@ The promise is that the run's changes are the only ones a reviewer has to look a
   mode its old path has in the index. A commit the user makes of an `undo` meets the same limit on
   Windows, for the same reason; `git revert` of the run's commit keeps the mode.
 - **A commit that could not hold the whole run stops the run before it writes.** Once the plan is
-  final, `optimize` hands it to a `beforeWrite` check, and the CLI asks `git check-ignore` about
-  every path the plan would write; if git would refuse any of them, nothing is written.
+  final, `optimize`, `move` and `dedupe` hand it to a `beforeWrite` check, and the CLI asks git
+  about every path the plan would write: a path inside a submodule, which a commit of the project
+  holds only as the commit the submodule points at, and then a path `git check-ignore` reports. If
+  either has any, nothing is written.
+- **A file renamed only in letter case outside git is committed under the name git records.**
+  Where git folds case as the filesystem does (`core.ignorecase`), `git add INDEX.html` matches the
+  disk's file against the index's `index.html` and adds nothing, without a word. So a path git
+  holds only in another letter case goes to `git add` under git's own name: the run's change is
+  committed, and the rename, which the person never committed, is not, since on a server that keeps
+  case apart it would break every link to the old name. A path two index entries share in that way
+  gives git's name nothing to choose by and is left to the next guard.
+- **The commit never leaves out a file the run wrote.** Before `git commit`, the index of its own
+  is read back: every path the run wrote must be there with the object `git hash-object` names for
+  the file on disk, and every path it removed must be gone. `git add` passes over some paths
+  without a word, such as a file in a repository nested inside the project, and a commit made then
+  would have left that file out while the run reported it committed; now the commit is not made,
+  and the run says why, with its files written and `undo` named.
 - **The commit message ends with `Upfly-Run: <run id>`**, the id the manifest records, which is how
   `upfly undo` finds the commit to say that it is still in the history. Undo follows the manifest
   alone and reads no configuration file.

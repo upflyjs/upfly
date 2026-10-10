@@ -14,16 +14,16 @@ import { pathsTouched } from 'upfly-core/internal';
 import type { DedupeOptions } from './args.js';
 import { scopeWords } from './audit.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
-import { type GitState, RUN_TRAILER, commitPaths, gitState, ignoredPaths } from './git.js';
+import { type GitState, RUN_TRAILER, commitPaths, gitState } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
   type Refusal,
   engineRefusal,
   gitRefusal,
-  ignoredByGit,
   notes,
   openProject,
+  uncommittable,
   unfinishedRun,
 } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
@@ -79,7 +79,7 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
       beforeWrite: (plan) => {
         guard.refusal =
           keepProblem(plan, options.keep, upfly) ??
-          (options.commit ? ignoredRefusal(root, plan) : null);
+          (options.commit ? uncommitted(root, plan) : null);
         return guard.refusal === null;
       },
     });
@@ -150,18 +150,12 @@ function keepProblem(
   return null;
 }
 
-/** Why `--commit` cannot hold the run, when git ignores a file it would write. */
-function ignoredRefusal(root: string, plan: DedupePlan): Refusal | null {
-  const ignored = ignoredPaths(
+/** Why one commit could not hold the run: a file it would write that git ignores, or one inside a submodule. */
+function uncommitted(root: string, plan: DedupePlan): Refusal | null {
+  return uncommittable(
     root,
     plan.rewrites.map((rewrite) => rewrite.file),
   );
-  if (ignored.length === 0) return null;
-  return {
-    code: EXIT_CODES.ABORTED,
-    reason: 'IGNORED_BY_GIT',
-    message: ignoredByGit(root, ignored),
-  };
 }
 
 function commitMessage(manifest: Manifest, plan: DedupePlan): string {

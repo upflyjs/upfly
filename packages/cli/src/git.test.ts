@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import {
   type PathLike,
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -23,6 +24,7 @@ import {
   ignoredFolders,
   ignoredPaths,
   operationInProgress,
+  pathsInSubmodules,
 } from './git.js';
 
 // On Linux and macOS Node sets a copy's times before writing its data, so the copy carries the
@@ -49,6 +51,17 @@ vi.mock('node:fs', async (importOriginal) => {
 // The long form of the path: on some machines the temporary folder is named in the short
 // form, while git always answers in the long one.
 const TEMP = realpathSync.native(tmpdir());
+
+/** Whether the temporary folder's filesystem folds letter case, as Windows' and macOS's do by default. */
+const FOLDS_CASE = (() => {
+  const probe = mkdtempSync(join(TEMP, 'upfly-case-'));
+  try {
+    writeFileSync(join(probe, 'a'), '');
+    return existsSync(join(probe, 'A'));
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+})();
 
 const roots: string[] = [];
 afterEach(() => {
@@ -195,6 +208,27 @@ describe('gitState', () => {
   });
 });
 
+describe('pathsInSubmodules', () => {
+  it('names each path inside a submodule, with the submodule, and no other path', () => {
+    const theme = repository({ 'page.html': '<img src="logo.png">' });
+    const root = repository({ 'index.html': 'a' });
+    git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', theme, 'theme');
+    git(root, 'commit', '--quiet', '-m', 'the theme');
+
+    const found = pathsInSubmodules(root, [
+      'index.html',
+      'theme/page.html',
+      'theme/img/logo.webp',
+      'themes/logo.png',
+    ]);
+
+    expect(found).toEqual([
+      { path: 'theme/img/logo.webp', submodule: 'theme' },
+      { path: 'theme/page.html', submodule: 'theme' },
+    ]);
+  });
+});
+
 describe('commitPaths', () => {
   it('commits exactly the paths given, additions, edits and deletions, as one commit', () => {
     const root = repository({ 'index.html': 'a', 'img/logo.png': 'b', 'notes.txt': 'c' });
@@ -307,6 +341,71 @@ describe('commitPaths', () => {
     // staged one, so git reads that file and no other.
     expect(filesRead(trace)).toBe(1);
     expect(git(root, 'diff', '--cached', '--name-only').trim()).toBe('notes.txt');
+  });
+
+  describe('a file renamed only in letter case outside git', () => {
+    // Renamed in two steps, as a filesystem that folds case needs. Where the filesystem keeps
+    // case apart, the two names are two files and git has nothing to reconcile.
+    function renamed(root: string): void {
+      renameSync(join(root, 'index.html'), join(root, 'index.tmp'));
+      renameSync(join(root, 'index.tmp'), join(root, 'INDEX.html'));
+      write(root, 'INDEX.html', '<img src="img/logo.webp" alt="The logo">');
+    }
+
+    it.skipIf(!FOLDS_CASE)('is committed under the name git records, alone', () => {
+      const root = repository({ 'index.html': '<img src="img/logo.png" alt="The logo">' });
+      renamed(root);
+
+      commitPaths(root, ['INDEX.html'], 'the run');
+
+      expect(git(root, 'show', 'HEAD:index.html')).toBe('<img src="img/logo.webp" alt="The logo">');
+      expect(gitState(root)).toMatchObject({ changed: [] });
+    });
+
+    it.skipIf(!FOLDS_CASE)('is committed with the other files, never left out of them', () => {
+      const root = repository({ 'index.html': '<img src="img/logo.png">', 'img/logo.png': 'p' });
+      renamed(root);
+      write(root, 'img/logo.webp', 'new');
+      rmSync(join(root, 'img/logo.png'));
+
+      commitPaths(root, ['INDEX.html', 'img/logo.png', 'img/logo.webp'], 'the run');
+
+      expect(git(root, 'show', '--name-status', '--format=', 'HEAD').trim().split('\n')).toEqual([
+        'D\timg/logo.png',
+        'A\timg/logo.webp',
+        'M\tindex.html',
+      ]);
+      expect(gitState(root)).toMatchObject({ changed: [] });
+    });
+  });
+
+  it.skipIf(!FOLDS_CASE)('keeps a new name new where git is told the filesystem keeps case', () => {
+    // With core.ignorecase off, git takes INDEX.html for a file of its own, as it would be on
+    // a filesystem that keeps case apart, so the commit holds it under that name.
+    const root = repository({ 'index.html': '<img src="img/logo.png">' });
+    git(root, 'config', 'core.ignorecase', 'false');
+    renameSync(join(root, 'index.html'), join(root, 'index.tmp'));
+    renameSync(join(root, 'index.tmp'), join(root, 'INDEX.html'));
+    write(root, 'INDEX.html', '<img src="img/logo.webp">');
+
+    commitPaths(root, ['INDEX.html'], 'the run');
+
+    expect(git(root, 'show', 'HEAD:INDEX.html')).toBe('<img src="img/logo.webp">');
+  });
+
+  it('commits nothing, rather than leave a file out, when git will not add one of the paths', () => {
+    // Git does not look inside a repository nested in this one that is no submodule, and adds
+    // nothing for a path there, without a word.
+    const root = repository({ 'index.html': 'a' });
+    write(root, 'vendor/lib/page.html', 'b');
+    git(join(root, 'vendor/lib'), 'init', '--quiet');
+    write(root, 'index.html', 'written by the run');
+    const before = git(root, 'rev-parse', 'HEAD');
+
+    expect(() => commitPaths(root, ['index.html', 'vendor/lib/page.html'], 'the run')).toThrow(
+      /vendor\/lib\/page\.html/,
+    );
+    expect(git(root, 'rev-parse', 'HEAD')).toBe(before);
   });
 
   it('never ends a merge the person started', () => {

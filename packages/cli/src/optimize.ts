@@ -40,6 +40,7 @@ import {
   ignoredPaths,
   insideRepository,
   operationInProgress,
+  pathsInSubmodules,
 } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
@@ -165,7 +166,7 @@ async function carryOut(
 ): Promise<OptimizeProjectResult | Refusal> {
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
   const progress = progressReporter(io, 'optimize', options.json);
-  let ignored: string[] = [];
+  let uncommitted: Refusal | null = null;
 
   let result: OptimizeProjectResult;
   try {
@@ -183,8 +184,8 @@ async function carryOut(
       ...(options.commit
         ? {
             beforeWrite: (plan: OptimizationPlan) => {
-              ignored = ignoredPaths(root, plannedPaths(plan));
-              return ignored.length === 0;
+              uncommitted = uncommittable(root, plannedPaths(plan));
+              return uncommitted === null;
             },
           }
         : {}),
@@ -211,14 +212,7 @@ async function carryOut(
           : `${refusal.reason} \`${upfly} check\` lists the ${count(refusal.checkable - refusal.linked, 'reference')} with the file and line of each.`,
     };
   }
-  if (ignored.length > 0) {
-    return {
-      code: EXIT_CODES.ABORTED,
-      reason: 'IGNORED_BY_GIT',
-      message: ignoredByGit(root, ignored),
-    };
-  }
-  return result;
+  return uncommitted ?? result;
 }
 
 /**
@@ -238,6 +232,39 @@ export function ignoredByGit(root: string, ignored: readonly string[]): string {
       ? 'Run without --commit, or change what git ignores.'
       : `If ${folders.length === 1 ? "that is a build's output, leave it" : "those are a build's output, leave them"} out with ${flags} and run again; otherwise change what git ignores.`;
   return `Git ignores ${count(ignored.length, 'file')} this run would write: ${some(ignored)}. One commit could not hold the whole run, so nothing was written. ${advice}`;
+}
+
+/**
+ * Why one commit could not hold every file a run would write, asked before it writes any:
+ * files git ignores, or files inside a submodule, which a commit of this repository holds only
+ * as the commit it points at. Null when one commit can hold them all.
+ *
+ * @param root the project directory, inside a git work tree
+ * @param paths every file the run would write or remove, POSIX-relative to `root`
+ */
+export function uncommittable(root: string, paths: readonly string[]): Refusal | null {
+  // Asked first: git refuses to check the ignore rules for a path inside a submodule at all.
+  const inside = pathsInSubmodules(root, paths);
+  if (inside.length > 0) {
+    const submodules = [...new Set(inside.map((entry) => entry.submodule))];
+    const which =
+      submodules.length === 1
+        ? `the submodule ${submodules[0]}`
+        : `the submodules ${submodules.join(', ')}`;
+    const flags = submodules.map((folder) => `--exclude ${folder}/`).join(' ');
+    return {
+      code: EXIT_CODES.ABORTED,
+      reason: 'IN_SUBMODULE',
+      message: `This run would write ${count(inside.length, 'file')} inside ${which}: ${some(inside.map((entry) => entry.path))}. A commit of this repository holds a submodule only as the commit it points at, so nothing was written. Leave ${submodules.length === 1 ? 'it' : 'them'} out with ${flags} and run again, or run without --commit.`,
+    };
+  }
+  const ignored = ignoredPaths(root, paths);
+  if (ignored.length === 0) return null;
+  return {
+    code: EXIT_CODES.ABORTED,
+    reason: 'IGNORED_BY_GIT',
+    message: ignoredByGit(root, ignored),
+  };
 }
 
 /** Commits exactly the files the run wrote, and returns the commit's hash. */

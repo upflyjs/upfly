@@ -149,6 +149,9 @@ often a `reason` to branch on:
 - `IGNORED_BY_GIT`: git ignores some of the files the run would write, so one commit could
   not hold the run, and nothing was written. When the message names a build's output
   folder, run again with the `--exclude` it gives; otherwise ask the user.
+- `IN_SUBMODULE`: some files the run would write are inside a git submodule, which a commit
+  of the project holds only as the commit it points at, so nothing was written. Run again
+  with the `--exclude` the message gives, or without `--commit`.
 - `GIT_COMMIT_FAILED`: the run was applied but git did not commit it, and its files stay
   written. Ask the user whether to commit them, or run `npx upfly undo` to put every file
   back.
