@@ -445,6 +445,21 @@ describe('upfly optimize refuses to write, with exit 3 and what to do', () => {
     expect(snapshot(root, ['.git'])).toEqual(before);
   });
 
+  it('with --commit, commits a tracked page inside a folder git ignores', () => {
+    const root = copyFixture('plain-html', tempFolder(roots, 'upfly-tracked-ignored-'));
+    write(root, '.gitignore', 'generated/\n');
+    commitAll(root);
+    write(root, 'generated/page.html', '<img src="../images/hero.jpg" alt="The hero">\n');
+    git(root, 'add', '--force', 'generated/page.html');
+    git(root, 'commit', '--quiet', '-m', 'a page git ignores but tracks');
+
+    const run = upfly(['optimize', root, '--apply', '--commit', '--json']);
+
+    expect(run.status).toBe(0);
+    expect(git(root, 'show', 'HEAD:generated/page.html')).toContain('../images/hero.webp');
+    expect(git(root, 'status', '--porcelain')).toBe('');
+  });
+
   it.skipIf(!FOLDS_CASE)(
     'with --commit, commits a page renamed only in letter case outside git, under the name git records',
     () => {

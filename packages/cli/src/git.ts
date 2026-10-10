@@ -552,7 +552,13 @@ function stage(
   executable: readonly string[],
   env: Readonly<Record<string, string>> = {},
 ): void {
-  must(git(root, ['add', '--pathspec-from-file=-', '--pathspec-file-nul'], list, { env }), 'add');
+  // A plain `git add` of a tracked file inside a folder git ignores adds it, then exits 1 for
+  // the ignore rule. Each file the run writes that git does not track was checked against the
+  // ignore rules before anything was written, so `--force` adds only what the run wrote.
+  must(
+    git(root, ['add', '--force', '--pathspec-from-file=-', '--pathspec-file-nul'], list, { env }),
+    'add',
+  );
   if (executable.length === 0) return;
   must(
     git(root, ['update-index', '--chmod=+x', '-z', '--stdin'], nulList(executable), { env }),

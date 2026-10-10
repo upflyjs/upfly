@@ -393,6 +393,19 @@ describe('commitPaths', () => {
     expect(git(root, 'show', 'HEAD:INDEX.html')).toBe('<img src="img/logo.webp">');
   });
 
+  it('commits a tracked file inside a folder git ignores', () => {
+    const root = repository({ '.gitignore': 'generated/\n', 'index.html': 'a' });
+    write(root, 'generated/page.html', '<img src="../img/logo.png">');
+    git(root, 'add', '--force', 'generated/page.html');
+    git(root, 'commit', '--quiet', '-m', 'a page git ignores but tracks');
+    write(root, 'generated/page.html', '<img src="../img/logo.webp">');
+
+    commitPaths(root, ['generated/page.html'], 'the run');
+
+    expect(git(root, 'show', 'HEAD:generated/page.html')).toBe('<img src="../img/logo.webp">');
+    expect(gitState(root)).toMatchObject({ changed: [] });
+  });
+
   it('commits nothing, rather than leave a file out, when git will not add one of the paths', () => {
     // Git does not look inside a repository nested in this one that is no submodule, and adds
     // nothing for a path there, without a word.
@@ -494,15 +507,20 @@ describe('commitPaths', () => {
   });
 
   it("names git's reason, not a warning git printed before it", () => {
-    // With `core.autocrlf`, as Git for Windows sets it, adding a file whose lines end in LF
-    // prints a warning first.
-    const root = repository({ 'index.html': 'a', '.gitignore': 'ignored/\n' });
-    git(root, 'config', 'core.autocrlf', 'true');
+    // With `core.autocrlf`, as Git for Windows sets it, git warns of each file whose lines end
+    // in LF before it reports why it failed; a hook here fails after that same warning.
+    const root = repository({ 'index.html': 'a' });
+    const hook = join(root, '.git/hooks/pre-commit');
+    write(
+      root,
+      '.git/hooks/pre-commit',
+      "#!/bin/sh\necho \"warning: in the working copy of 'index.html', LF will be replaced by CRLF the next time Git touches it\" >&2\necho 'the hook refused this commit' >&2\nexit 1\n",
+    );
+    chmodSync(hook, 0o755);
     write(root, 'index.html', 'a line\n');
-    write(root, 'ignored/new.webp', 'created by the run');
 
-    expect(() => commitPaths(root, ['ignored/new.webp', 'index.html'], 'the run')).toThrow(
-      'git add failed: The following paths are ignored by one of your .gitignore files:',
+    expect(() => commitPaths(root, ['index.html'], 'the run')).toThrow(
+      'git commit failed: the hook refused this commit',
     );
   });
 });

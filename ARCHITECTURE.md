@@ -2900,7 +2900,9 @@ The promise is that the run's changes are the only ones a reviewer has to look a
   final, `optimize`, `move` and `dedupe` hand it to a `beforeWrite` check, and the CLI asks git
   about every path the plan would write: a path inside a submodule, which a commit of the project
   holds only as the commit the submodule points at, and then a path `git check-ignore` reports. If
-  either has any, nothing is written.
+  either has any, nothing is written. A tracked file inside a folder git ignores is not among
+  them, since ignore rules do not apply to a tracked file: it goes into the commit with
+  `git add --force`, as a plain `git add` would add it and then exit 1 for the folder's rule.
 - **A file renamed only in letter case outside git is committed under the name git records.**
   Where git folds case as the filesystem does (`core.ignorecase`), `git add INDEX.html` matches the
   disk's file against the index's `index.html` and adds nothing, without a word. So a path git
