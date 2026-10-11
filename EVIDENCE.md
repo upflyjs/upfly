@@ -5,18 +5,18 @@ not show, then every limit in full. The [README](README.md) quotes them.
 
 ## The accuracy suite
 
-> Upfly's reference accuracy suite is a purpose-built project of 451 keyed cases, image references and the decoys
+> Upfly's reference accuracy suite is a purpose-built project of 453 keyed cases, image references and the decoys
 > beside them, across 74 shapes in HTML, CSS (with SCSS and Less), JavaScript and TypeScript (with JSX), Astro,
 > Markdown, MDX and JSON, each with its expected answer written down before the engine ran. With the suite's own
-> settings, the engine meets all 451. With no configuration at all, it also meets all 451. It claims none of the 91
+> settings, the engine meets all 453. With no configuration at all, it also meets all 453. It claims none of the 93
 > cases that look like a path but are not one.
 
 > What the suite does not show: it is ours, not a sample of real code, and a shape that is not in it is not
 > measured. Files Upfly does not read yet (Vue, Svelte, PHP, ERB, Liquid, Nunjucks and YAML frontmatter) are listed
 > as unread, not counted. A path assembled at runtime with no file extension written anywhere is not claimed,
-> because its text cannot be told from a page route. Zero-configuration detection has been tested on JavaScript
-> projects only; a Rails, Laravel, Hugo or plain-HTML site may need its website folder named in settings, as the
-> plain-HTML site among the real projects below did. Run it yourself: one command, `pnpm accuracy:measure`.
+> because its text cannot be told from a page route. Detection without a config file is tested on JavaScript
+> projects; another site may need its website folder named once, which `npx upfly init` can work out from the
+> site's own image paths. Run it yourself: one command, `pnpm accuracy:measure`.
 
 The suite is [`accuracy-suite/`](accuracy-suite/); its README says how each case is keyed.
 
