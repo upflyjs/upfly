@@ -6,7 +6,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/upfly-readme-banner-dark.svg">
-    <img src="assets/upfly-readme-banner-light.svg" alt="Upfly: optimize your repo's images without breaking a reference; beside it, a diff changes the image references in src/App.jsx and src/index.css from .png and .jpg to .webp, with the run's totals: 5 images to WebP, 124.2 KB to 48.8 KB, 7 references in 2 files.">
+    <img src="assets/upfly-readme-banner-light.svg" alt="Upfly: optimize your repo's images without breaking a reference.">
   </picture>
 </p>
 
