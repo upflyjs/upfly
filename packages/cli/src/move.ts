@@ -87,7 +87,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
   }
 
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
-  const progress = progressReporter(io, 'move', options.json);
+  const progress = progressReporter(io, 'move', options.json, options.apply);
   // Decided on the finished plan, so a commit that could not hold every file the run writes
   // stops the run before it writes any.
   const guard: { refusal: Refusal | null } = { refusal: null };

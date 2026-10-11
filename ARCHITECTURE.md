@@ -2824,8 +2824,10 @@ the libraries' own messages as `diagnostic` lines, and one final `result` or `er
 is why the libraries' wording can appear there and never in the report. Without it, errors and
 progress go to stderr, progress only on a terminal, and every command's text starts with the same
 headline, `Upfly <command>`, with a blank line before it and after the text's last line. The
-progress line is rewritten as each stage finishes, and while the next stage works, one to three
-dots move beside it four times a second, so a stage that takes seconds never looks stuck. Their
+progress line is rewritten as each stage finishes, and names the stage that runs next, such as
+"reading 52557 files" once the walk has found them, or a stage the command runs itself, such as
+`refs`' search of every file; while it works, one to three dots move beside the line four times a
+second, so a stage that takes seconds never looks stuck. Their
 timer never keeps the process alive, and a command clears the line however its work ends, so a
 failure is printed on a line of its own. Resolution and planning each run without a turn of the
 event loop, so on a project of tens of thousands of files the dots stand still for a second or two

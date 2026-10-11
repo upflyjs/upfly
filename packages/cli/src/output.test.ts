@@ -180,7 +180,92 @@ describe('progressReporter', () => {
     progress.update({ stage: 'scanned', references: 12 });
     progress.clear();
     expect(out).toEqual([]);
-    expect(err).toEqual(['\r\u001b[2Kscanned: 12 references', '\r\u001b[2K']);
+    expect(err).toEqual(['\r\u001b[2Kresolving 12 references', '\r\u001b[2K']);
+  });
+
+  // The engine reports a stage once it has finished, so the line names what runs while the
+  // next one works: a stage can take seconds on a large project, and the line is all there is.
+  it('names the stage that runs after each one the engine reports', () => {
+    const { io, err } = capture(true);
+    const progress = progressReporter(io, 'audit', false);
+    progress.update({ stage: 'discovered', images: 6638, files: 52557 });
+    progress.update({ stage: 'scanned', references: 406709 });
+    progress.update({ stage: 'resolved', linked: 120000 });
+    progress.update({ stage: 'measured', images: 6638 });
+    expect(err).toEqual([
+      '\r\u001b[2Kreading 52557 files',
+      '\r\u001b[2Kresolving 406709 references',
+      '\r\u001b[2Ksearching other files for image names',
+      '\r\u001b[2Kfinding identical images',
+    ]);
+    progress.clear();
+  });
+
+  it.each([
+    ['audit', false, 'writing the report'],
+    ['check', false, 'checking the results'],
+    ['dedupe', false, 'planning the changes'],
+    ['dedupe', true, 'planning and making the changes'],
+    ['init', false, 'writing the files'],
+    ['move', false, 'planning the move'],
+    ['move', true, 'planning and making the move'],
+    ['optimize', false, 'planning the changes'],
+    ['refs', false, 'working out what optimize would do'],
+  ] as const)('after the audit, names what %s does next (apply: %s)', (command, apply, line) => {
+    const { io, err } = capture(true);
+    const progress = progressReporter(io, command, false, apply);
+    progress.update({ stage: 'audited', findings: 2 });
+    expect(err).toEqual([`\r\u001b[2K${line}`]);
+    progress.clear();
+  });
+
+  it('says what an applied optimize converts once it has planned, and what a dry run writes', () => {
+    const applied = capture(true);
+    const dry = capture(true);
+    const refs = capture(true);
+    const run = progressReporter(applied.io, 'optimize', false, true);
+    const plan = progressReporter(dry.io, 'optimize', false);
+    const lookup = progressReporter(refs.io, 'refs', false);
+    for (const progress of [run, plan, lookup]) {
+      progress.update({ stage: 'planned', conversions: 5, rewrites: 7 });
+      progress.update({ stage: 'written', files: 12 });
+    }
+    expect(applied.err).toEqual([
+      '\r\u001b[2Kconverting 5 images and updating 7 references',
+      '\r\u001b[2Kfinishing',
+    ]);
+    expect(dry.err[0]).toBe('\r\u001b[2Kwriting the plan');
+    expect(refs.err[0]).toBe('\r\u001b[2Ksearching every file');
+    for (const progress of [run, plan, lookup]) progress.clear();
+  });
+
+  it('describes a stage it does not know as the engine counts it', () => {
+    const { io, err } = capture(true);
+    const progress = progressReporter(io, 'audit', false);
+    progress.update({ stage: 'sorted', images: 2 });
+    progress.update({ stage: 'waiting' });
+    expect(err).toEqual(['\r\u001b[2Ksorted: 2 images', '\r\u001b[2Kwaiting...']);
+    progress.clear();
+  });
+
+  it('names a step the command runs itself, and says nothing of it on a pipe or under --json', () => {
+    const terminal = capture(true);
+    const piped = capture(false);
+    const json = capture(true);
+    for (const [target, asJson] of [
+      [terminal, false],
+      [piped, false],
+      [json, true],
+    ] as const) {
+      const progress = progressReporter(target.io, 'audit', asJson);
+      progress.step('working out what optimize would save');
+      progress.clear();
+    }
+    expect(terminal.err).toEqual([
+      '\r\u001b[2Kworking out what optimize would save',
+      '\r\u001b[2K',
+    ]);
+    expect([...piped.out, ...piped.err, ...json.out, ...json.err]).toEqual([]);
   });
 
   it('counts the images while they are measured, in words', () => {
@@ -215,9 +300,15 @@ describe('progressReporter', () => {
 
   it('names a count of one in the singular', () => {
     const { io, err } = capture(true);
-    const progress = progressReporter(io, 'optimize', false);
-    progress.update({ stage: 'measured', images: 1 });
-    expect(err).toEqual(['\r\u001b[2Kmeasured: 1 image']);
+    const progress = progressReporter(io, 'optimize', false, true);
+    progress.update({ stage: 'discovered', images: 1, files: 1 });
+    progress.update({ stage: 'scanned', references: 1 });
+    progress.update({ stage: 'planned', conversions: 1, rewrites: 1 });
+    expect(err).toEqual([
+      '\r\u001b[2Kreading 1 file',
+      '\r\u001b[2Kresolving 1 reference',
+      '\r\u001b[2Kconverting 1 image and updating 1 reference',
+    ]);
     progress.clear();
   });
 
@@ -253,11 +344,11 @@ describe('progressReporter', () => {
       progress.update({ stage: 'discovered', images: 3, files: 9 });
       vi.advanceTimersByTime(1000);
       expect(err).toEqual([
-        '\r\u001b[2Kdiscovered: 3 images, 9 files',
-        '\r\u001b[2Kdiscovered: 3 images, 9 files .',
-        '\r\u001b[2Kdiscovered: 3 images, 9 files ..',
-        '\r\u001b[2Kdiscovered: 3 images, 9 files ...',
-        '\r\u001b[2Kdiscovered: 3 images, 9 files .',
+        '\r\u001b[2Kreading 9 files',
+        '\r\u001b[2Kreading 9 files .',
+        '\r\u001b[2Kreading 9 files ..',
+        '\r\u001b[2Kreading 9 files ...',
+        '\r\u001b[2Kreading 9 files .',
       ]);
       progress.clear();
     });
@@ -267,14 +358,34 @@ describe('progressReporter', () => {
       const progress = progressReporter(io, 'audit', false);
       progress.update({ stage: 'scanned', references: 12 });
       vi.advanceTimersByTime(600);
-      expect(err.at(-1)).toBe('\r\u001b[2Kscanned: 12 references ..');
+      expect(err.at(-1)).toBe('\r\u001b[2Kresolving 12 references ..');
       progress.update({ stage: 'resolved', linked: 9 });
-      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked');
+      expect(err.at(-1)).toBe('\r\u001b[2Ksearching other files for image names');
       vi.advanceTimersByTime(249);
-      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked');
+      expect(err.at(-1)).toBe('\r\u001b[2Ksearching other files for image names');
       vi.advanceTimersByTime(1);
-      expect(err.at(-1)).toBe('\r\u001b[2Kresolved: 9 linked .');
+      expect(err.at(-1)).toBe('\r\u001b[2Ksearching other files for image names .');
       progress.clear();
+    });
+
+    // `refs` clears the line before it can refuse, then names its search of every file.
+    it('moves the dots beside a step named after the line was cleared, and stops them again', () => {
+      const { io, err } = capture(true);
+      const progress = progressReporter(io, 'refs', false);
+      progress.update({ stage: 'planned', conversions: 1, rewrites: 1 });
+      progress.clear();
+      progress.step('searching every file for public/hero.png');
+      vi.advanceTimersByTime(250);
+      progress.clear();
+      vi.advanceTimersByTime(5000);
+      expect(err).toEqual([
+        '\r\u001b[2Ksearching every file',
+        '\r\u001b[2K',
+        '\r\u001b[2Ksearching every file for public/hero.png',
+        '\r\u001b[2Ksearching every file for public/hero.png .',
+        '\r\u001b[2K',
+      ]);
+      expect(vi.getTimerCount()).toBe(0);
     });
 
     it('leaves the measuring count as it is while it moves, and moves the dots where it stops', () => {
@@ -293,16 +404,16 @@ describe('progressReporter', () => {
       progress.clear();
     });
 
-    it('moves the dots alone before the first line, while the project is walked', () => {
+    it('names the walk before the first line, with the dots beside it', () => {
       const { io, err } = capture(true);
       const progress = progressReporter(io, 'check', false);
       vi.advanceTimersByTime(750);
       progress.update({ stage: 'discovered', images: 3, files: 9 });
       expect(err).toEqual([
-        '\r\u001b[2K.',
-        '\r\u001b[2K..',
-        '\r\u001b[2K...',
-        '\r\u001b[2Kdiscovered: 3 images, 9 files',
+        '\r\u001b[2Kfinding files .',
+        '\r\u001b[2Kfinding files ..',
+        '\r\u001b[2Kfinding files ...',
+        '\r\u001b[2Kreading 9 files',
       ]);
       progress.clear();
     });
@@ -315,8 +426,8 @@ describe('progressReporter', () => {
       progress.clear();
       vi.advanceTimersByTime(5000);
       expect(err).toEqual([
-        '\r\u001b[2Kaudited: 2 findings',
-        '\r\u001b[2Kaudited: 2 findings .',
+        '\r\u001b[2Kwriting the report',
+        '\r\u001b[2Kwriting the report .',
         '\r\u001b[2K',
       ]);
       expect(vi.getTimerCount()).toBe(0);

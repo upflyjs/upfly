@@ -42,7 +42,7 @@ describe('the progress line when the engine fails', () => {
       const operands = command === 'refs' ? [join(root, 'img', 'a.png'), root] : [root];
 
       expect(await main([command, ...operands], io)).toBe(4);
-      expect(err).toContain('\r\u001b[2Kdiscovered: 1 image, 2 files .');
+      expect(err).toContain('\r\u001b[2Kreading 2 files .');
       expect(err.slice(-2)).toEqual([
         '\r\u001b[2K',
         'upfly: failed unexpectedly: the disk went away\n',

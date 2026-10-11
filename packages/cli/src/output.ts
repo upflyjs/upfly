@@ -192,33 +192,45 @@ const DOTS_MS = 250;
  * nothing when stderr is a file or a pipe. The terminal counts every image measured; the
  * JSON lines keep the counts `reportsMeasuring` names, twenty for a big project.
  *
- * On a terminal, a line left unchanged for a quarter of a second gains one dot, then two,
- * then three, then one again, until the next line replaces it, so a stage that takes seconds
- * never looks stuck. Each line is written as it reads, with no dot; a count that keeps moving
- * never gets one. Their timer never keeps the process alive. A command calls `clear` however
- * its work ends, a failure included, so the dots stop and nothing is printed after them.
+ * On a terminal the line names the stage at work, since the engine reports the one before
+ * it, and `step` names a stage the command runs itself. A line left unchanged for a quarter
+ * of a second gains moving dots; their timer never keeps the process alive, and a command
+ * calls `clear` however its work ends, so nothing is printed after them. ARCHITECTURE.md's
+ * Output section says why.
+ *
+ * @param apply whether the run writes, which changes what `optimize`, `move` and `dedupe` do
+ * after they plan
  */
 export function progressReporter(
   io: Io,
   command: CommandName,
   json: boolean,
-): { update(event: ProgressEvent): void; clear(): void } {
+  apply = false,
+): { update(event: ProgressEvent): void; step(text: string): void; clear(): void } {
   const terminal = !json && io.stderr.isTTY === true;
-  let line = '';
+  // The project is walked before the engine's first report, and that can take seconds.
+  let line = 'finding files';
   let dots = 0;
   let shown = false;
   const draw = (text: string): void => {
     io.stderr.write(`\r\u001b[2K${text}`);
     shown = true;
   };
-  // Started before the first line, which comes only once the project is walked, and that can
-  // take seconds. Unreferenced, so a run that never clears the line still ends when its work does.
-  let timer: NodeJS.Timeout | null = terminal
-    ? setInterval(() => {
-        dots = (dots % 3) + 1;
-        draw(`${line}${line === '' ? '' : ' '}${'.'.repeat(dots)}`);
-      }, DOTS_MS).unref()
-    : null;
+  const tick = (): void => {
+    dots = (dots % 3) + 1;
+    draw(`${line} ${'.'.repeat(dots)}`);
+  };
+  // Unreferenced, so a run that never clears the line still ends when its work does.
+  let timer: NodeJS.Timeout | null = terminal ? setInterval(tick, DOTS_MS).unref() : null;
+  const show = (text: string): void => {
+    line = text;
+    dots = 0;
+    // A step can follow `clear`, which drops the timer: Vitest's fake `refresh` would revive
+    // a cleared one, where Node's does not, so a new one is made instead.
+    if (timer === null) timer = setInterval(tick, DOTS_MS).unref();
+    else timer.refresh();
+    draw(line);
+  };
   return {
     update(event) {
       if (json) {
@@ -227,11 +239,10 @@ export function progressReporter(
         emit(io, { type: 'progress', command, ...event });
         return;
       }
-      if (!terminal) return;
-      line = describeProgress(event);
-      dots = 0;
-      timer?.refresh();
-      draw(line);
+      if (terminal) show(describeProgress(event, command, apply));
+    },
+    step(text) {
+      if (terminal) show(text);
     },
     clear() {
       if (timer !== null) clearInterval(timer);
@@ -242,11 +253,51 @@ export function progressReporter(
   };
 }
 
-function describeProgress(event: ProgressEvent): string {
-  if (event.stage === 'measuring') return `measuring images: ${event.done} of ${event.total}`;
-  const counts = Object.entries(event)
-    .filter(([key]) => key !== 'stage')
-    .map(([key, value]) => `${value} ${value === 1 ? key.replace(/s$/, '') : key}`)
-    .join(', ');
-  return counts === '' ? `${event.stage}...` : `${event.stage}: ${counts}`;
+/** What each command does once the engine has audited the project, while the line stands. */
+const AFTER_AUDIT: Readonly<Record<CommandName, (apply: boolean) => string>> = {
+  audit: () => 'writing the report',
+  check: () => 'checking the results',
+  dedupe: (apply) => (apply ? 'planning and making the changes' : 'planning the changes'),
+  init: () => 'writing the files',
+  move: (apply) => (apply ? 'planning and making the move' : 'planning the move'),
+  optimize: () => 'planning the changes',
+  refs: () => 'working out what optimize would do',
+  undo: () => 'finishing',
+};
+
+/** The line while the stage after `event` runs: what the engine does next, in words. */
+function describeProgress(event: ProgressEvent, command: CommandName, apply: boolean): string {
+  switch (event.stage) {
+    case 'discovered':
+      return `reading ${counted(event.files, 'file')}`;
+    case 'scanned':
+      return `resolving ${counted(event.references, 'reference')}`;
+    // The sweep reads the files no reader handles for image names, which tells unused from
+    // possibly unused; then each image is hashed to find identical copies.
+    case 'resolved':
+      return 'searching other files for image names';
+    case 'measured':
+      return 'finding identical images';
+    case 'measuring':
+      return `measuring images: ${event.done} of ${event.total}`;
+    case 'audited':
+      return AFTER_AUDIT[command](apply);
+    case 'planned':
+      if (command === 'refs') return 'searching every file';
+      if (command !== 'optimize' || !apply) return 'writing the plan';
+      return `converting ${counted(event.conversions, 'image')} and updating ${counted(event.rewrites, 'reference')}`;
+    case 'written':
+      return 'finishing';
+    default: {
+      const counts = Object.entries(event)
+        .filter(([key]) => key !== 'stage')
+        .map(([key, value]) => `${value} ${value === 1 ? key.replace(/s$/, '') : key}`)
+        .join(', ');
+      return counts === '' ? `${event.stage}...` : `${event.stage}: ${counts}`;
+    }
+  }
+}
+
+function counted(value: string | number | undefined, noun: string): string {
+  return `${value} ${value === 1 ? noun : `${noun}s`}`;
 }

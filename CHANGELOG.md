@@ -66,9 +66,10 @@ of 3.0.0 was removed.
 
 ### What changed
 
-- On a terminal, one to three dots move beside the progress line while the next stage works, so a long stage shows
-  the run is alive. Piped, in CI and with `--json`, the output is the same as before. When `audit`, `check`, `init`
-  or `refs` fails unexpectedly, its message starts on a line of its own.
+- On a terminal, the progress line names the stage at work, such as "reading 52557 files" or "working out what
+  optimize would save", where 3.0.0 named the stage just finished, and one to three dots move beside it, so a long
+  stage shows the run is alive. Piped, in CI and with `--json`, the output is the same as before. When `audit`,
+  `check`, `init` or `refs` fails unexpectedly, its message starts on a line of its own.
 - Measuring starts the next image as soon as any finishes, four at a time as before, where it waited for the
   slowest of each group of four. The terminal's measuring line counts every image.
 - `optimize --apply` converts up to four images at a time, as measuring does. When more than one conversion fails,

@@ -151,8 +151,16 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
     );
   }
 
-  const references = await answersFor(node, result, format);
-  const search = await unfollowedLines(result.pipeline, [path]);
+  // The search reads every file of the project, which takes seconds on a large one.
+  progress.step(`searching every file for ${path}`);
+  let references: Awaited<ReturnType<typeof answersFor>>;
+  let search: Awaited<ReturnType<typeof unfollowedLines>>;
+  try {
+    references = await answersFor(node, result, format);
+    search = await unfollowedLines(result.pipeline, [path]);
+  } finally {
+    progress.clear();
+  }
   const unfollowed = search.lines.map(unfollowedAnswer);
   const verdict = verdictFor(node, result, format, unfollowed);
   if (options.json) {

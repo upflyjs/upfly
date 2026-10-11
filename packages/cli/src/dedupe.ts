@@ -63,7 +63,7 @@ export async function runDedupe(options: DedupeOptions, io: Io): Promise<ExitCod
   }
 
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
-  const progress = progressReporter(io, 'dedupe', options.json);
+  const progress = progressReporter(io, 'dedupe', options.json, options.apply);
   // Decided on the finished plan, so a bad `--keep`, or a commit that could not hold every file
   // the run writes, stops the run before it writes any.
   const guard: { refusal: Refusal | null } = { refusal: null };

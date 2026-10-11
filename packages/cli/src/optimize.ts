@@ -165,7 +165,7 @@ async function carryOut(
   policy: PublicPolicy,
 ): Promise<OptimizeProjectResult | Refusal> {
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
-  const progress = progressReporter(io, 'optimize', options.json);
+  const progress = progressReporter(io, 'optimize', options.json, options.apply);
   let uncommitted: Refusal | null = null;
 
   let result: OptimizeProjectResult;

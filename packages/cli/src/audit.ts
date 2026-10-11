@@ -74,6 +74,8 @@ export async function runAudit(options: AuditOptions, io: Io): Promise<ExitCode>
       extraIgnores,
       onProgress: (event) => progress.update(event),
     });
+    // It plans as optimize does, which takes the longest of any stage on a large project.
+    if (options.probe) progress.step('working out what optimize would save');
     savings = options.probe
       ? await plannedSavings(output, {
           format,
