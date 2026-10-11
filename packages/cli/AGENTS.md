@@ -16,7 +16,7 @@ reads the folder given after it, or the current folder, and prints plain text; a
 - One image: `npx upfly refs <image> --json`. It lists every reference to that image
   (file, line, the path as written, whether a run could rewrite it), then in `unfollowed`
   every other line that names its path, which Upfly does not follow, each with `reason`
-  and `why` (a full address, a path built at runtime, a value in data or props, a file type
+  and `why` (a full address, a path built at runtime, a value in data or props, a database or another file type
   Upfly does not read, a comment), and a verdict: what `upfly optimize` would do with it,
   or that it is unused. It is the small answer, and the right one for a question such as
   "is it safe to delete this image?". Read both lists before changing an image: when
@@ -43,7 +43,7 @@ reads the folder given after it, or the current folder, and prints plain text; a
    change, and how many images are left alone, counted by reason. Show the user that
    summary, and its notes. The full plan is then in `.upfly/optimize.txt`: the same rows,
    each with its complete list, such as each image and reference left alone and the
-   reason for each (`--show leave` prints that row alone); `--json` holds the whole plan. The
+   reason for each (`npx upfly optimize --show leave` prints that row alone); `--json` holds the whole plan. The
    plan leaves alone an image that a browser, a phone or another site reads outside the
    page (an icon, a web app manifest's images, a link preview's image), since some of them
    show no WebP. It cannot tell which images an email uses, and Outlook shows no WebP: if
@@ -209,7 +209,7 @@ have caused (the checkout needs that branch's history).
 
 `npx upfly dedupe` finds sets of images with the same bytes and plans to point every
 reference at one copy of each; `--keep <path>` chooses the copy. It deletes nothing: a
-copy no reference names afterwards stays on disk, and `upfly audit` then lists it as
+copy no reference names afterwards stays on disk, and `npx upfly audit` then lists it as
 unused. Apply it the way `optimize` is applied: with the user's yes, which a go-ahead in
 the task gives, `npx upfly dedupe --apply`, adding `--commit` only when the user asks for a
 commit.

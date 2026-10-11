@@ -253,7 +253,7 @@ Pointed this project's coding agents at Upfly:
   .agents/skills/upfly/SKILL.md  the Upfly skill, created
   .claude/skills/upfly/SKILL.md  the Upfly skill, created
 
-Commit these files, so the agent of everyone working on the project reads them.
+These files reach the agent of everyone working on the project once they are committed.
 ```
 
 It changes nothing outside its block, keeps a config file that exists, and a second run changes nothing.

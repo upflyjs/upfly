@@ -96,8 +96,10 @@ The two scripts that drew the sample and judged each mention are outside this re
   `https://example.com/img/logo.png`: Upfly cannot tell which host is the site's own, and an address on another site
   can end in the same path. `refs` and `move` list each one that names the image, and `move` says when a page loads
   the image through it.
-- **Zero configuration is tested on JavaScript projects only.** Any site can name its website folder with
-  `--public <dir>`, or in `upfly.config.json`.
+- **Detection without a config file is tested on JavaScript projects only.** For any other site, `npx upfly init`
+  tests the site's own root-relative image paths against each folder and writes the one they resolve under: on
+  railsgirls-com, a plain HTML site, it writes `"publicDirs": ["."]`, from 1,268 of 1,268 paths. Any site can also
+  name its website folder with `--public <dir>`, or in `upfly.config.json`.
 - **An image the build loads converts only for Vite, Next.js and Astro**, which load WebP and AVIF by themselves.
   Under any other build (webpack, Rollup, esbuild, Parcel, or one Upfly cannot name), such an image keeps its format,
   and the plan says why: fewer conversions, never a broken build.
@@ -112,7 +114,7 @@ The two scripts that drew the sample and judged each mention are outside this re
   Removing originals, the default, breaks those references; `--keep-originals` keeps every original.
 - **`check` lists only the possibly broken paths that start with `/`:** a string in code or data that ends in an
   image extension and names no file is listed when it starts with `/`, as a path on the site does. The others are
-  counted in one sentence, and `upfly audit --include-discarded` lists them. Of 27 such strings read by hand across
+  counted in one sentence, and `npx upfly audit --include-discarded` lists them. Of 27 such strings read one by one across
   seven projects, 14 of the 15 that start with `/` were image paths a page could load, against 1 of the 12 that do
   not; so a missing image written without the `/` is counted, not listed.
 - **The first `optimize` on a large site takes a while:** it measures each image it could convert before converting

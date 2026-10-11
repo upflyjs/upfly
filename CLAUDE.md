@@ -11,7 +11,8 @@ it is referenced is the product. [ARCHITECTURE.md](ARCHITECTURE.md) describes th
 
 **Quality**
 - TypeScript `strict`, no `any` in the public API. Exported types are the API and are documented.
-- ES modules only, Node.js 22.18 or later (on Node.js 24, 24.11 or later): the range `@babel/parser` 8 declares.
+- ES modules only, Node.js 22 or later: `upfly` runs from 22.0.0 (`bin/upfly.cjs` turns an older one away), while
+  `upfly-core` and `upfly-mcp` declare `@babel/parser` 8's range, `^22.18.0 || >=24.11.0`, so npm warns below it.
 - Every module has tests and every adapter has fixtures. **Every bug fix adds the test that would have failed.** The
   coverage floor is 90% on `upfly-core`, enforced in CI.
 - Biome for lint and format. Conventional commits whose body carries the reasoning. One concern per pull request.

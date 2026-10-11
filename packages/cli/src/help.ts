@@ -4,8 +4,9 @@ import type { CommandName } from './args.js';
 
 const GENERAL = `Usage: upfly <command> [dir] [options]
 
-Finds the images in a project and the references to them in the files it can read, and
-names the files it could not read.
+Converts a project's images, moves them, and rewrites the code that references them, in the
+files it can read, naming the ones it cannot. A command that writes shows its plan first and
+changes nothing without --apply.
 
 Commands:
   audit [dir]      Report images, references, and what could be smaller. Changes no
@@ -39,8 +40,8 @@ upfly.config.json is read if there is one.
 
 audit, optimize, dedupe and move print a summary, and keep it with every list in full in a
 file named after the command (.upfly/audit.txt, .upfly/optimize.txt, .upfly/dedupe.txt,
-.upfly/move.txt), which git is told to ignore. --full prints that file; --show <row> prints one row of it with its
-list.
+.upfly/move.txt), which git is told to ignore. Add --full to the command to print that file,
+or --show <row> to print one row of it with its list, as in upfly optimize --show leave.
 `;
 
 const AUDIT = `Usage: upfly audit [dir] [options]
@@ -266,8 +267,8 @@ such as a full address, found by a search of every file: Upfly leaves those as w
 Without --apply it changes no project file and shows a summary of the plan, with the full
 plan in .upfly/move.txt. It deletes no image.
 
-from and to are paths from the current folder, inside the project. A to that is a folder,
-or ends in a slash, takes from in under its own name.
+from and to are paths from the current folder, inside the project. When to is a folder, or
+ends in a slash, from moves into it under its own name.
 
 Options:
   --full                 Print the full plan instead of the summary

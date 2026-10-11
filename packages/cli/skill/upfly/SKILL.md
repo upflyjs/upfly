@@ -63,8 +63,10 @@ asks for a commit.
 ## When Upfly stops
 
 Exit code 3 means Upfly refused to act, for safety. Read its `message`, which says what
-to do; with `--json`, `reason` names the case. For `SERVING_ROOT_UNKNOWN`, ask the user
-which folder the site is served from and pass it with `--public <dir>`.
+to do; with `--json`, `reason` names the case. For `SERVING_ROOT_UNKNOWN`, run
+`npx upfly init`, which can work the folder out from the site's own image paths, and show the
+user the `publicDirs` it writes; or ask the user which folder the site is served from and
+pass it with `--public <dir>`.
 
 ## Other commands
 

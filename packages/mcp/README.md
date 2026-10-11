@@ -5,9 +5,9 @@ reaches tools only through MCP, such as Claude Desktop.
 
 Upfly finds the images in a project and the references to them in the files it can read, converts
 and moves images, and rewrites those references in one change that `undo` puts back. I built it as
-a command-line tool, and that stays the main way in: an agent that can run a shell does better with
-the `upfly` CLI and the `AGENTS.md` and Agent Skill that ship in it (`npx upfly init --agents` sets
-them up for your agents). This package is for the apps that cannot run a command. It adds nothing
+a command-line tool, and that stays the main way in: an agent that can run a shell can use the
+`upfly` CLI directly, with the `AGENTS.md` and Agent Skill that ship in it (`npx upfly init --agents`
+sets them up for your agents). This package is for the apps that cannot run a command. It adds nothing
 the CLI does not do: each tool runs the command of its name with the `upfly` installed beside it,
 in the same version, and answers with the JSON line that command prints with `--json`.
 

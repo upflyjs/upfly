@@ -15,7 +15,8 @@ A straightforward bug fix with a failing test can go straight to a pull request.
 
 ## Setup
 
-Node.js 22.18 or later (on Node.js 24, 24.11 or later), and pnpm.
+Node.js 22 or later, and pnpm. On a Node.js 22 before 22.18, pnpm warns that the repository asks for 22.18 (the
+range `@babel/parser` declares); everything runs all the same.
 
 ```bash
 pnpm install

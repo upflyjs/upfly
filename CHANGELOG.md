@@ -2,8 +2,9 @@
 
 ## 3.1.0
 
-Moving images, `check` as a guard you set up for continuous integration, and pointing a project's coding agents at
-Upfly. No command or option of 3.0.0 was removed.
+Moving images with their references, every line that names an image, and pointing a project's coding agents at
+Upfly; and fixes to 3.0.0, among them two cases where it removed an original a page still used. No command or option
+of 3.0.0 was removed.
 
 ### What is new
 
@@ -21,12 +22,6 @@ Upfly. No command or option of 3.0.0 was removed.
   not read, a comment). A line that names another file of the same name is in neither list. The search reads the
   files `--exclude` and `.upflyignore` leave out too. An image named only in such lines is possibly unused, not
   unused.
-- `upfly check` is a guard you set up: `check.failOn` in the config, or `--fail-on` in a workflow, chooses what fails
-  it, from `broken`, `too-large` and `possibly-broken`; `--warn` lists everything and exits 0. Unset, it fails on
-  what 3.0.0 failed on. It also lists, apart from its findings, image paths in code or data that name no file, such
-  as a photo in a component's list of people: strings Upfly does not read as references, so it cannot tell whether a
-  page shows them. Where one names an image in another letter case, it says so: that path loads on Windows and macOS
-  and breaks on a Linux server. An unused image never fails the check.
 - `upfly init --agents` points a project's coding agents at Upfly. It adds a short marked block to `AGENTS.md`
   (created when there is none) and to a `CLAUDE.md` or `GEMINI.md` already there, and puts the Upfly Agent Skill in
   `.agents/skills/upfly` and `.claude/skills/upfly`. It changes nothing outside its block, keeps a config file that
@@ -37,9 +32,43 @@ Upfly. No command or option of 3.0.0 was removed.
   `dedupe`, `move` and `undo`; each runs its command with `--json` and answers with the line the command prints
   last. A tool that writes does so only when a call sets `apply`, and refuses what the command refuses. No tool runs
   `init` or takes `--allow-dirty`. Installing `upfly` does not bring the MCP server with it.
+- `upfly check` is a guard you set up: `check.failOn` in the config, or `--fail-on` in a workflow, chooses what fails
+  it, from `broken`, `too-large` and `possibly-broken`; `--warn` lists everything and exits 0. Unset, it fails on
+  what 3.0.0 failed on. It also lists, apart from its findings, image paths in code or data that name no file, such
+  as a photo in a component's list of people: strings Upfly does not read as references, so it cannot tell whether a
+  page shows them. Where one names an image in another letter case, it says so: that path loads on Windows and macOS
+  and breaks on a Linux server. An unused image never fails the check.
+
+### Fixed
+
+- `optimize` no longer removes an original that a file Upfly does not read names percent-encoded or with HTML
+  character references, such as `/img/a%20b.png` in a Vue template: the page lost its image while the run reported
+  success. It also keeps every original such a line names, where 3.0.0 could remove some of the images named on one
+  line, such as a `srcset`'s. (3.0.0 too.)
+- `optimize` keeps an original that a site's database names, such as `<img src="/img/a.png">` in a page stored in
+  a `.db` or `.sqlite` file: 3.0.0 never read those files, and removed it. Any file that is not text, a database or
+  a compiled module among them, is now searched for an image's path as its bytes; `refs` lists such a line under
+  "Not followed", and `move` as one a page may load the image through. Video, audio, fonts, icons, PDFs, office and
+  design documents and archives are still left unread.
+- `audit` and `optimize` no longer run out of memory on a project that holds large compiled files, such as a Python
+  environment's libraries: a file that is not text is read a megabyte at a time. (3.0.0 too.)
+- On Windows, `audit` and `optimize` no longer stop without a word (exit code `0xC0000409`) on a project holding an
+  empty file, a Git LFS pointer or other text under an image's name. (3.0.0 too.)
+- `--commit` commits every file the run wrote: a tracked file inside a folder git ignores made the commit fail after
+  the run had written (3.0.0 too), and a page renamed only in letter case, which 3.0.0 refused, is now committed under
+  the name git records. Upfly checks the commit before it reports it.
+- With `--commit`, a run that would write inside a git submodule is refused before anything is written (exit 3,
+  `IN_SUBMODULE`, naming the `--exclude` that leaves it out), where it used to write and then fail with git's own
+  message (exit 4).
+- `npm install upfly` and `npx upfly` install Upfly 3 on every Node.js: on Node.js 18 to 22.17, or 23 to 24.10,
+  npm picked Upfly 2, the Express middleware, since 3.0.0 declared a Node.js range they were outside. Upfly runs on
+  Node.js 22 or later; an older one gets one line naming the version it needs, and exit code 2.
 
 ### What changed
 
+- On a terminal, one to three dots move beside the progress line while the next stage works, so a long stage shows
+  the run is alive. Piped, in CI and with `--json`, the output is the same as before. When `audit`, `check`, `init`
+  or `refs` fails unexpectedly, its message starts on a line of its own.
 - Measuring starts the next image as soon as any finishes, four at a time as before, where it waited for the
   slowest of each group of four. The terminal's measuring line counts every image.
 - `optimize --apply` converts up to four images at a time, as measuring does. When more than one conversion fails,
@@ -49,7 +78,8 @@ Upfly. No command or option of 3.0.0 was removed.
   counts these images, as `audit` does.
 - A path written inside a comment is rewritten with the references, by `optimize` and `move`, so no comment is left
   naming a file that has gone. A comment never by itself makes an image convert or move. The plan shows each such
-  edit beside its file and counts them apart from the references.
+  edit beside its file and counts them apart from the references. A path a comment writes percent-encoded or with
+  character references keeps its spelling: `/img/a%20b.png` becomes `/img/a%20b.webp`.
 - A reason that cites a line naming an image says what kind of place it is: a comment, a code example, a page's
   text, a file type Upfly does not read, a path built at runtime. An unused image that something names says where:
   "nothing links to it, and index.html:17 names it in a comment, which no page loads", where 3.0.0 said "something
@@ -67,7 +97,9 @@ Upfly. No command or option of 3.0.0 was removed.
 - References to images that do not exist are listed by file, then line, in `check`, `audit` and the report file.
 - `upfly undo` also puts moved images back, and says how many.
 - `AGENTS.md` says what to do for every `reason` an error line can carry, and covers `move`, `check` as an optional
-  guard, `init --agents` and `upfly-mcp`. The Agent Skill no longer assumes Upfly is installed in the project.
+  guard, `init --agents` and `upfly-mcp`. The Agent Skill no longer assumes Upfly is installed in the project. Both
+  say that a go-ahead in the task is the user's yes to apply, after which the agent names the originals removed, and
+  that an agent commits Upfly's changes only when asked for a commit.
 
 ### What a script reading `--json` must know
 
@@ -94,6 +126,9 @@ Upfly. No command or option of 3.0.0 was removed.
 - `runPipeline`'s `onProgress` gets a `measuring` event for every image, where it got one for every twentieth.
 - `optimizeProject` measures only the images it could convert; the plan is the same.
 - `Edit` gains `inComment`, and an `OptimizationPlan`'s rewrites can hold edits inside comments.
+- `FileStore` gains `readForSearch(path)`, the read the search before a delete makes: a file's text, or the bytes of
+  a file that is not text, a chunk at a time. A store you wrote yourself must add it; answering with the file's text,
+  as `readText` does, satisfies it. `createNodeFileStore` has it.
 
 ## 3.0.0
 
