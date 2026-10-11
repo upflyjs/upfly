@@ -5,12 +5,10 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/upfly-readme-header-dark.svg">
-    <img src="assets/upfly-readme-header-light.svg" alt="upfly" height="96">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/upfly-readme-banner-dark.svg">
+    <img src="assets/upfly-readme-banner-light.svg" alt="Upfly: optimize your repo's images without breaking a reference; beside it, a diff changes the image references in src/App.jsx and src/index.css from .png and .jpg to .webp, with the run's totals: 5 images to WebP, 124.2 KB to 48.8 KB, 7 references in 2 files.">
   </picture>
 </p>
-
-<h3 align="center">Optimize your repo's images without breaking a reference.</h3>
 
 <p align="center">
 Upfly converts your images to WebP and updates the code that points at them, as one change you can review and
