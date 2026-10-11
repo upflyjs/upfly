@@ -305,8 +305,6 @@ For an app that reaches tools only through MCP, such as Claude Desktop, the `upf
 commands as an MCP server over standard input and output. I keep it in a package of its own, so installing `upfly`
 does not bring an MCP server with it.
 
-<!-- upfly-mcp: not run yet; check these commands against the package before the release -->
-
 Register it as a server the client starts, giving it the project's folder. In Claude Desktop's config, and that of
 most clients:
 
