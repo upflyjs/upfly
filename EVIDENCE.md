@@ -23,32 +23,32 @@ The suite is [`accuracy-suite/`](accuracy-suite/); its README says how each case
 ## Three real projects, converted and built
 
 Fresh clones of three public repositories, each at a pinned commit, run once under each policy: keeping every
-original (keep-original, today's `--keep-originals`) and removing each original once its references moved (replace,
-today's default).
+original (keep-original, `--keep-originals`) and removing each original once its references moved (replace, the
+default).
 
 | repository | policy | converted | references rewritten | originals deleted | build | image references (broken by the run) | second run |
 |---|---|---|---|---|---|---|---|
-| eleventy-docs | keep-original | 17 | 17 in 12 files | 0 | passes | 7,517 (0) | nothing to do |
-| eleventy-docs | replace | 15 | 15 in 10 files | 15 | passes | 7,517 (0) | nothing to do |
+| eleventy-docs | keep-original | 17 | 17 in 12 files | 0 | passes | 7,067 (0) | nothing to do |
+| eleventy-docs | replace | 15 | 15 in 10 files | 15 | passes | 7,067 (0) | nothing to do |
 | railsgirls-com | keep-original | 3,412 | 5,995 in 575 files | 0 | no build | 10,655, 119 already broken (0) | nothing to do |
-| railsgirls-com | replace | 2,906 | 4,413 in 560 files | 2,900 (6 kept, with reasons) | no build | 10,655, 119 already broken (0) | nothing to do |
+| railsgirls-com | replace | 3,208 | 5,348 in 570 files, and 862 paths inside comments | 3,203 (5 kept, with reasons) | no build | 10,655, 119 already broken (0) | nothing to do |
 | scratch-www | keep-original | 183 | 214 in 56 files | 0 | passes, no file put back | 750, 52 already broken (0) | nothing to do |
 | scratch-www | replace | 182 | 213 in 55 files | 182 | passes, no file put back | 750, 52 already broken (0) | nothing to do |
 
-Every applied run made exactly one commit, no run broke a single image reference (18,922 checked across the three,
+Every applied run made exactly one commit, no run broke a single image reference (18,472 checked across the three,
 comments aside), and every second run found nothing to convert, rewrite or delete.
 
-- **What was run:** for keep-original, `upfly optimize --apply --commit`, which kept every original at commit
-  `9b71d22` (today, `upfly optimize --apply --commit --keep-originals`); for replace, `upfly optimize --apply
-  --commit --replace` on a second fresh clone (today's default, which `--replace` still names); then the project's
-  own build, where it has one; then a second `upfly optimize` on the committed tree. The repositories and their
-  pinned commits are in [`bench/src/repos.ts`](bench/src/repos.ts), and [`bench/README.md`](bench/README.md) says how
-  to set them up. Measured with the CLI at commit `9b71d22`; the commits since change how some reasons are worded,
-  what the terminal and the report files print, which policy runs when none is named, which images `audit` measures,
-  which folder of a built Hugo, Gatsby or Hexo site is read, and that the original of an image a build loads is
-  removed too. None of the three projects has such a folder or converts such an image (every original converted in
-  them sits in a folder the site is served from), and none of the rest changes what `optimize` converts, rewrites or
-  removes under a named policy.
+- **What was run:** for keep-original, `upfly optimize --apply --commit --keep-originals`; for replace, `upfly
+  optimize --apply --commit` on a second fresh clone; then the project's own build, where it has one; then a second
+  `upfly optimize` on the committed tree. The repositories and their pinned commits are in
+  [`bench/src/repos.ts`](bench/src/repos.ts), and [`bench/README.md`](bench/README.md) says how to set them up.
+  Measured with Upfly 3.1's code, at commit `91a9cc3`, on 2026-10-11.
+- **What moved since the first measurement, with 3.0.0's code (commit `9b71d22`):** under replace, railsgirls-com
+  converts 302 more images. 3.0.0 left an image unconverted there while a line it could not rewrite, a path inside a
+  comment, still named it; 3.1 updates the comment too (the 862 above), and each of the 302 also has its live
+  references rewritten. eleventy-docs' built pages hold 450 fewer image references: 225 of them show the site's
+  sponsors, whose avatars the build fetches live from Open Collective, and there is one sponsor fewer now (two
+  references a page, a PNG and an AVIF), the same before and after every run. The other figures are unchanged.
 - **The link check** reads every HTML, CSS and JavaScript file of the built site (or of the source, for a site with
   no build) and asks whether each image path names a file that exists, letter case included, as a Linux server
   would. It skips external URLs and anything inside an HTML or CSS comment, which no browser loads. "Broken by the

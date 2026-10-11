@@ -48,7 +48,7 @@ Moving or renaming an image is the same job, and `npx upfly move` does it the sa
   the `upfly-mcp` package offers the same commands to apps that use MCP.
 - **It is measured.** 453 of 453 cases in its [accuracy suite](accuracy-suite/), with configuration and without; the
   open-source websites of [Eleventy, Rails Girls and Scratch](EVIDENCE.md#three-real-projects-converted-and-built),
-  each converted on a fresh clone, with none of their 18,922 image references broken by the run.
+  each converted on a fresh clone, with none of their 18,472 image references broken by the run.
 - **It stays on your machine.** No network calls and no telemetry, enforced by a test.
 
 ## Install
@@ -468,7 +468,7 @@ The suite is [`accuracy-suite/`](accuracy-suite/); its README says how each case
 **On real projects.** I ran Upfly on fresh clones of three public websites, Eleventy's documentation, Rails Girls and
 Scratch, converting each twice: once keeping every original, and once removing originals as their references moved.
 Each run converted between 15 and 3,412 images. After every run the site's build still passed (Rails Girls has no
-build), the link check found none of the 18,922 image references it read across the three sites broken by the run,
+build), the link check found none of the 18,472 image references it read across the three sites broken by the run,
 and a second run found nothing left to do.
 
 **When Upfly calls an image unused.** Upfly never deletes an unused image, but it tells you which ones nothing uses,
