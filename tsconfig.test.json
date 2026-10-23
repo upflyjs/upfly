@@ -14,6 +14,9 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
+    "packages/vscode/.vscode-test.mjs",
+    "packages/vscode/scripts/**/*.mjs",
+    "packages/vscode/test/integration/*.mjs",
     "bench/src/**/*.ts",
     "tools/**/*.ts",
     "tools/**/*.mjs"

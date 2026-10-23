@@ -47,7 +47,7 @@ const RULE_ORDER = /** @type {Rule[]} */ (Object.keys(RULES));
 export const MAX_COMMENT_LINES = 10;
 
 // Scanned directories, relative to the root. Each package under `packages/` adds its own.
-const PACKAGE_DIRS = ['src', 'test'];
+const PACKAGE_DIRS = ['src', 'test', 'scripts'];
 const OTHER_DIRS = ['bench/src', 'accuracy-suite/tools', 'tools'];
 const SOURCE_EXTENSION = /\.(?:ts|mts|cts|js|mjs|cjs)$/;
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', '__snapshots__']);
@@ -297,7 +297,7 @@ function describeFindings(failing) {
 }
 
 /**
- * The directories scanned: each package's `src` and `test`, then the fixed list.
+ * The directories scanned: each package's `src`, `test` and `scripts`, then the fixed list.
  *
  * @param {string} root
  * @returns {string[]}

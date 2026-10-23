@@ -1,0 +1,11 @@
+{
+  "name": "upfly-integration-driver",
+  "displayName": "Upfly integration tests",
+  "description": "Runs the integration tests against the Upfly package installed in the test's VS Code.",
+  "publisher": "upfly-tests",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.101.0"
+  }
+}

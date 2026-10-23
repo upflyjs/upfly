@@ -1,0 +1,162 @@
+{
+  "name": "upfly-vscode",
+  "displayName": "Upfly",
+  "description": "Every image in your workspace, the code that uses it, and what could be smaller.",
+  "version": "1.0.0-dev",
+  "publisher": "ramin",
+  "private": true,
+  "license": "MIT",
+  "author": "Rinkal Kumar (https://github.com/ramin-010)",
+  "homepage": "https://github.com/upflyjs/upfly#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/upflyjs/upfly.git",
+    "directory": "packages/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/upflyjs/upfly/issues"
+  },
+  "icon": "media/icon.png",
+  "categories": ["Other"],
+  "keywords": ["image", "images", "optimize", "webp", "avif", "references", "unused images"],
+  "type": "module",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "main": "./dist/extension.cjs",
+  "activationEvents": [],
+  "extensionKind": ["workspace"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In a workspace you have not trusted, Upfly runs none of the project's code and writes nothing: a folder with an upfly.config.ts or upfly.config.js is not read until you trust the workspace."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Upfly reads the project's files on disk with Node.js, which a virtual workspace does not have."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "upfly.auditWorkspace",
+        "title": "Audit workspace",
+        "category": "Upfly",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "upfly.showReport",
+        "title": "Show report",
+        "category": "Upfly",
+        "icon": "$(output)"
+      },
+      {
+        "command": "upfly.whereUsed",
+        "title": "Where is this image used?",
+        "category": "Upfly"
+      },
+      {
+        "command": "upfly.cancel",
+        "title": "Cancel the run",
+        "category": "Upfly"
+      },
+      {
+        "command": "upfly.openLocation",
+        "title": "Open",
+        "category": "Upfly"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "upfly",
+          "title": "Upfly",
+          "icon": "media/upfly-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "upfly": [
+        {
+          "id": "upfly.audit",
+          "name": "Audit"
+        },
+        {
+          "id": "upfly.refs",
+          "name": "Where it is used"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "upfly.audit",
+        "contents": "Upfly reads every image in this workspace and the code that uses each one, and measures what could be smaller. It changes no file.\n[Audit workspace](command:upfly.auditWorkspace)"
+      },
+      {
+        "view": "upfly.refs",
+        "contents": "Right-click an image in the Explorer and choose Where is this image used?, or choose one here.\n[Choose an image](command:upfly.whereUsed)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "upfly.whereUsed",
+          "when": "resourceScheme == file && resourceExtname =~ /^\\.(avif|gif|jpe?g|png|svg|tiff?|webp)$/i",
+          "group": "7_upfly@1"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "upfly.whereUsed",
+          "when": "resourceScheme == file && resourceExtname =~ /^\\.(avif|gif|jpe?g|png|svg|tiff?|webp)$/i",
+          "group": "7_upfly@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "upfly.auditWorkspace",
+          "when": "view == upfly.audit",
+          "group": "navigation@1"
+        },
+        {
+          "command": "upfly.showReport",
+          "when": "view == upfly.audit && upfly.hasAudit",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "upfly.whereUsed",
+          "when": "viewItem == upfly.image",
+          "group": "upfly@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "upfly.cancel",
+          "when": "upfly.running"
+        },
+        {
+          "command": "upfly.openLocation",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs",
+    "test:integration": "node scripts/build.mjs && vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.101.0",
+    "@vscode/test-cli": "0.0.15",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "ajv": "8.20.0",
+    "esbuild": "0.25.12",
+    "mocha": "11.8.0",
+    "upfly": "workspace:*",
+    "upfly-core": "workspace:*"
+  }
+}

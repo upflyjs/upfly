@@ -4,6 +4,7 @@ coverage/
 *.tsbuildinfo
 *.vsix
 *.tgz
+.vscode-test/
 .DS_Store
 .upfly/
 .tmp-*/
