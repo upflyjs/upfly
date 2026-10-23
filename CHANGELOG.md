@@ -1,5 +1,55 @@
 # Changelog
 
+## 3.1.1
+
+Undoing part of a run, and what the Upfly VS Code extension, which I am rebuilding on Upfly 3, needs from the CLI;
+and fixes to 3.1.0. No command, option or JSON field of 3.1.0 was removed or renamed.
+
+### What is new
+
+- `upfly undo --file <path>` puts back only what the last run did to one file, and adding `--line <n>` only the
+  changes on that line, leaving the rest of the run in place. An original that a put-back line names again comes
+  back from the run's backup, and a moved image is copied back. What the run created stays until the whole run is
+  undone, since other lines may still name it, and `upfly undo` afterwards still puts back every byte. A file changed
+  since the run, or since its last partial undo, is refused as the whole undo refuses it.
+- `upfly undo --list` shows what the last run changed, line by line, what of it is undone, and whether each removed
+  original is back; with `--json`, in `run` and `runs`. It changes nothing.
+- The last ten runs keep their record in `.upfly`, and `upfly undo --run <id>` undoes one of them, whole or in part.
+  It is refused while a later run that changed the same files still stands, and the message names that run.
+- `audit --json --include-images` lists every image with its size, each reference to it at its file and line, and
+  the findings that name it. `--include-text` adds the report as text, as `.upfly/audit.txt` holds it, without
+  writing the file.
+- `--no-code-config`, on every command, runs no `upfly.config.ts` or `.js`: a command that would have to stops and
+  names the file. `upfly.config.json` is still read.
+- `upfly.config.json` takes a `watch` part, the settings of the Upfly VS Code extension (`folders`, `skip`,
+  `keepOriginals`, `outside`). The commands check it and act on none of it.
+- `optimize --json`, and the savings in `audit --json`, say for each conversion whether its original is in a folder
+  the site is served from (`inPublicDir`), the originals a link from outside the project can name. Each edit says
+  which image it names (`asset`).
+
+### Fixed
+
+- On Windows, `optimize --apply` stopped with "unable to open for write" when the copy of a converted image staged
+  under `.upfly/runs/` passed 259 characters, as it can in a project several folders deep. The encode is now written
+  by Node, which handles such a path.
+- `check --changed` kept a broken path in a file the change never touched when only its file name matched a file the
+  change deleted. It now keeps such a path only when it named the deleted file.
+- `audit` called an image unused when only a database or a compiled file (`.db`, `.sqlite`, `.wasm`, `.node`, `.bin`,
+  `.swf`) named it, though the search before `optimize` removes an original reads those files. It reads them too
+  now, and `move`'s caveat counts them among the files that may name an image.
+- A Python environment (`venv`, `.venv`, `site-packages`, `__pycache__`) is left out of the walk, as `node_modules`
+  is, so its packages' images and files are no longer read as the project's.
+- `__MACOSX`, the folder of macOS metadata a zip can hold, is left out of the walk.
+- A reason in the full plan that holds more than one sentence now ends with a full stop.
+- The README's command for adding the MCP server to Claude Code failed in PowerShell, which drops a bare `--`. It now
+  gives the form PowerShell passes whole.
+- The test that runs every command with the network cut off now runs `move` as well.
+
+### Changed
+
+- A run's record, `.upfly/manifest.json`, stays at version 1, which 3.1.0 reads, until part of a file is undone on
+  its own; it then says version 2, which 3.1.0 refuses to undo rather than misread. Undo such a run with 3.1.1.
+
 ## 3.1.0
 
 Moving images with their references, every line that names an image, and pointing a project's coding agents at
