@@ -22,7 +22,7 @@ import { loadConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
-import { policyFor } from './optimize.js';
+import { policyFor, withPublicDir } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
 import {
   type ReportFile,
@@ -193,7 +193,7 @@ function write(
               bytes: savings.bytes,
               savedBytes: savings.savedBytes,
               unmeasured: savings.unmeasured,
-              conversions: savings.conversions,
+              conversions: withPublicDir(savings.conversions, output.servingRoots),
             },
       ...(run.images === null ? {} : { images: run.images }),
       ...(options.includeText ? { text: reportText(options, io, run) } : {}),

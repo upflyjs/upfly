@@ -22,7 +22,6 @@ import {
   type OptimizeProjectResult,
   type PipelineProgress,
   type PlanRefusal,
-  type PlannedConversion,
   type PlannedRewrite,
   REPORT_SCHEMA_VERSION,
   type ReferenceEntry,
@@ -56,6 +55,7 @@ import type { TooLargeFinding } from './check.js';
 import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
 import type { MoveRun, UnfollowedOldPath } from './move.js';
+import type { ConversionAnswer } from './optimize.js';
 import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
 import type { Undone } from './undo.js';
 
@@ -587,13 +587,14 @@ describe('the command schemas and the types each command prints agree', () => {
     );
     expectFields(
       at(o, '/definitions/conversion'),
-      fields<PlannedConversion>({
+      fields<ConversionAnswer>({
         asset: 'required',
         target: 'required',
         format: 'required',
         quality: 'required',
         savedBytes: 'required',
         replacesOriginal: 'required',
+        inPublicDir: 'required',
       }),
     );
     expectFields(

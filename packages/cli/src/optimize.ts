@@ -11,7 +11,9 @@ import {
   type Manifest,
   type OptimizationPlan,
   type OptimizeProjectResult,
+  type PlannedConversion,
   type PublicPolicy,
+  type ServingRoots,
   UpflyError,
   buildReport,
   createNodeFileStore,
@@ -25,6 +27,7 @@ import {
   pathsTouched,
   processIsAlive,
   readLockHolder,
+  servingRootOf,
 } from 'upfly-core/internal';
 import type { OptimizeOptions } from './args.js';
 import { isDirectory, scopeWords } from './audit.js';
@@ -124,6 +127,33 @@ export function policyFor(
   settings: Pick<UpflyConfig, 'publicPolicy'>,
 ): PublicPolicy {
   return options.policy ?? settings.publicPolicy ?? 'replace';
+}
+
+/** A conversion as `--json` lists it: the plan's, and where its original sits. */
+export interface ConversionAnswer extends PlannedConversion {
+  /**
+   * The original sits in a folder the site is served from, such as `public/`, where a link from
+   * outside the project (an email, another site) can name it. One a build loads is published
+   * under a new name with every build, so nothing outside links to it.
+   */
+  readonly inPublicDir: boolean;
+}
+
+/**
+ * Each conversion with whether its original is in a folder the site is served from, by the
+ * same test the dry run's count of such originals uses.
+ *
+ * @param conversions the plan's conversions
+ * @param servingRoots the folders the run decided the site is served from
+ */
+export function withPublicDir(
+  conversions: readonly PlannedConversion[],
+  servingRoots: ServingRoots,
+): ConversionAnswer[] {
+  return conversions.map((conversion) => ({
+    ...conversion,
+    inPublicDir: servingRootOf(conversion.asset, servingRoots) !== null,
+  }));
 }
 
 /** How many images `--only` left out, and each pattern that named none, on every run. */
@@ -528,7 +558,10 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       command: 'optimize',
       exitCode: EXIT_CODES.OK,
       apply: options.apply,
-      plan: run.plan,
+      plan: {
+        ...run.plan,
+        conversions: withPublicDir(run.plan.conversions, pipeline.servingRoots),
+      },
       run:
         run.manifest === null ? null : { id: run.manifest.runId, ...writtenByKind(run.manifest) },
       commit: outcome.commit,

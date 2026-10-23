@@ -116,7 +116,15 @@
     "conversion": {
       "description": "One image to convert.",
       "type": "object",
-      "required": ["asset", "target", "format", "quality", "savedBytes", "replacesOriginal"],
+      "required": [
+        "asset",
+        "target",
+        "format",
+        "quality",
+        "savedBytes",
+        "replacesOriginal",
+        "inPublicDir"
+      ],
       "additionalProperties": false,
       "properties": {
         "asset": { "description": "The image.", "type": "string" },
@@ -129,6 +137,10 @@
         "savedBytes": { "type": "integer", "minimum": 0 },
         "replacesOriginal": {
           "description": "true when the original is removed: by default, unless --keep-originals or the config keeps originals, once every reference to it moves and no file Upfly reads still names it.",
+          "type": "boolean"
+        },
+        "inPublicDir": {
+          "description": "true when the original sits in a folder the site is served from, such as public, where a link from outside the project (an email, another site) can name it. With replacesOriginal, such a link stops working once the run applies; the dry run counts these originals. One a build loads is published under a new name with every build, so nothing outside links to it.",
           "type": "boolean"
         }
       }

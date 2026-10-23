@@ -57,7 +57,8 @@ reads the folder given after it, or the current folder, and prints plain text; a
    again, and say in your answer which originals were removed (`.upfly/optimize.txt` lists
    them). Without one, ask, and say how many originals the summary says are removed, that
    a link to one from outside the project (an email, another site, a CMS) then stops
-   working, and that `npx upfly optimize --apply --keep-originals` keeps every original
+   working (in `--json`, the conversions with `replacesOriginal` and `inPublicDir` both
+   true are those originals), and that `npx upfly optimize --apply --keep-originals` keeps every original
    beside its converted file. Add `--commit` only when the user asks for a commit: the
    run's files then go into one commit, which `git revert` undoes.
 4. Check the result: run the project's own build if it has one, then `npx upfly check`,
