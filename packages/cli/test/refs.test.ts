@@ -258,6 +258,9 @@ describe('upfly refs', () => {
     expect(answer.verdict.why).toContain(
       'Upfly converts an image only when a reference moves to the new file',
     );
+    expect(upfly(['refs', join(root, 'images/icons/star.png'), root]).stdout).toContain(
+      'Upfly converts an image only when a reference moves to the new file.\n',
+    );
   });
 
   describe('every line that names the image', () => {

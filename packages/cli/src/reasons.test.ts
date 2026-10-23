@@ -38,7 +38,7 @@ describe('declineGroup', () => {
         'no smaller when converted',
       ],
       [
-        'nothing Upfly can see links to it, so a new file would be used by nobody. Upfly converts an image only when a reference moves to the new file',
+        'nothing Upfly can see links to it, so a new file would be used by nobody. Upfly converts an image only when a reference moves to the new file.',
         'no reference would move to a new file',
       ],
       [
@@ -58,15 +58,15 @@ describe('declineGroup', () => {
         'a file that may name it could not be read',
       ],
       [
-        '`src/App.jsx` reaches it only through `./img/${name}.png`, a template assembled at run time. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file',
+        '`src/App.jsx` reaches it only through `./img/${name}.png`, a template assembled at run time. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file.',
         'no reference would move to a new file',
       ],
       [
-        'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change',
+        'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change.',
         'named for a format the file is not',
       ],
       [
-        'its name already ends in .avif, but the file is PNG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .avif file would need no other change',
+        'its name already ends in .avif, but the file is PNG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .avif file would need no other change.',
         'named for a format the file is not',
       ],
     ];

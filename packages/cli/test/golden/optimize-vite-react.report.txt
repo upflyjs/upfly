@@ -36,7 +36,7 @@ Options: none
 
     Each of these images stays as it is, for the reason given.
       public/favicon.svg  93 B  SVG is a vector: encoding it measures a rasterisation, not a saving
-      public/icons/touch.png  70 B  `index.html` names it as `/icons/touch.png`, and this run does not rewrite that reference: an icon link names this image, and browsers and phones read icons outside the page, some only as PNG, as iOS does for a home-screen icon. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file
+      public/icons/touch.png  70 B  `index.html` names it as `/icons/touch.png`, and this run does not rewrite that reference: an icon link names this image, and browsers and phones read icons outside the page, some only as PNG, as iOS does for a home-screen icon. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file.
       src/assets/hero.jpg  2 KB  converting it would save 994 B, under the 1 KB a saving must reach to be reported or converted
       src/assets/orphan.png  70 B  nothing links to it, so converting it would rewrite no reference and gain only bytes
       src/assets/texture.png  70 B  converting it would save 34 B, under the 1 KB a saving must reach to be reported or converted

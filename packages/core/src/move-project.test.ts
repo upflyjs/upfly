@@ -275,7 +275,10 @@ const glob = 'public/img/**';
       'layout.njk:1',
     ]);
     expect(lines).toMatchObject({
-      'build.config.js:1': { loads: true, why: expect.stringContaining('the folder itself') },
+      'build.config.js:1': {
+        loads: true,
+        why: expect.stringMatching(/the folder itself.*\. Upfly never rewrites one, .*\.$/),
+      },
       'build.config.js:2': { loads: false, why: expect.stringContaining('in a comment') },
       'docs/setup.md:1': { loads: false, why: expect.stringContaining('code example') },
       'docs/setup.md:3': { loads: false, why: expect.stringContaining('text of a page') },

@@ -276,7 +276,7 @@ describe('the report file', () => {
 
     expect(summary.stdout).toContain('stays as written, each for a reason in the');
     expect(report).toContain(
-      '      public/theme-dark.png  70 B  `src/App.jsx` reaches it only through `/theme-${mode}.png`, a path assembled at runtime that no run can rewrite. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file\n',
+      '      public/theme-dark.png  70 B  `src/App.jsx` reaches it only through `/theme-${mode}.png`, a path assembled at runtime that no run can rewrite. No reference would move to a new file, so it would be used by nobody. Upfly converts an image only when a reference moves to the new file.\n',
     );
     expect(report).toContain(
       '      src/App.jsx  stays: a template reference is assembled at runtime, so its text cannot be repointed, and none of the 4 assets it matches converts\n',

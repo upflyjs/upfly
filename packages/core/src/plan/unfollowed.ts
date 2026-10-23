@@ -158,7 +158,7 @@ const IN_SHOWN_TEXT = 'in the text of a page, which shows the path rather than l
 const NOT_READ_HERE = 'in a value Upfly takes no path from, such as HTML written inside a string';
 const NOT_TEXT = 'in a file that is not text, which Upfly does not read';
 const FOLDER_ITSELF =
-  'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide';
+  'it names the folder itself rather than an image in it: a rule that copies it, a pattern that matches inside it, or a path built from it. Upfly never rewrites one, so what the folder holds after the move is yours to decide.';
 const INSIDE_THE_FOLDER =
   'it names a path inside the moved folder rather than one of the images moving, such as a file a build writes, so the move leaves it as written';
 

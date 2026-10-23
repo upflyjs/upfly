@@ -1003,7 +1003,7 @@ function whyNothingWouldUseIt(
     if (hedge !== undefined) return { reason: namedButUnlinked(hedge) };
     return {
       reason: noServingRootFound(input.servingRoots)
-        ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}`
+        ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}.`
         : 'nothing links to it, so converting it would rewrite no reference and gain only bytes',
     };
   }
@@ -1055,7 +1055,7 @@ function whyNameSaysAnotherFormat(relative: string, input: PlanInput): string | 
   const held = input.probes.find((entry) => entry.relative === relative)?.metadata;
   if (held === null || held === undefined || held.format === input.format) return null;
   const extension = extensionOf(relative);
-  return `its name already ends in ${extension}, but the file is ${held.format.toUpperCase()}, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real ${extension} file would need no other change`;
+  return `its name already ends in ${extension}, but the file is ${held.format.toUpperCase()}, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real ${extension} file would need no other change.`;
 }
 
 /** A file already at a conversion's target, and whether the walk left it out. */
@@ -1407,9 +1407,9 @@ export function whyReferenceStays(reference: LinkedReference, input: RuleInput):
 export const NOT_UTF8 =
   'the file is not valid UTF-8 or holds U+FFFD, and writing it back as UTF-8 could change bytes this edit does not touch';
 
-/** The end of every sentence `usedByNoMove` writes: the rule. */
+/** The last sentence of every reason `usedByNoMove` writes: the rule. */
 const CONVERTS_ONLY_WHAT_MOVES =
-  'Upfly converts an image only when a reference moves to the new file';
+  'Upfly converts an image only when a reference moves to the new file.';
 
 /**
  * Why converting this asset would give it a new file nobody uses, or null when at least one

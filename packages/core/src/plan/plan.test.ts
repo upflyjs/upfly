@@ -1674,7 +1674,7 @@ describe('an image whose name says a format the file is not', () => {
 
     expect(plan.conversions).toEqual([]);
     expect(reasonsByPath(plan)['public/erp/login-bg.webp']).toBe(
-      'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change',
+      'its name already ends in .webp, but the file is JPEG, so there is no new name to convert it to. A browser reads the bytes rather than the name, so the image loads as it is; saving it again as a real .webp file would need no other change.',
     );
   });
 
@@ -2403,7 +2403,7 @@ describe('which assets are served, when the run decided several roots or none', 
       },
     ]);
     expect(reasonsByPath(plan)['images/orphan.png']).toBe(
-      'nothing links to it, and no website folder was found in this project, so Upfly cannot tell which images a browser loads by URL; converting it would gain only bytes. Name the folder the site is served from with `--public <dir>` or `publicDirs` in the config file, using "." for the project root itself, as on a plain HTML site',
+      'nothing links to it, and no website folder was found in this project, so Upfly cannot tell which images a browser loads by URL; converting it would gain only bytes. Name the folder the site is served from with `--public <dir>` or `publicDirs` in the config file, using "." for the project root itself, as on a plain HTML site.',
     );
   });
 

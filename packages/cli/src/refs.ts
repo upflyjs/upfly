@@ -269,7 +269,9 @@ function verdictFor(
     };
   }
   const declined = plan.declined.find((entry) => entry.path === path);
-  if (declined !== undefined) return { kind: 'not-converted', why: declined.reason };
+  if (declined !== undefined) {
+    return { kind: 'not-converted', why: declined.reason.replace(/\.$/, '') };
+  }
   return { kind: 'not-converted', why: unmeasuredWhy(node, result, format) };
 }
 
