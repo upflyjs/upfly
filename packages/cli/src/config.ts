@@ -36,6 +36,26 @@ export interface UpflyConfig {
   readonly exclude?: readonly string[];
   /** What `upfly check` fails on besides a reference to an image that does not exist. */
   readonly check?: CheckSettings;
+  /**
+   * How an editor that watches the project for new images treats them, as the Upfly VS Code
+   * extension does. Upfly's commands watch nothing: they check these settings and act on none.
+   */
+  readonly watch?: WatchSettings;
+}
+
+/** The settings of an editor that converts the new images arriving in a project. */
+export interface WatchSettings {
+  /** The folders watched for new images, inside the project, such as `public`; `.` is all of it. */
+  readonly folders?: readonly string[];
+  /** Folders inside the watched ones where no new image is converted. */
+  readonly skip?: readonly string[];
+  /** Whether a converted image's original stays beside it. */
+  readonly keepOriginals?: boolean;
+  /**
+   * `replace` treats an image that arrives from outside the editor, such as one an agent or a
+   * download writes, as one pasted in it, removing its original once converted.
+   */
+  readonly outside?: 'replace';
 }
 
 /**
@@ -98,10 +118,19 @@ export const V2_EXTENSION_KEYS: readonly string[] = [
   'cloudUpload',
 ];
 
-const KEYS = ['$schema', 'publicDirs', 'publicPolicy', 'format', 'exclude', 'check'] as const;
+const KEYS = [
+  '$schema',
+  'publicDirs',
+  'publicPolicy',
+  'format',
+  'exclude',
+  'check',
+  'watch',
+] as const;
 // `format` is not here: the v2 extension's settings use the same name.
-const V3_ONLY_KEYS = new Set(['publicDirs', 'publicPolicy', 'exclude', 'check']);
+const V3_ONLY_KEYS = new Set(['publicDirs', 'publicPolicy', 'exclude', 'check', 'watch']);
 const CHECK_KEYS = ['maxImageBytes', 'failOn'] as const;
+const WATCH_KEYS = ['folders', 'skip', 'keepOriginals', 'outside'] as const;
 
 export type ConfigOutcome =
   | { readonly kind: 'none' }
@@ -349,7 +378,69 @@ const FIELDS: Record<(typeof KEYS)[number], (value: unknown) => FieldRead> = {
       },
     };
   },
+  watch: (value) => {
+    if (!isRecord(value)) {
+      return {
+        problem: '`watch` must hold an object of settings, such as {"folders": ["public"]}.',
+      };
+    }
+    const unknown = Object.keys(value).filter(
+      (key) => !(WATCH_KEYS as readonly string[]).includes(key),
+    );
+    if (unknown.length > 0) {
+      return {
+        problem: `unknown ${unknown.length === 1 ? 'setting' : 'settings'} ${list(unknown.map((key) => `\`watch.${key}\``))}. The settings under \`watch\` are ${list(WATCH_KEYS.map((key) => `\`${key}\``))}.`,
+      };
+    }
+    return readWatch(value);
+  },
 };
+
+/** The `watch` settings, each checked, or every problem found, one per line. */
+function readWatch(value: Record<string, unknown>): FieldRead {
+  const problems: string[] = [];
+  const folders = value.folders === undefined ? undefined : folderList(value.folders);
+  if (folders === null) {
+    problems.push(
+      '`watch.folders` must be a list of folders inside the project, such as ["public"], or ["."] for the project root.',
+    );
+  }
+  const skip = value.skip === undefined ? undefined : folderList(value.skip);
+  if (skip === null) {
+    problems.push(
+      '`watch.skip` must be a list of folders inside the project, such as ["public/vendor"].',
+    );
+  }
+  const keep = value.keepOriginals;
+  if (keep !== undefined && typeof keep !== 'boolean') {
+    problems.push('`watch.keepOriginals` must be true or false.');
+  }
+  if (value.outside !== undefined && value.outside !== 'replace') {
+    problems.push(
+      '`watch.outside` must be "replace", which treats an image that arrives from outside the editor as one pasted in it.',
+    );
+  }
+  if (problems.length > 0) return { problem: problems.join('\n') };
+  return {
+    value: {
+      ...(folders === undefined ? {} : { folders: folders?.map(asWritten) }),
+      ...(skip === undefined ? {} : { skip: skip?.map(asWritten) }),
+      ...(keep === undefined ? {} : { keepOriginals: keep }),
+      ...(value.outside === undefined ? {} : { outside: value.outside }),
+    },
+  };
+}
+
+/** Folders inside the project, as the engine spells them, or null when one is not. */
+function folderList(value: unknown): string[] | null {
+  const dirs = stringList(value)?.map(normaliseServedDir);
+  return dirs === undefined || dirs.some((dir) => dir === null) ? null : (dirs as string[]);
+}
+
+/** A folder as a config writes it: the project root as `.`, any other as its path. */
+function asWritten(dir: string): string {
+  return dir === '' ? '.' : dir;
+}
 
 /** `check.failOn` in the order the check reports its kinds, or why it cannot be used. */
 function readFailOn(value: unknown, max: unknown): readonly CheckKind[] | string {

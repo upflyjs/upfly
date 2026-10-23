@@ -227,7 +227,9 @@ commit.
 
 `npx upfly init` writes `upfly.config.json` with the folders the site is served from, as
 Upfly works them out, and says why it chose each. Show the user the file: a wrong folder
-is the likeliest reason for a wrong result.
+is the likeliest reason for a wrong result. A `watch` part in it holds the settings of the
+Upfly VS Code extension, which converts new images; the commands act on none of them, so
+leave it as it is.
 
 ## The Agent Skill
 

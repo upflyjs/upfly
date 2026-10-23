@@ -354,6 +354,12 @@ The same file with every key set:
   "check": {
     "maxImageBytes": 500000,
     "failOn": ["broken", "too-large"]
+  },
+  "watch": {
+    "folders": ["public"],
+    "skip": ["public/vendor"],
+    "keepOriginals": false,
+    "outside": "replace"
   }
 }
 ```
@@ -366,6 +372,12 @@ The same file with every key set:
 | `exclude` | Paths to leave out of every run, in `.gitignore` syntax. | Some images must never change, such as a vendored theme. |
 | `check.maxImageBytes` | The largest an image in use may be, in bytes; `npx upfly check` fails above it. | You want CI to stop a heavy image before it ships. |
 | `check.failOn` | What fails `npx upfly check`: any of `"broken"`, `"too-large"` and `"possibly-broken"`; `[]` for nothing. Unset, it is `broken`, and `too-large` when `check.maxImageBytes` is set. | You want `check` stricter, or to report without failing. |
+| `watch.folders` | The folders an editor watching the project converts new images in, such as `["public"]`; `["."]` for all of it. | You use the Upfly VS Code extension. |
+| `watch.skip` | Folders inside those where it converts nothing. | A folder holds images that must arrive as they are. |
+| `watch.keepOriginals` | `true` keeps each new image's original beside its WebP. | You want both files. |
+| `watch.outside` | `"replace"` treats an image that arrives from outside the editor, from an agent or a download, as one pasted in it, removing its original once converted. | No coding agent writes paths to new images in your project. |
+
+The `watch` settings are for the editor; the commands check them and act on none of them.
 
 Every command reads the file from then on. Its JSON Schema is
 [`packages/cli/schema/config.json`](packages/cli/schema/config.json), so an editor checks it as you type.

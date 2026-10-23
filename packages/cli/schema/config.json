@@ -63,6 +63,42 @@
         "properties": { "maxImageBytes": { "type": "integer" } }
       },
       "additionalProperties": false
+    },
+    "watch": {
+      "description": "How an editor that watches the project for new images treats them, as the Upfly VS Code extension does. Upfly's commands watch nothing: they check these settings and act on none.",
+      "type": "object",
+      "properties": {
+        "folders": {
+          "description": "The folders watched for new images, relative to this file, such as [\"public\"]; [\".\"] is the whole project.",
+          "type": "array",
+          "items": {
+            "description": "A folder inside the project.",
+            "type": "string",
+            "pattern": "^(?![\\s\\S]*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$))(?![/\\\\]+[^/\\\\])(?!\\.[/\\\\]{2,}[^/\\\\])(?!(?:\\.[/\\\\])?[A-Za-z]:)",
+            "patternErrorMessage": "Write a folder inside the project, such as public, or . for the project itself: not an absolute path, a drive, or a path that goes up with .."
+          },
+          "examples": [["public"], ["."]]
+        },
+        "skip": {
+          "description": "Folders inside the watched ones where no new image is converted, relative to this file, such as [\"public/vendor\"].",
+          "type": "array",
+          "items": {
+            "description": "A folder inside the project.",
+            "type": "string",
+            "pattern": "^(?![\\s\\S]*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$))(?![/\\\\]+[^/\\\\])(?!\\.[/\\\\]{2,}[^/\\\\])(?!(?:\\.[/\\\\])?[A-Za-z]:)",
+            "patternErrorMessage": "Write a folder inside the project, such as public, or . for the project itself: not an absolute path, a drive, or a path that goes up with .."
+          }
+        },
+        "keepOriginals": {
+          "description": "true keeps each converted image's original beside it; by default only the new file is kept, its original removed once it is provably not needed.",
+          "type": "boolean"
+        },
+        "outside": {
+          "description": "\"replace\" treats an image that arrives from outside the editor, such as one an agent or a download writes, as one pasted in it: its original is removed once it is converted. Without it, such an original stays until no line names it.",
+          "enum": ["replace"]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

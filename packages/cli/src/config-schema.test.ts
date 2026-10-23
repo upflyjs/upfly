@@ -59,6 +59,19 @@ const ACCEPTED: readonly unknown[] = [
   { check: { failOn: ['broken'] } },
   { check: { failOn: ['possibly-broken', 'broken', 'broken'] } },
   { check: { maxImageBytes: 500000, failOn: ['too-large'] } },
+  { watch: {} },
+  { watch: { folders: ['public'] } },
+  { watch: { folders: ['.'], skip: ['public/vendor', './drafts/'] } },
+  { watch: { keepOriginals: true } },
+  { watch: { keepOriginals: false, outside: 'replace' } },
+  {
+    watch: {
+      folders: ['public', 'src/assets'],
+      skip: [],
+      keepOriginals: false,
+      outside: 'replace',
+    },
+  },
   {
     $schema: CONFIG_SCHEMA,
     publicDirs: ['public'],
@@ -116,6 +129,22 @@ const REFUSED: readonly unknown[] = [
   { check: { failOn: [1] } },
   { check: { failOn: ['unused'] } },
   { check: { failOn: ['broken', 'too-large'] } },
+  { watch: null },
+  { watch: true },
+  { watch: ['public'] },
+  { watch: { folder: ['public'] } },
+  { watch: { folders: 'public' } },
+  { watch: { folders: [1] } },
+  { watch: { folders: ['../outside'] } },
+  { watch: { folders: ['/public'] } },
+  { watch: { skip: ['C:/site'] } },
+  { watch: { skip: 'vendor' } },
+  { watch: { keepOriginals: 'yes' } },
+  { watch: { keepOriginals: null } },
+  { watch: { outside: 'keep' } },
+  { watch: { outside: true } },
+  // The v2 extension's settings beside a v3 `watch` are still refused, never half-read.
+  { watch: { folders: ['public'] }, watchTargets: ['public'] },
 ];
 
 describe('the config schema and the config reader agree', () => {

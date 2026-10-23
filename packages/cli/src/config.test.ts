@@ -167,7 +167,7 @@ describe('no network, even for a config that names a remote layer', () => {
       kind: 'invalid',
       file: 'upfly.config.ts',
       message:
-        'unknown setting `extends`. The settings are `publicDirs`, `publicPolicy`, `format`, `exclude` and `check`.',
+        'unknown setting `extends`. The settings are `publicDirs`, `publicPolicy`, `format`, `exclude`, `check` and `watch`.',
     });
     expect(attempts).toEqual([]);
   });
@@ -247,7 +247,7 @@ describe('what a config may say', () => {
       kind: 'invalid',
       file: 'upfly.config.json',
       message:
-        'unknown setting `publicDir`. The settings are `publicDirs`, `publicPolicy`, `format`, `exclude` and `check`.',
+        'unknown setting `publicDir`. The settings are `publicDirs`, `publicPolicy`, `format`, `exclude`, `check` and `watch`.',
     });
   });
 
@@ -265,6 +265,47 @@ describe('what a config may say', () => {
       '`publicPolicy` must be "keep-original" or "replace".',
       '`format` must be "webp" or "avif".',
       '`exclude` must be a list of patterns.',
+    ]);
+  });
+
+  it('reads the settings an editor watching the project keeps, which no command acts on', async () => {
+    const watch = {
+      folders: ['public', 'src/assets/'],
+      skip: ['./public/vendor'],
+      keepOriginals: false,
+      outside: 'replace',
+    };
+    const outcome = await loadConfig(project({ 'upfly.config.json': JSON.stringify({ watch }) }));
+    expect(outcome).toEqual({
+      kind: 'loaded',
+      file: 'upfly.config.json',
+      config: { watch: { ...watch, folders: ['public', 'src/assets'], skip: ['public/vendor'] } },
+    });
+  });
+
+  it('names each watch setting it cannot use, and an unknown one with the real ones', async () => {
+    const outcome = await loadConfig(
+      project({
+        'upfly.config.json':
+          '{ "watch": { "folders": ["../site"], "skip": "vendor", "keepOriginals": "no", "outside": "keep", "delay": 2 } }',
+      }),
+    );
+    expect(outcome.kind).toBe('invalid');
+    if (outcome.kind !== 'invalid') return;
+    expect(outcome.message.split('\n')).toEqual([
+      'unknown setting `watch.delay`. The settings under `watch` are `folders`, `skip`, `keepOriginals` and `outside`.',
+    ]);
+    const fields = await loadConfig(
+      project({
+        'upfly.config.json':
+          '{ "watch": { "folders": ["../site"], "skip": "vendor", "keepOriginals": "no", "outside": "keep" } }',
+      }),
+    );
+    expect(fields.kind === 'invalid' ? fields.message.split('\n') : []).toEqual([
+      '`watch.folders` must be a list of folders inside the project, such as ["public"], or ["."] for the project root.',
+      '`watch.skip` must be a list of folders inside the project, such as ["public/vendor"].',
+      '`watch.keepOriginals` must be true or false.',
+      '`watch.outside` must be "replace", which treats an image that arrives from outside the editor as one pasted in it.',
     ]);
   });
 

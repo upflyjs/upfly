@@ -2849,9 +2849,14 @@ truncated file is an error rather than a partial config.
 
 **The v2 VS Code extension reads a file with the same name,** holding `enabled`, `watchTargets` and
 similar settings. A JSON config with any of those and nothing that only this CLI uses (`publicDirs`,
-`publicPolicy`, `exclude`, or its `$schema`) is the extension's, and every command refuses it with
-exit 3 and leaves it untouched. `format` is not evidence either way, because both products use the
-name. A code config beside the extension's file is read and the file is left alone.
+`publicPolicy`, `exclude`, `check`, `watch`, or its `$schema`) is the extension's, and every command
+refuses it with exit 3 and leaves it untouched. `format` is not evidence either way, because both
+products use the name. A code config beside the extension's file is read and the file is left alone.
+
+**`watch` belongs to the editor.** The VS Code extension built on this CLI keeps its watcher's
+settings in the same file (`folders`, `skip`, `keepOriginals`, `outside`), so the commands read and
+check them, name a wrong one as they name any other setting, and act on none: a CLI that refused an
+unknown key would otherwise stop every command in a project the editor had configured.
 
 **Output.** With `--json`, stdout carries only JSON lines: progress events as each stage finishes,
 the libraries' own messages as `diagnostic` lines, and one final `result` or `error` object. That
