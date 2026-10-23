@@ -7,7 +7,7 @@
  * machine whose sharp binary does not load, although it reads no pixels at all.
  */
 
-import { mkdir, open } from 'node:fs/promises';
+import { mkdir, open, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { constants, gunzipSync } from 'node:zlib';
 import type { EncodeFormat, ImageMetadata, ImageProbe } from './probe.js';
@@ -125,13 +125,15 @@ export async function createSharpProbe(
     },
 
     async encodeToFile({ path, format, animated, destination, lossless }): Promise<number> {
-      // The staged tree mirrors the project, so a destination is often several
-      // directories deep in a run directory that did not exist a moment ago. sharp
-      // reports a missing directory as "unable to open for write", which reads like a
-      // permissions problem, so the port creates it.
+      // The staged tree mirrors the project inside the run directory, so a destination is
+      // often several directories that do not exist yet, and longer than the image's own
+      // path. Node writes the file because it handles a path over 259 characters on
+      // Windows, which libvips opens as "unable to open for write" unless long paths are
+      // enabled.
       await mkdir(dirname(destination), { recursive: true });
-      const { size } = await (await encoder(path, format, animated, lossless)).toFile(destination);
-      return size;
+      const buffer = await (await encoder(path, format, animated, lossless)).toBuffer();
+      await writeFile(destination, buffer);
+      return buffer.length;
     },
   };
 }

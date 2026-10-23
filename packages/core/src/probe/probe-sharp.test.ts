@@ -227,6 +227,24 @@ describe('createSharpProbe', () => {
       expect(Buffer.compare(await readFile(destination), atDeclared)).toBe(0);
     });
 
+    it('writes a file whose path is longer than 259 characters', async () => {
+      // Windows limits a path to 259 characters unless long paths are enabled, and libvips
+      // opens the file it writes under that limit. A project in a deep folder stages its
+      // converted images that deep.
+      const path = await noisyJpeg('deep.jpg', 60, 40);
+      const destination = join(temp, 'd'.repeat(120), 'e'.repeat(120), 'deep.webp');
+
+      const written = await probe.encodeToFile({
+        path,
+        format: 'webp',
+        animated: false,
+        destination,
+      });
+
+      expect(destination.length).toBeGreaterThan(259);
+      expect((await stat(destination)).size).toBe(written);
+    });
+
     it('would notice if the two used different qualities', async () => {
       // The control. If an encode at a different quality produced the same bytes, the
       // test above would pass whatever the probe did.

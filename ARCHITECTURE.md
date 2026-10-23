@@ -2099,6 +2099,10 @@ Windows specifics that are handled deliberately, not incidentally: every placeme
 cross-volume rename would; long paths are supported; and `EBUSY` and `EPERM` are retried with
 backoff, because on Windows an editor or a virus scanner holds a handle open for a few
 milliseconds and failing the run for that would make the tool unusable on a first-class target.
+An encode is written by Node, not by libvips: a staged copy is 40 characters longer than the
+image's own path, and libvips cannot open a path over 259 characters unless Windows has long
+paths turned on. libvips still reads each image by its path, so on such a machine an image
+whose own path passes 259 characters is reported as not readable.
 
 ### Undoing part of a run
 
