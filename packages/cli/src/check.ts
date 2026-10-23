@@ -7,7 +7,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, join, posix, resolve } from 'node:path';
 import {
   type BrokenFinding,
   type PipelineOutput,
@@ -16,13 +16,20 @@ import {
   servingRootsFor,
 } from 'upfly-core';
 import {
+  type Asset,
+  IMAGE_EXTENSIONS,
   type PossiblyBrokenPath,
   type PossiblyBrokenPaths,
+  type Reference,
   byFileAndLine,
+  existsAsSpelled,
   fewResolvedIn,
   formatBytes,
+  isRootRelative,
   possiblyBrokenPaths,
   relativePath,
+  resolveReferences,
+  spellingsOf,
 } from 'upfly-core/internal';
 import type { CheckOptions } from './args.js';
 import { isDirectory } from './audit.js';
@@ -49,10 +56,12 @@ export type CheckFinding = BrokenFinding | TooLargeFinding;
 /** Where this run's list of what fails the check came from. */
 type FailOnSource = 'default' | 'config' | 'flag' | 'warn';
 
-/** The files a change touched, from `--changed`, and the file names it deleted. */
+/** The files a change touched, from `--changed`, and the files it deleted. */
 interface ChangeScope {
   readonly against: string | null;
   readonly paths: ReadonlySet<string>;
+  /** POSIX-relative, a file renamed away included. */
+  readonly deleted: readonly string[];
   readonly deletedNames: ReadonlySet<string>;
 }
 
@@ -207,6 +216,7 @@ function changeScope(
       return {
         against,
         paths: new Set(changes.paths),
+        deleted: changes.deleted,
         deletedNames: new Set(changes.deleted.map(nameOf)),
       };
   }
@@ -275,8 +285,13 @@ function judge(output: PipelineOutput, judged: Judged): Verdict {
   const { root } = output.graph;
   const inScope = (path: string): boolean => scope === null || scope.paths.has(path);
   // A change breaks a page it never touched by deleting or renaming the image the page names,
-  // so a path naming a file the change deleted is kept wherever it sits.
+  // so a path that resolves once the deleted files are back is kept wherever it sits.
+  const restored = scope === null ? new Set<string>() : resolvedBeforeDeleting(output, scope);
   const kept = (file: string, rawPath: string): boolean =>
+    inScope(projectPath(root, file)) || restored.has(sourceKey(projectPath(root, file), rawPath));
+  // A string that does not start with `/` is joined to a folder elsewhere, so its file name is
+  // all that can tie it to a deleted file.
+  const keptByName = (file: string, rawPath: string): boolean =>
     inScope(projectPath(root, file)) || (scope?.deletedNames.has(nameOf(rawPath)) ?? false);
 
   // The references a named folder did not resolve join the rest, in the audit's own order.
@@ -315,7 +330,7 @@ function judge(output: PipelineOutput, judged: Judged): Verdict {
     limit,
     leftOut: all.length - findings.length,
     possiblyBrokenLeftOut: listed.paths.length - possiblyBroken.length,
-    unlisted: listed.unlisted.filter((entry) => kept(entry.file, entry.rawPath)).length,
+    unlisted: listed.unlisted.filter((entry) => keptByName(entry.file, entry.rawPath)).length,
     unusedOverLimit: overLimit.filter(
       (node) => node.references.length === 0 && inScope(node.asset.relative),
     ).length,
@@ -507,6 +522,75 @@ function uncheckedNote(unchecked: number, upfly: UpflyCommand): string | null {
   if (unchecked === 0) return null;
   const one = unchecked === 1;
   return `${count(unchecked, 'reference')} could not be checked, since Upfly cannot know which file ${one ? 'it names' : 'each names'}; \`${upfly} audit\` lists ${one ? 'it with the reason' : 'them with the reasons'}.`;
+}
+
+/**
+ * The paths in files the change did not touch that name no file now and named a file it
+ * deleted, keyed by `sourceKey`: what its deletions broke.
+ *
+ * The resolver is asked again with each deleted image among the assets and every deleted file
+ * on disk. The serving roots it is given are the ones decided now, and deleting a folder's
+ * images can change them, so a path from the site's root also counts when a deleted file's
+ * path ends in it, whichever folder served it.
+ */
+function resolvedBeforeDeleting(output: PipelineOutput, scope: ChangeScope): ReadonlySet<string> {
+  if (scope.deleted.length === 0) return new Set();
+  const { root, assets, excludedRoots } = output.discovery;
+  const deleted = new Set(scope.deleted);
+  const onDisk = existsAsSpelled(root);
+  const untouched = [
+    ...output.graph.byResolution.broken,
+    ...output.graph.byResolution.discarded,
+  ].filter((reference) => !scope.paths.has(projectPath(root, reference.file)));
+  const again = resolveReferences(untouched, {
+    root,
+    assets: [
+      ...assets,
+      ...scope.deleted
+        .filter((path) => IMAGE_EXTENSIONS.includes(posix.extname(path).toLowerCase()))
+        .map(
+          (path): Asset => ({
+            path: join(root, path),
+            relative: path,
+            extension: posix.extname(path).toLowerCase(),
+            bytes: 0,
+          }),
+        ),
+    ],
+    servingRoots: output.servingRoots,
+    excludedRoots,
+    aliases: output.aliases,
+    exists: (path) => deleted.has(relativePath(root, path)) || onDisk(path),
+  });
+
+  const byName = new Map<string, string[]>();
+  for (const path of scope.deleted) {
+    const name = path.slice(path.lastIndexOf('/') + 1);
+    byName.set(name, [...(byName.get(name) ?? []), path]);
+  }
+  const endsADeletedPath = (reference: Reference): boolean => {
+    const bare = reference.rawPath.replace(/[?#].*$/s, '');
+    return (
+      isRootRelative(bare) &&
+      spellingsOf(bare, reference).some(({ path }) =>
+        (byName.get(path.slice(path.lastIndexOf('/') + 1)) ?? []).some((file) =>
+          `/${file}`.endsWith(path),
+        ),
+      )
+    );
+  };
+
+  return new Set(
+    [
+      ...again.filter(({ resolution }) => resolution !== 'broken' && resolution !== 'discarded'),
+      ...untouched.filter(endsADeletedPath),
+    ].map((reference) => sourceKey(projectPath(root, reference.file), reference.rawPath)),
+  );
+}
+
+/** One key for a path as written in one file. */
+function sourceKey(file: string, rawPath: string): string {
+  return `${file}\0${rawPath}`;
 }
 
 /** A path as the project names it: POSIX and relative to its root. */

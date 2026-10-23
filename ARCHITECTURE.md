@@ -2754,11 +2754,17 @@ When the serving root cannot be found it refuses (exit 3), as `optimize` does, b
 root-relative references cannot be judged. `--changed <ref>` keeps what a change could have
 caused: findings and possibly broken paths in the files changed since the commit `ref` and
 `HEAD` last shared (`git merge-base`), working tree and untracked files included, or since the
-last commit without a ref. A change breaks a page it never touched by deleting the image the page
-names, so a path whose file name matches a deleted file is kept wherever it sits. Everything the
-verdict leaves out is counted in a sentence: findings and paths outside the change, strings that
-do not start with `/`, unused images over the limit, files that could not be read, and
-references whose file cannot be known.
+last commit without a ref. A change breaks a page it never touched by deleting or renaming the
+image the page names, so a path that names no file is kept wherever it sits when it named a file
+the change deleted: the resolver is asked again with the deleted files back, and a path from the
+site's root also counts when a deleted file's path ends in it, since deleting a folder's images
+can change which folder is decided to serve the site. A path that never named a deleted file,
+such as one into a misspelled folder that shares an image's file name, was broken before the
+change and is left out. A string that does not start with `/` is joined to a folder Upfly does
+not read, so its file name alone ties it to a deleted file. Everything the verdict leaves out is
+counted in a sentence: findings and paths outside the change, strings that do not start with
+`/`, unused images over the limit, files that could not be read, and references whose file
+cannot be known.
 
 **`optimize --only` limits what converts, never what is read.** A scope that limits reading is
 how an excluded page ends up naming a deleted original, so `optimizeProject`'s `only` (exact

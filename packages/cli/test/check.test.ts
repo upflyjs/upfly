@@ -536,6 +536,24 @@ describe('upfly check --changed', () => {
     expect(run.stdout).not.toContain('old.html');
   });
 
+  it('leaves out a broken reference in an unchanged page that only shares a file name with an image the change deleted', () => {
+    // `imgs/used.png` never existed, so deleting `img/used.png` cannot have broken it.
+    const root = site({ 'about.html': '<img src="imgs/used.png">\n<img src="/imgs/used.png">\n' });
+    commitAll(root);
+    const start = git(root, 'rev-parse', 'HEAD').trim();
+    git(root, 'rm', '--quiet', 'img/used.png');
+    git(root, 'commit', '--quiet', '-m', 'remove an image');
+
+    const run = upfly(['check', root, '--changed', start]);
+
+    expect(run.status).toBe(1);
+    expect(run.stdout).toContain('    index.html:1  img/used.png');
+    expect(run.stdout).not.toContain('about.html');
+    expect(run.stdout).toContain(
+      `Checked the 1 file changed against ${start}; 2 findings in files this change did not touch were left out.`,
+    );
+  });
+
   it('keeps only the images in use the change added or modified, under the size limit', () => {
     const { root, start } = repository();
     write(root, 'upfly.config.json', JSON.stringify({ check: { maxImageBytes: 150 } }));
@@ -586,6 +604,33 @@ describe('upfly check --changed', () => {
 
     expect(run.stdout).toContain('    src/brand.js:1  /img/logo.png');
     expect(run.stdout).not.toContain('/img/ana.jpg');
+  });
+
+  it('leaves out a path in unchanged data that only shares a file name with an image the change deleted', () => {
+    // `/img/ana.jpg` names `public/img/ana.jpg`, which never existed.
+    const root = dataSite({ 'public/photos/ana.jpg': image(100, 6) });
+    commitAll(root);
+    const start = git(root, 'rev-parse', 'HEAD').trim();
+    git(root, 'rm', '--quiet', 'public/photos/ana.jpg');
+    git(root, 'commit', '--quiet', '-m', 'remove a photo');
+
+    const json = result(upfly(['check', root, '--changed', start, '--json']).stdout);
+
+    expect(json).toMatchObject({ possiblyBroken: { paths: [], leftOut: 2, unlisted: 0 } });
+  });
+
+  it('still counts a bare file name in unchanged code that matches an image the change deleted', () => {
+    // `people.png` is joined to a folder somewhere Upfly does not read, so its name is the
+    // only thing that ties it to `public/img/people.png`.
+    const root = dataSite({ 'public/img/people.png': image(100, 7) });
+    commitAll(root);
+    const start = git(root, 'rev-parse', 'HEAD').trim();
+    git(root, 'rm', '--quiet', 'public/img/people.png');
+    git(root, 'commit', '--quiet', '-m', 'remove the people');
+
+    const json = result(upfly(['check', root, '--changed', start, '--json']).stdout);
+
+    expect(json).toMatchObject({ possiblyBroken: { paths: [], unlisted: 1 } });
   });
 
   it('says so with exit 2 when git knows no such ref, and outside a repository', () => {
