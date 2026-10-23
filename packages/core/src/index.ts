@@ -66,10 +66,22 @@ export type {
   StayingReference,
 } from './dedupe-project.js';
 
-// Undoing the last run: read its record, check each file, put every file back.
+// Undoing the last run: read its record, check each file, put every file back, or one file's
+// changes or one line's; and list what it changed, with what of it is undone.
 export { createNodeFileStore } from './write/file-store-node.js';
 export { inspect, readManifest, revert } from './write/transaction.js';
 export type { FileStore, OperationState } from './write/transaction.js';
+export { describeRun, undoPart } from './write/undo-part.js';
+export type {
+  ChangedPath,
+  FileChanges,
+  LineChanges,
+  PartUndone,
+  RunChanges,
+  RunOriginal,
+  RunPart,
+  UndoPartOptions,
+} from './write/undo-part.js';
 
 // What every function above throws, with a code to branch on.
 export { UpflyError } from './errors.js';

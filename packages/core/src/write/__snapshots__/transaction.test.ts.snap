@@ -24,11 +24,15 @@ exports[`the manifest schema is public API > matches the approved shape 1`] = `
       "inverse": [
         {
           "end": 29,
+          "expected": "./logo.webp",
+          "line": 1,
           "replacement": "./logo.png",
           "start": 18,
         },
         {
           "end": 63,
+          "expected": "./logo.webp",
+          "line": 2,
           "replacement": "./logo.png",
           "start": 52,
         },

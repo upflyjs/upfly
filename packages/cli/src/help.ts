@@ -14,7 +14,8 @@ Commands:
   optimize [dir]   Convert images, update the references it can rewrite, and remove each
                    original they replace. Shows the plan and changes nothing unless run
                    with --apply.
-  undo [dir]       Put back every file the last optimize, dedupe or move --apply changed.
+  undo [dir]       Put back every file the last optimize, dedupe or move --apply changed,
+                   or only one file's changes or one line's; with --list, show them.
   check [dir]      An optional guard for continuous integration: fail when a reference
                    names an image that does not exist. Changes nothing.
   init [dir]       Write upfly.config.json with the folders Upfly works out, and say why;
@@ -127,11 +128,22 @@ come back, updated references point at them again, converted files are removed, 
 moved images go back where they were. It checks each file first and changes nothing if any of them was edited since
 that run.
 
+With --file it puts back only what the run did to one file, and with --line as well only
+one line of it, leaving the rest of the run in place. An image that a line put back names
+again comes back too, if the run removed or moved it. What the run created stays until the
+whole run is undone, since other lines may still name it.
+
 Options:
+  --file <path>          Undo only the run's changes to this file, or bring back one
+                         image it removed or moved away
+  --line <n>             With --file, undo only the changes on this line, counted from 1
+  --list                 Show what the last run changed, line by line, and what of it is
+                         undone, changing nothing
   --json                 Print one JSON object per line: the result
 
-Exit status: 0 when the files were put back or there was nothing to undo; 2 for a usage
-error; 3 when undo refused because a file changed since the run, or another run is in
+Exit status: 0 when the files were put back, there was nothing to undo, or the run was
+listed; 2 for a usage error, or a file or line the run did not change; 3 when undo refused
+because a file changed since the run or since its last partial undo, or another run is in
 progress; 4 for a failure Upfly did not anticipate.
 `;
 

@@ -8,8 +8,26 @@
 import { compareStrings } from '../paths.js';
 import type { Edit } from '../types.js';
 
-/** Bumped on any change a reader could trip over. Snapshot-tested as public API. */
-export const MANIFEST_SCHEMA_VERSION = 1;
+/**
+ * The newest record format this build reads and writes, bumped on any change a reader could
+ * trip over. Snapshot-tested as public API. A record is stamped with the oldest version that
+ * describes it (`schemaVersionOf`), so a build that reads only version 1 can still undo a
+ * run of which nothing was undone part by part, and refuses, by its version, one it would
+ * misread.
+ */
+export const MANIFEST_SCHEMA_VERSION = 2;
+
+/**
+ * The version a record of these operations needs: 2 once part of a file has been undone on
+ * its own, which a version 1 reader would take for somebody else's edit, else 1.
+ */
+export function schemaVersionOf(operations: readonly Operation[]): 1 | 2 {
+  return operations.some(
+    (operation) => operation.kind === 'edit' && operation.partlyUndone !== undefined,
+  )
+    ? 2
+    : 1;
+}
 
 /**
  * Upfly's own folder in a project, relative to the project root. The manifest, the lock
@@ -39,8 +57,8 @@ export interface CreateOperation {
 /**
  * Replace the text of a file that already exists.
  *
- * `inverse` is the set of edits that turns the new text back into the old text.
- * Storing it rather than a copy of the whole file keeps the manifest self-contained:
+ * `inverse` is the set of edits that turns the new text back into the old text, in offset
+ * order. Storing it rather than a copy of the whole file keeps the manifest self-contained:
  * one JSON file is the complete undo record, and the replaced text is a path string,
  * so the cost is bytes rather than kilobytes.
  */
@@ -49,7 +67,71 @@ export interface EditOperation {
   readonly path: string;
   readonly beforeHash: string;
   readonly afterHash: string;
-  readonly inverse: readonly Edit[];
+  readonly inverse: readonly UndoEdit[];
+  /**
+   * Each state undoing part of the file has put it in, or was about to. Each is written
+   * before the file is, so whatever an interrupted undo left, the file's hash is one the
+   * record names. Absent until part of the file is undone on its own.
+   */
+  readonly partlyUndone?: readonly PartlyUndone[];
+}
+
+/**
+ * One edit of an `EditOperation`'s `inverse`: it puts back the path one change replaced. Its
+ * `expected` is the path the run wrote, its `asset` the image the old path names. A record
+ * written before these fields were kept has only the range and the old path.
+ */
+export interface UndoEdit extends Edit {
+  /**
+   * The line the change is on in the file as the run left it, counted from 1. Absent from an
+   * older record, whose lines are worked out from the file.
+   */
+  readonly line?: number;
+}
+
+/**
+ * A state of a file with some of its changes undone and the rest in place: which edits of
+ * `inverse` are undone, by index, and the hash of the file's bytes in that state.
+ */
+export interface PartlyUndone {
+  readonly undone: readonly number[];
+  readonly hash: string;
+}
+
+/** One edit of an `inverse`, placed in the file's text as it is with some edits undone. */
+export interface PlacedUndoEdit {
+  /** Its index in `inverse`. */
+  readonly index: number;
+  /** Whether the text has it undone already. */
+  readonly undone: boolean;
+  /**
+   * Its range in that text: the path the run wrote, or for an undone edit the old path, which
+   * is what that range holds now.
+   */
+  readonly start: number;
+  readonly end: number;
+  readonly edit: UndoEdit;
+}
+
+/**
+ * Where each edit of `inverse` sits in the file's text with the edits in `undone` put back:
+ * each undone edit moves the ones after it by the length it changed.
+ *
+ * @param inverse an edit operation's `inverse`, in offset order
+ * @param undone the indices already undone in the text
+ */
+export function placeUndoEdits(
+  inverse: readonly UndoEdit[],
+  undone: readonly number[],
+): PlacedUndoEdit[] {
+  const done = new Set(undone);
+  let shift = 0;
+  return inverse.map((edit, index) => {
+    const start = edit.start + shift;
+    if (!done.has(index)) return { index, undone: false, start, end: edit.end + shift, edit };
+    shift += edit.replacement.length - (edit.end - edit.start);
+    return { index, undone: true, start, end: start + edit.replacement.length, edit };
+  });
 }
 
 /**

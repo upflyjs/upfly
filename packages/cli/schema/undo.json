@@ -1,16 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "upfly undo --json: the result",
-  "description": "The line upfly undo --json prints when it finishes: what it put back, or null when there was nothing to undo. A run that refuses, because a file changed since the run or another run is going, prints an error line instead (events.json) and changes nothing.",
+  "description": "The line upfly undo --json prints when it finishes: what it put back, or null when nothing was undone. With --file, and --line, it undoes part of the last run and part says which; with --list it undoes nothing and run lists what the last run changed. A run that refuses, because a file changed since the run or another run is going, prints an error line instead (events.json) and changes nothing.",
   "type": "object",
-  "required": ["type", "command", "exitCode", "undone", "commit", "notes"],
+  "required": ["type", "command", "exitCode", "undone", "part", "commit", "notes"],
   "additionalProperties": false,
   "properties": {
     "type": { "const": "result" },
     "command": { "const": "undo" },
     "exitCode": { "const": 0 },
     "undone": {
-      "description": "The run undone, or null when no run was left to undo.",
+      "description": "The run undone, or the part of it, or null when nothing was undone: no run was left to undo, the part asked for was undone already, or --list was given.",
       "oneOf": [
         { "type": "null" },
         {
@@ -26,17 +26,17 @@
               "items": { "type": "string" }
             },
             "reverted": {
-              "description": "Files whose references are as they were again.",
+              "description": "Files whose references are as they were again: every one of them, or for part of a run, the one file whose lines were put back.",
               "type": "array",
               "items": { "type": "string" }
             },
             "removed": {
-              "description": "Files the run had created, gone again.",
+              "description": "Files the run had created, gone again. Always empty for part of a run: what the run created stays until the whole run is undone, since other lines may still name it.",
               "type": "array",
               "items": { "type": "string" }
             },
             "moved": {
-              "description": "Images the run had moved, back where they were: from is where each is again, to where the run had put it.",
+              "description": "Images the run had moved, back where they were: from is where each is again, to where the run had put it. For part of a run the image is copied back, and stays at to as well.",
               "type": "array",
               "items": {
                 "type": "object",
@@ -52,6 +52,21 @@
         }
       ]
     },
+    "part": {
+      "description": "With --file, the part of the run asked for: the file, as a path inside the project, and with --line the line, counted from 1, else null for all of the file's changes. null for the whole run, and with --list.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["file", "line"],
+          "additionalProperties": false,
+          "properties": {
+            "file": { "type": "string" },
+            "line": { "type": ["integer", "null"], "minimum": 1 }
+          }
+        }
+      ]
+    },
     "commit": {
       "description": "The commit --commit made for that run, or null. It stays in the history, so the files undo put back show as uncommitted changes.",
       "type": ["string", "null"]
@@ -60,6 +75,118 @@
       "description": "Each a sentence: why there was nothing to undo, or what to do about the commit.",
       "type": "array",
       "items": { "type": "string" }
+    },
+    "run": {
+      "description": "With --list only: what the last run changed, as it stands now, or null when no run has written to the project. With --file, files holds that file alone.",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/run" }]
+    }
+  },
+  "definitions": {
+    "run": {
+      "type": "object",
+      "required": ["id", "startedAt", "state", "files", "originals", "created"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "description": "The run's id.", "type": "string" },
+        "startedAt": { "type": "string" },
+        "state": {
+          "description": "applied while the run stands, even when parts of it were undone on their own; undone once the whole run was; interrupted when it stopped part way, which only the whole run's undo puts back.",
+          "enum": ["applied", "undone", "interrupted"]
+        },
+        "files": {
+          "description": "Each file the run rewrote, in path order, with its changes line by line.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/file" }
+        },
+        "originals": {
+          "description": "Each image the run removed, or moved away, in path order, and whether it is back.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "movedTo", "back", "changedSince"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "description": "Where it was before the run.", "type": "string" },
+              "movedTo": {
+                "description": "Where the run moved it, or null for an original it removed.",
+                "type": ["string", "null"]
+              },
+              "back": {
+                "description": "Whether it is at path again, as it was.",
+                "type": "boolean"
+              },
+              "changedSince": {
+                "description": "Something other than the run put a different file at path, or changed the moved file, so it cannot be brought back.",
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "created": {
+          "description": "The files the run created, in path order: converted images, and moved images at their new place. Only the whole run's undo removes them.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": ["path", "changedSince", "changes"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "changedSince": {
+          "description": "Something other than the run, or an undo of it, changed the file since, so none of its changes can be undone on its own until it holds a text the run's record knows again.",
+          "type": "boolean"
+        },
+        "changes": {
+          "description": "The lines the run changed, in order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["line", "undone", "paths"],
+            "additionalProperties": false,
+            "properties": {
+              "line": {
+                "description": "The line, counted from 1, in the file as the run left it, which upfly undo --line takes. null only for a run an older Upfly recorded, whose file changed since.",
+                "type": ["integer", "null"],
+                "minimum": 1
+              },
+              "undone": {
+                "description": "Whether the line is undone; null when the file changed since, so its state cannot be told.",
+                "type": ["boolean", "null"]
+              },
+              "paths": {
+                "description": "Each path the run rewrote on the line.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["before", "after", "image", "inComment"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "before": {
+                      "description": "The path as it was written before the run.",
+                      "type": "string"
+                    },
+                    "after": {
+                      "description": "The path the run wrote, or null for a run an older Upfly recorded when the file no longer holds it.",
+                      "type": ["string", "null"]
+                    },
+                    "image": {
+                      "description": "The image before names, as a path inside the project, or null for a run an older Upfly recorded. Undoing the line brings it back when the run removed or moved it.",
+                      "type": ["string", "null"]
+                    },
+                    "inComment": {
+                      "description": "The path is inside a comment, which no page loads.",
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

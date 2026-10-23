@@ -32,10 +32,12 @@ export function applyEdits(source: string, edits: readonly Edit[]): string {
 }
 
 /**
- * Build the edits that turn `applyEdits(source, edits)` back into `source`.
+ * Build the edits that turn `applyEdits(source, edits)` back into `source`, in offset order.
  *
  * This is how undo restores a file without keeping a copy of it: each reverse edit puts
  * one replaced range back, and what it stores is a path string rather than a whole file.
+ * Each carries the text it replaces as `expected`, so undoing one change alone can never
+ * land on other text, and the forward edit's `asset` and `inComment`.
  *
  * Check that the result applies before relying on it: two adjacent edits where the first
  * deletes text can invert to two edits sharing a start offset, which `applyEdits` refuses.
@@ -54,10 +56,22 @@ export function invertEdits(source: string, edits: readonly Edit[]): Edit[] {
       start,
       end: start + edit.replacement.length,
       replacement: source.slice(edit.start, edit.end),
+      expected: edit.replacement,
+      ...(edit.inComment === undefined ? {} : { inComment: edit.inComment }),
+      ...(edit.asset === undefined ? {} : { asset: edit.asset }),
     });
     shift += edit.replacement.length - (edit.end - edit.start);
   }
   return inverse;
+}
+
+/** How many line feeds `text` holds in `[from, to)`. */
+export function countLineBreaks(text: string, from: number, to: number): number {
+  let found = 0;
+  for (let at = text.indexOf('\n', from); at !== -1 && at < to; at = text.indexOf('\n', at + 1)) {
+    found += 1;
+  }
+  return found;
 }
 
 /**

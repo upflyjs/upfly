@@ -330,6 +330,12 @@ export interface Edit {
    * references, and is never counted as one.
    */
   readonly inComment?: true;
+  /**
+   * The image the path named before the run, POSIX-relative to the project root. Undoing the
+   * edit makes the path name it again, so an undo of this one change brings that image back
+   * if the run removed or moved it.
+   */
+  readonly asset?: string;
 }
 
 /**

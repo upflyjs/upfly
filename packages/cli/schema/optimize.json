@@ -167,6 +167,10 @@
         "inComment": {
           "description": "The path is inside a comment, which no page loads. It moves with the references, and is never counted as one.",
           "const": true
+        },
+        "asset": {
+          "description": "The image the path names before the run, as a path inside the project.",
+          "type": "string"
         }
       }
     },

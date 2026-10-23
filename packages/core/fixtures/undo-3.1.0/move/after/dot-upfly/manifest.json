@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "hashAlgorithm": "sha256",
+  "runId": "20261023T174250-ecba",
+  "startedAt": "2026-10-23T17:42:50.311Z",
+  "completedAt": "2026-10-23T17:42:50.324Z",
+  "revertedAt": null,
+  "state": "committed",
+  "runDir": ".upfly/runs/20261023T174250-ecba",
+  "operations": [
+    {
+      "kind": "move",
+      "from": "images/logo.png",
+      "to": "assets/logo.png",
+      "hash": "f22977f30785aad6e9ad47c1398a7c6d59a7395ef90e0a5999d330bf1cb80861"
+    },
+    {
+      "kind": "edit",
+      "path": "index.html",
+      "beforeHash": "3fe210256ad9f0f8e64a97ae303e404772867269cd28fa7010150eea83bea3c4",
+      "afterHash": "da790d9cd661582890bf0f8ba7a39ca4b1f7d6bd8a1ed6089858bb0a15c5376f",
+      "inverse": [
+        {
+          "start": 56,
+          "end": 71,
+          "replacement": "images/logo.png"
+        }
+      ]
+    }
+  ],
+  "declined": []
+}

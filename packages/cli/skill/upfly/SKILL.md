@@ -46,7 +46,8 @@ Upfly never deletes an image that nothing uses; deleting one is the user's decis
    to one from outside the project (an email, another site, a CMS) stops working, and that
    `--keep-originals` keeps them.
 4. Run the project's own build, then `npx upfly check`.
-5. If anything is wrong: `npx upfly undo` puts every file back.
+5. If anything is wrong: `npx upfly undo` puts every file back, or with `--file <path>`
+   (and `--line <n>`) only that file's changes (or that line's).
 
 Do not add `--allow-dirty` or `--keep-originals` unless the user asks for it.
 

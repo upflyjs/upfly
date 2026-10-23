@@ -41,7 +41,7 @@ describe('no command reaches the network', () => {
     expect(attempted(script)).toBe(`${api}\n`);
   });
 
-  it('init, audit, optimize --apply --commit, undo, check, refs and dedupe', () => {
+  it('init, audit, optimize --apply --commit, undo in each form, check, refs and dedupe', () => {
     const root = copyFixture('vite-react', tempFolder(roots, 'upfly-net-'));
     commitAll(root);
     const log = join(tempFolder(roots, 'upfly-net-log-'), 'attempts.log');
@@ -59,6 +59,17 @@ describe('no command reaches the network', () => {
     expect(run('optimize', root, '--apply', '--commit').stdout).toMatch(
       /\n {2}Commit {7}[0-9a-f]{12},/,
     );
+    const listed = JSON.parse(run('undo', root, '--list', '--json').stdout.trim()) as {
+      run: { files: { path: string; changes: { line: number }[] }[] };
+    };
+    const [file] = listed.run.files;
+    expect(file).toBeDefined();
+    const path = join(root, file?.path ?? '');
+    const line = String(file?.changes[0]?.line);
+    expect(run('undo', root, '--file', path, '--line', line).stdout).toContain(
+      `Undid line ${line}`,
+    );
+    run('undo', root, '--file', path);
     expect(run('undo', root).stdout).toContain('Undid run');
     expect(run('check', root).stdout).toContain('Passed');
     run('refs', join(root, 'src/assets/logo.png'), root);

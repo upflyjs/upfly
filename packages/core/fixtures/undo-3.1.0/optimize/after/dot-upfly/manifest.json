@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "hashAlgorithm": "sha256",
+  "runId": "20261023T174249-bf45",
+  "startedAt": "2026-10-23T17:42:49.876Z",
+  "completedAt": "2026-10-23T17:42:49.883Z",
+  "revertedAt": null,
+  "state": "committed",
+  "runDir": ".upfly/runs/20261023T174249-bf45",
+  "operations": [
+    {
+      "kind": "create",
+      "path": "images/logo.webp",
+      "staged": "staged/images/logo.webp",
+      "afterHash": "52edeb74ca3a4840fecdaaa683f8a75d2f76807c8ff10d589c51653b929a4cf1"
+    },
+    {
+      "kind": "delete",
+      "path": "images/logo.png",
+      "beforeHash": "f22977f30785aad6e9ad47c1398a7c6d59a7395ef90e0a5999d330bf1cb80861",
+      "backup": "backup/images/logo.png"
+    },
+    {
+      "kind": "create",
+      "path": "images/texture.webp",
+      "staged": "staged/images/texture.webp",
+      "afterHash": "78ca4ac163556cd9124ffb7d9cf4cb907e4f22b5a5188139abf4858ef70a70a4"
+    },
+    {
+      "kind": "delete",
+      "path": "images/texture.png",
+      "beforeHash": "cd70a9c49cfb9fd2a82f2839f46b9b97451acd92a1bcd048fc1b9a16ed4ee515",
+      "backup": "backup/images/texture.png"
+    },
+    {
+      "kind": "edit",
+      "path": "css/site.css",
+      "beforeHash": "e6a665078d6cc758a9717209718701a4f3179fc4b015314a350ab81bf4967305",
+      "afterHash": "c9f1c5c3f72b76dc2882c3ab8057e6ae71922e89c47c003a9eae9d4a71331835",
+      "inverse": [
+        {
+          "start": 25,
+          "end": 47,
+          "replacement": "../images/texture.png"
+        }
+      ]
+    },
+    {
+      "kind": "edit",
+      "path": "index.html",
+      "beforeHash": "bb1b0461621de90b16bf49b38724fa19ef0c567a197a463ea142e698236ee5aa",
+      "afterHash": "dcac964227372362c30d63dda955ca06a3743ed7ff85f5f151a6bdbd28cb2469",
+      "inverse": [
+        {
+          "start": 186,
+          "end": 202,
+          "replacement": "images/logo.png"
+        },
+        {
+          "start": 256,
+          "end": 272,
+          "replacement": "images/logo.png"
+        }
+      ]
+    }
+  ],
+  "declined": []
+}

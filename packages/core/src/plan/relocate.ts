@@ -704,7 +704,7 @@ function collectRepoint(
   rewritten.set(reference, { replacement, move });
   if (replacement === reference.rawPath) return;
 
-  collectEdit(edits, file, reference, replacement);
+  collectEdit(edits, file, reference, replacement, move.from);
 }
 
 /**
@@ -898,7 +898,13 @@ export function planRepoint(input: RepointInput): RepointPlan {
     }
     outcomes.push({ reference, repoint, replacement });
     if (replacement !== reference.rawPath) {
-      collectEdit(edits, toPosix(relativePath(root, reference.file)), reference, replacement);
+      collectEdit(
+        edits,
+        toPosix(relativePath(root, reference.file)),
+        reference,
+        replacement,
+        repoint.from,
+      );
     }
   }
 

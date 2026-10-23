@@ -104,6 +104,13 @@ const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] =
   ],
   ['undo a run', (line) => line.command === 'undo' && line.undone !== null],
   ['undo none', (line) => line.command === 'undo' && line.undone === null],
+  ['undo a part', (line) => line.command === 'undo' && line.part !== null && line.undone !== null],
+  [
+    'undo a part already undone',
+    (line) => line.command === 'undo' && line.part !== null && line.undone === null,
+  ],
+  ['undo list', (line) => line.command === 'undo' && line.run !== undefined && line.run !== null],
+  ['undo list of no run', (line) => line.command === 'undo' && line.run === null],
 ];
 
 function recordResult(line: Line): void {
@@ -406,6 +413,29 @@ describe('every --json line validates against the published schemas', () => {
     result(upfly(['undo', site, '--json']));
   }, 120_000);
 
+  it('undo of one line, of one file, refused, listed, and of the whole run', () => {
+    const plain = copyFixture('plain-html', tempFolder(roots, 'upfly-schema-part-'));
+    commitAll(plain);
+    result(upfly(['undo', '--list', '--json'], { cwd: plain }));
+    result(upfly(['optimize', plain, '--json', '--replace', '--public', '.', '--apply']));
+    result(upfly(['undo', '--list', '--json'], { cwd: plain }));
+    const part = result(
+      upfly(['undo', '--file', 'index.html', '--line', '10', '--json'], { cwd: plain }),
+    );
+    expect(part.part).toEqual({ file: 'index.html', line: 10 });
+    result(upfly(['undo', '--file', 'index.html', '--line', '10', '--json'], { cwd: plain }));
+    result(upfly(['undo', '--file', 'css/site.css', '--json'], { cwd: plain }));
+    expect(
+      checked(upfly(['undo', '--file', 'about.html', '--json'], { cwd: plain })).at(-1)?.reason,
+    ).toBe('NOT_IN_RUN');
+    const listed = result(
+      upfly(['undo', '--list', '--json', '--file', 'index.html'], { cwd: plain }),
+    );
+    expect((listed.run as { files: unknown[] }).files).toHaveLength(1);
+    result(upfly(['undo', '--json'], { cwd: plain }));
+    result(upfly(['undo', '--list', '--json'], { cwd: plain }));
+  }, 120_000);
+
   it('reached every branch the schemas describe', () => {
     const expected = [
       'progress discovered',
@@ -465,6 +495,10 @@ describe('every --json line validates against the published schemas', () => {
       'refs unfollowed',
       'undo a run',
       'undo none',
+      'undo a part',
+      'undo a part already undone',
+      'undo list',
+      'undo list of no run',
     ];
     expect(expected.filter((branch) => !seen.has(branch))).toEqual([]);
   });

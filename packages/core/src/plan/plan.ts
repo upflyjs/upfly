@@ -253,13 +253,15 @@ export function withExtraEdits(
 
 /**
  * Record the edit that repoints `reference`, under its file. The edit carries the text it
- * replaces as `expected`, so it can never land on different text.
+ * replaces as `expected`, so it can never land on different text, and the image that text
+ * names as `asset`.
  */
 export function collectEdit(
   edits: Map<string, EditsInFile>,
   file: string,
   reference: Reference,
   replacement: string,
+  asset: string,
 ): void {
   const collected = edits.get(file) ?? { path: reference.file, edits: [] };
   collected.edits.push({
@@ -267,6 +269,7 @@ export function collectEdit(
     end: reference.end,
     replacement,
     expected: reference.rawPath,
+    asset,
   });
   edits.set(file, collected);
 }
@@ -1268,7 +1271,13 @@ function collectRewrite(reference: Reference, context: RewriteContext): Repointi
 
   // Past the pattern test the reference is a literal, which links one asset: `conversion`.
   const replacement = withExtension(reference.rawPath, context.input.format);
-  collectEdit(context.edits, relativePath(context.root, reference.file), reference, replacement);
+  collectEdit(
+    context.edits,
+    relativePath(context.root, reference.file),
+    reference,
+    replacement,
+    conversion.asset,
+  );
   return { replacement, conversion };
 }
 

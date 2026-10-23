@@ -61,7 +61,13 @@ reads the folder given after it, or the current folder, and prints plain text; a
    which fails if any reference names an image that does not exist.
 5. To go back: `npx upfly undo` puts back every file the last run changed. After
    `--commit`, the commit stays in the history and the restored files show as uncommitted
-   changes; `git revert <commit>` is the other way back.
+   changes; `git revert <commit>` is the other way back. To take back only part of the
+   run, `npx upfly undo --file <path>` puts back one file's changes, and adding
+   `--line <n>` only that line's; an original the line names again comes back with it,
+   and a later `npx upfly undo` still puts back the whole run. `npx upfly undo --list --json`
+   shows the run's changes line by line (`run.files`, each change with its `line`, its
+   `paths` before and after, and whether it is `undone`) and each removed original, with
+   whether it is `back`. It changes nothing.
 
 Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
 `--keep-originals` (keeping each original beside its converted file), and `--format avif`.
@@ -183,6 +189,9 @@ often a `reason` to branch on:
   wrote it.
 - `MANIFEST_UNREADABLE`: `.upfly/manifest.json`, the record `undo` follows, cannot be read,
   so nothing was changed. Tell the user.
+- `NOT_IN_RUN`: `undo --file` named a file, or `--line` a line, that the last run did not
+  change, or a file it created, which only undoing the whole run removes. Nothing was
+  changed; `npx upfly undo --list` shows what the run changed.
 
 ## The JSON
 

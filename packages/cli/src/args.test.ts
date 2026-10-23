@@ -193,11 +193,33 @@ describe('parseCommandLine', () => {
     });
   });
 
-  it('runs an undo, which takes only a directory and the output flags', () => {
+  it('runs an undo of the whole run, of a file, of a line, or a list of the changes', () => {
+    const undo = { command: 'undo', dir: 'site', json: true, noColor: false };
     expect(parseCommandLine(['undo', 'site', '--json'])).toEqual({
       kind: 'run',
-      options: { command: 'undo', dir: 'site', json: true, noColor: false },
+      options: { ...undo, file: null, line: null, list: false },
     });
+    expect(
+      parseCommandLine(['undo', 'site', '--json', '--file', 'a.html', '--line', '12']),
+    ).toEqual({ kind: 'run', options: { ...undo, file: 'a.html', line: 12, list: false } });
+    expect(parseCommandLine(['undo', 'site', '--json', '--list', '--file', 'a.html'])).toEqual({
+      kind: 'run',
+      options: { ...undo, file: 'a.html', line: null, list: true },
+    });
+  });
+
+  it('takes a line only with its file, and only as a whole number from 1', () => {
+    for (const [argv, says] of [
+      [['undo', '--line', '3'], '--line needs --file'],
+      [['undo', '--file', 'a.html', '--line', '0'], '--line takes a line number'],
+      [['undo', '--file', 'a.html', '--line', '2.5'], '--line takes a line number'],
+      [['undo', '--file', 'a.html', '--line', '-1'], '`--line` needs a value'],
+      [['undo', '--list', '--file', 'a.html', '--line', '3'], 'cannot be used together'],
+    ] as const) {
+      const parsed = parseCommandLine(argv);
+      expect(parsed.kind, argv.join(' ')).toBe('usage-error');
+      expect((parsed as { message: string }).message, argv.join(' ')).toContain(says);
+    }
   });
 
   it('has no mcp command: the MCP server is the upfly-mcp package', () => {

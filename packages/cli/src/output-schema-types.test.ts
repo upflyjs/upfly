@@ -10,10 +10,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  type ChangedPath,
   type CoverageReport,
   type Edit,
   type EncodeFormat,
+  type FileChanges,
   type Finding,
+  type LineChanges,
   type OptimizationPlan,
   type OptimizeProgress,
   type OptimizeProjectResult,
@@ -27,6 +30,9 @@ import {
   type Report,
   type ReportSummary,
   type Resolution,
+  type RunChanges,
+  type RunOriginal,
+  type RunPart,
   type ServingRoots,
   type SkippedItem,
 } from 'upfly-core';
@@ -601,6 +607,7 @@ describe('the command schemas and the types each command prints agree', () => {
         replacement: 'required',
         expected: 'optional',
         inComment: 'optional',
+        asset: 'optional',
       }),
     );
     expectFields(
@@ -741,6 +748,54 @@ describe('the command schemas and the types each command prints agree', () => {
     expectFields(
       at(m, '/properties/run'),
       fields<MoveRun>({ id: 'required', moved: 'required', changed: 'required' }),
+    );
+  });
+
+  it('undo: a part of a run, and the list of what a run changed', () => {
+    const u = 'undo.json';
+    expectFields(
+      at(u, '/properties/part'),
+      fields<RunPart>({ file: 'required', line: 'required' }),
+    );
+    expectFields(
+      at(u, '/definitions/run'),
+      fields<RunChanges>({
+        id: 'required',
+        startedAt: 'required',
+        state: 'required',
+        files: 'required',
+        originals: 'required',
+        created: 'required',
+      }),
+    );
+    expect(enumOf(at(u, '/definitions/run/properties/state'))).toEqual(
+      members<RunChanges['state']>({ applied: true, undone: true, interrupted: true }),
+    );
+    expectFields(
+      at(u, '/definitions/run/properties/originals/items'),
+      fields<RunOriginal>({
+        path: 'required',
+        movedTo: 'required',
+        back: 'required',
+        changedSince: 'required',
+      }),
+    );
+    expectFields(
+      at(u, '/definitions/file'),
+      fields<FileChanges>({ path: 'required', changedSince: 'required', changes: 'required' }),
+    );
+    expectFields(
+      at(u, '/definitions/file/properties/changes/items'),
+      fields<LineChanges>({ line: 'required', undone: 'required', paths: 'required' }),
+    );
+    expectFields(
+      at(u, '/definitions/file/properties/changes/items/properties/paths/items'),
+      fields<ChangedPath>({
+        before: 'required',
+        after: 'required',
+        image: 'required',
+        inComment: 'required',
+      }),
     );
   });
 

@@ -2092,6 +2092,40 @@ cross-volume rename would; long paths are supported; and `EBUSY` and `EPERM` are
 backoff, because on Windows an editor or a virus scanner holds a handle open for a few
 milliseconds and failing the run for that would make the tool unusable on a first-class target.
 
+### Undoing part of a run
+
+`undoPart` takes back what a run did to one file, or the changes on one line of it, and leaves
+the rest of the run standing. Each inverse edit in the record carries the line it is on, the path
+the run wrote (as its `expected`, so it can only ever land on that text) and the image the old path
+names (`asset`, which every edit carries from the planner). A line put back names that image
+again, so when the run removed it, it comes back from the backup, and when the run moved it, it is
+copied back from its new place. What the run created stays: other lines may still name the new
+file, and only the whole run's undo removes it.
+
+The record has to keep describing the disk, or the whole run's undo would refuse a partly undone
+file as somebody else's edit. So **every state a file can be in is named in the record by its
+hash**: the text before the run, the text after it, and each state a partial undo put it in, with
+the edits undone in it (`partlyUndone`). Undo, whole or partial, hashes the file and looks the hash
+up; a hash the record does not name is a change from outside and is refused, as before. An edit's
+offsets count into the text as the run left it, so in a partly undone file each edit is placed by
+adding the length change of every undone edit before it (`placeUndoEdits`), and the whole run's
+undo applies only the edits still standing.
+
+**The record is written before the file**, naming the state the file is about to be in, exactly as
+the run itself writes its manifest before touching anything. Then the originals come back, then the
+file is rewritten. Cut off anywhere, the file holds a state the record names and every original is
+either back or still in its backup, so the whole run's undo still puts every byte back, and running
+the same partial undo again finishes it. The crash matrix for partial undos cuts each one after
+every write, on both stores, and fails if the file is written before the record.
+
+A record stays at schema version 1 until a partial undo leaves a file part undone, when it becomes
+version 2: a reader that knows only version 1 then refuses it by its version rather than taking the
+part undone file for an outside edit. Undoing a whole file returns it to the hash before the run,
+which every version knows, so that alone keeps version 1. A record written before these fields
+existed has no lines, written paths or images: lines and paths are read from the file while it
+holds the text the run left, and the image a line names is matched by file name among what the run
+took away, so every original of that name comes back.
+
 ### Images a build loads
 
 A rewritten reference has to load in whatever resolves it. A browser resolves a path to a file the

@@ -58,10 +58,16 @@ export type UpflyErrorCode =
    */
   | 'TRANSACTION_INTERRUPTED'
   /**
-   * A manifest this build cannot use: its schema version is not this build's, or its
-   * hashes were made with a different algorithm.
+   * A manifest this build cannot use: its schema version is not one this build knows, or
+   * its hashes were made with a different algorithm.
    */
-  | 'MANIFEST_VERSION_UNSUPPORTED';
+  | 'MANIFEST_VERSION_UNSUPPORTED'
+  /**
+   * The part of a run asked to be undone on its own is none of the run's changes: a file the
+   * run did not rewrite, remove or move, a line holding none of its changes, or a file the
+   * run created, which only an undo of the whole run removes.
+   */
+  | 'NOT_IN_RUN';
 
 /**
  * An error the engine throws on purpose, with a stable `code`.

@@ -241,6 +241,7 @@ describe('a path holding a backslash', () => {
             end: 10 + rawPath.length,
             replacement: 'img/hero\\.webp',
             expected: rawPath,
+            asset: 'img/hero.png',
           },
         ],
       },
@@ -270,7 +271,15 @@ describe('the ordinary case', () => {
     expect(plan.rewrites).toEqual([
       {
         file: 'src/App.jsx',
-        edits: [{ start: 10, end: 20, replacement: './logo.webp', expected: './logo.png' }],
+        edits: [
+          {
+            start: 10,
+            end: 20,
+            replacement: './logo.webp',
+            expected: './logo.png',
+            asset: 'src/logo.png',
+          },
+        ],
       },
     ]);
     expect(plan.declined).toEqual([]);
@@ -465,7 +474,13 @@ describe('a reference whose shape keeps the format: a link preview, a link to an
       {
         file: 'index.html',
         edits: [
-          { start: 60, end: 75, replacement: '/img/banner.webp', expected: '/img/banner.png' },
+          {
+            start: 60,
+            end: 75,
+            replacement: '/img/banner.webp',
+            expected: '/img/banner.png',
+            asset: 'public/img/banner.png',
+          },
         ],
       },
     ]);
@@ -619,6 +634,7 @@ describe('a path that resolved through its decoded spelling', () => {
         end: 30,
         replacement: '/img/caf&eacute;.webp',
         expected: '/img/caf&eacute;.png',
+        asset: `${cafe}.png`,
       },
     ]);
   });
@@ -645,6 +661,7 @@ describe('a path that resolved through its decoded spelling', () => {
         end: 28,
         replacement: '/img/my\\_photo.webp',
         expected: '/img/my\\_photo.png',
+        asset: 'public/img/my_photo.png',
       },
     ]);
   });
@@ -674,6 +691,7 @@ describe('a root-relative path that resolved at the project root', () => {
             end: 10 + '/hero.png'.length,
             replacement: '/hero.webp',
             expected: '/hero.png',
+            asset: 'public/hero.png',
           },
         ],
       },

@@ -73,6 +73,7 @@ export function commentEditsFor(input: CommentEditsInput): CommentEdit[] {
         replacement,
         expected: mention.spelling,
         inComment: true,
+        asset: mention.image,
       },
     });
   }

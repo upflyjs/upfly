@@ -77,6 +77,15 @@ export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOpti
 
 export interface UndoOptions extends CommonOptions {
   readonly command: 'undo';
+  /**
+   * `--file`: undo only what the run did to this file, as the user wrote it, resolved from the
+   * current folder: a file it rewrote, or an image it removed or moved away. Null for the whole run.
+   */
+  readonly file: string | null;
+  /** `--line`: undo only the changes on this line of `file`, counted from 1, or null for all of them. */
+  readonly line: number | null;
+  /** `--list`: show what the run changed, and what of it is undone, changing nothing. */
+  readonly list: boolean;
 }
 
 export interface CheckOptions extends CommonOptions, ScopeOptions {
@@ -237,6 +246,13 @@ const CHECK = {
 
 const REFS = { ...COMMON, ...SCOPE } as const;
 
+const UNDO = {
+  ...COMMON,
+  file: { type: 'string' },
+  line: { type: 'string' },
+  list: { type: 'boolean' },
+} as const;
+
 const INIT = { ...COMMON, agents: { type: 'boolean' } } as const;
 
 const DEDUPE = {
@@ -293,7 +309,7 @@ export function parseCommandLine(
   if (command === 'dedupe') return parseDedupe(rest);
   if (command === 'move') return parseMove(rest, upfly);
   if (command === 'init') return parseInit(rest);
-  return parseCommonOnly(command, rest);
+  return parseUndo(rest, upfly);
 }
 
 function parseDedupe(args: readonly string[]): Parsed {
@@ -695,11 +711,11 @@ function parseInitArgs(args: readonly string[]) {
   return parseArgs({ args: [...args], options: INIT, allowPositionals: true, strict: true });
 }
 
-/** A command that takes a folder and only the options every command takes. */
-function parseCommonOnly(command: 'undo', args: readonly string[]): Parsed {
-  let parsed: ReturnType<typeof parseCommonArgs>;
+function parseUndo(args: readonly string[], upfly: UpflyCommand): Parsed {
+  const command = 'undo';
+  let parsed: ReturnType<typeof parseUndoArgs>;
   try {
-    parsed = parseCommonArgs(args);
+    parsed = parseUndoArgs(args);
   } catch (error) {
     return { kind: 'usage-error', command, message: plainParseError(error) };
   }
@@ -707,6 +723,16 @@ function parseCommonOnly(command: 'undo', args: readonly string[]): Parsed {
   if (values.help === true) return { kind: 'help', command };
   const dir = directoryOf(positionals);
   if (dir.problem !== null) return { kind: 'usage-error', command, message: dir.problem };
+  const line = lineOf(values.line, values.file, upfly);
+  if (typeof line === 'string') return { kind: 'usage-error', command, message: line };
+  if (values.list === true && line !== null) {
+    return {
+      kind: 'usage-error',
+      command,
+      message:
+        '--list and --line cannot be used together: --list shows what the run changed and undoes nothing, and --line undoes one line',
+    };
+  }
   return {
     kind: 'run',
     options: {
@@ -714,12 +740,31 @@ function parseCommonOnly(command: 'undo', args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      file: values.file ?? null,
+      line,
+      list: values.list === true,
     },
   };
 }
 
-function parseCommonArgs(args: readonly string[]) {
-  return parseArgs({ args: [...args], options: COMMON, allowPositionals: true, strict: true });
+function parseUndoArgs(args: readonly string[]) {
+  return parseArgs({ args: [...args], options: UNDO, allowPositionals: true, strict: true });
+}
+
+/** The line `--line` names, null without it, or why it cannot be one. */
+function lineOf(
+  written: string | undefined,
+  file: string | undefined,
+  upfly: UpflyCommand,
+): number | null | string {
+  if (written === undefined) return null;
+  if (file === undefined) {
+    return `--line needs --file, the file the line is in, such as \`${upfly} undo --file index.html --line 12\``;
+  }
+  const line = Number(written);
+  return /^\d+$/.test(written) && Number.isSafeInteger(line) && line >= 1
+    ? line
+    : `--line takes a line number, counted from 1, got \`${written}\``;
 }
 
 function directoryOf(

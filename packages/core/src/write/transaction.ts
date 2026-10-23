@@ -12,19 +12,23 @@ import { UpflyError } from '../errors.js';
 import type { NotText } from '../read-text.js';
 import { hashText } from '../scan/text-hash.js';
 import type { Edit } from '../types.js';
-import { applyEdits, invertEdits, validateEdits } from './edits.js';
+import { applyEdits, countLineBreaks, invertEdits, validateEdits } from './edits.js';
 import { type ProcessLiveness, acquireLock } from './lock.js';
 import {
   type CreateOperation,
   type Declined,
   type DeleteOperation,
+  type EditOperation,
   MANIFEST_PATH,
   MANIFEST_SCHEMA_VERSION,
   type Manifest,
   type MoveOperation,
   type Operation,
   UPFLY_DIRECTORY,
+  type UndoEdit,
   parseManifest,
+  placeUndoEdits,
+  schemaVersionOf,
   serialiseManifest,
 } from './manifest.js';
 
@@ -127,6 +131,11 @@ export interface OperationState {
   readonly status: OperationStatus;
   /** The path the status was decided on, so a foreign report can point at it. */
   readonly path: string;
+  /**
+   * For an applied edit some of whose changes were undone on their own: the indices of its
+   * `inverse` the file has undone already. Absent when none are.
+   */
+  readonly undone?: readonly number[];
 }
 
 /**
@@ -241,8 +250,9 @@ async function commitUnderLock(
   context: RunContext,
 ): Promise<Manifest> {
   await refuseOverInterruptedRun(store, context.runId);
+  const operations = await manifestOperations(plan, store);
   const pending: Manifest = {
-    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    schemaVersion: schemaVersionOf(operations),
     hashAlgorithm: store.hashAlgorithm,
     runId: context.runId,
     startedAt: context.now(),
@@ -250,7 +260,7 @@ async function commitUnderLock(
     revertedAt: null,
     state: 'pending',
     runDir: context.runDir,
-    operations: await manifestOperations(plan, store),
+    operations,
     declined: context.declined,
   };
   await store.writeText(MANIFEST_PATH, serialiseManifest(pending));
@@ -339,12 +349,7 @@ export async function inspect(
         break;
       }
       case 'edit': {
-        const current = await store.hash(operation.path);
-        states.push({
-          operation,
-          path: operation.path,
-          status: betweenStatus(current, operation.beforeHash, operation.afterHash),
-        });
+        states.push(editState(operation, await store.hash(operation.path)));
         break;
       }
       case 'move': {
@@ -405,16 +410,7 @@ async function revertUnderLock(
   const states = await inspect(manifest, store);
   const foreign = states.filter((state) => state.status === 'foreign');
 
-  if (foreign.length > 0) {
-    throw new UpflyError(
-      'TRANSACTION_FOREIGN_CHANGE',
-      `${foreign.length} file(s) changed since this run: ${foreign
-        .map((state) => state.path)
-        .join(
-          ', ',
-        )}. Nothing was reverted, because undoing over somebody else's edit would lose it.`,
-    );
-  }
+  if (foreign.length > 0) throw changedSince(foreign.map((state) => state.path));
   await refuseMissingBackups(states, manifest, store);
 
   // The mirror of commit's phases, and it has to be, for the same reason: originals
@@ -436,12 +432,25 @@ async function revertUnderLock(
 }
 
 /**
+ * The refusal for files something other than the run changed since it, which an undo of the
+ * whole run and of part of it give alike.
+ *
+ * @param paths each file, in the order to name them
+ */
+export function changedSince(paths: readonly string[]): UpflyError {
+  return new UpflyError(
+    'TRANSACTION_FOREIGN_CHANGE',
+    `${paths.length} file(s) changed since this run: ${paths.join(', ')}. Nothing was reverted, because undoing over somebody else's edit would lose it.`,
+  );
+}
+
+/**
  * Refuse before the first write when a removed original's backup is gone, so that undo
  * never stops part way through putting originals back.
  *
  * @throws {UpflyError} `TRANSACTION_FOREIGN_CHANGE` naming each original whose backup is missing
  */
-async function refuseMissingBackups(
+export async function refuseMissingBackups(
   states: readonly OperationState[],
   manifest: Manifest,
   store: FileStore,
@@ -478,12 +487,18 @@ async function restoreOriginals(
   }
 }
 
-/** Undo's second phase: point the references back at the originals. */
+/**
+ * Undo's second phase: point the references back at the originals. A file part of which was
+ * undone on its own takes only the edits it still holds, placed where they sit now.
+ */
 async function undoEdits(states: readonly OperationState[], store: FileStore): Promise<void> {
   for (const state of states) {
     if (state.status !== 'applied' || state.operation.kind !== 'edit') continue;
     const current = await store.readText(state.operation.path);
-    await store.writeText(state.operation.path, applyEdits(current, state.operation.inverse));
+    const remaining = placeUndoEdits(state.operation.inverse, state.undone ?? [])
+      .filter((placed) => !placed.undone)
+      .map(({ start, end, edit }) => ({ ...edit, start, end }));
+    await store.writeText(state.operation.path, applyEdits(current, remaining));
   }
 }
 
@@ -499,15 +514,23 @@ async function removeCreated(states: readonly OperationState[], store: FileStore
 /** Read the manifest of the last run, or null when there has not been one. */
 export async function readManifest(store: FileStore): Promise<Manifest | null> {
   if ((await store.hash(MANIFEST_PATH)) === null) return null;
-  const manifest = parseManifest(await store.readText(MANIFEST_PATH));
+  return checkedVersion(parseManifest(await store.readText(MANIFEST_PATH)));
+}
 
-  if (manifest.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
-    throw new UpflyError(
-      'MANIFEST_VERSION_UNSUPPORTED',
-      `Manifest is schema version ${manifest.schemaVersion} and this build understands ${MANIFEST_SCHEMA_VERSION}. Undo it with the version that wrote it.`,
-    );
+/**
+ * A record this build can follow, as it is.
+ *
+ * @throws {UpflyError} `MANIFEST_VERSION_UNSUPPORTED` for a version it does not know
+ */
+export function checkedVersion(manifest: Manifest): Manifest {
+  const version = manifest.schemaVersion;
+  if (Number.isInteger(version) && version >= 1 && version <= MANIFEST_SCHEMA_VERSION) {
+    return manifest;
   }
-  return manifest;
+  throw new UpflyError(
+    'MANIFEST_VERSION_UNSUPPORTED',
+    `Manifest is schema version ${version} and this build understands versions 1 to ${MANIFEST_SCHEMA_VERSION}. Undo it with the version that wrote it.`,
+  );
 }
 
 /** Turn the forward plan into the reverse record the manifest keeps. */
@@ -528,10 +551,38 @@ async function manifestOperations(
       path: operation.path,
       beforeHash: operation.beforeHash,
       afterHash: operation.afterHash,
-      inverse: invertEdits(before, operation.edits),
+      inverse: withLines(applyEdits(before, operation.edits), invertEdits(before, operation.edits)),
     });
   }
   return operations;
+}
+
+/**
+ * Each edit with the line it starts on in `text`, counted from 1.
+ *
+ * @param edits in offset order, as `invertEdits` returns them
+ */
+function withLines(text: string, edits: readonly Edit[]): UndoEdit[] {
+  let line = 1;
+  let counted = 0;
+  return edits.map((edit) => {
+    line += countLineBreaks(text, counted, edit.start);
+    counted = edit.start;
+    return { ...edit, line };
+  });
+}
+
+/**
+ * What the disk says of an edit: the run's text or the one before it, or a state the record
+ * names because part of the file was undone on its own, or none of them.
+ */
+function editState(operation: EditOperation, current: string | null): OperationState {
+  const status = betweenStatus(current, operation.beforeHash, operation.afterHash);
+  if (status !== 'foreign') return { operation, path: operation.path, status };
+  const part = operation.partlyUndone?.find((state) => state.hash === current);
+  return part === undefined
+    ? { operation, path: operation.path, status }
+    : { operation, path: operation.path, status: 'applied', undone: part.undone };
 }
 
 /**

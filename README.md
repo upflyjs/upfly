@@ -142,7 +142,7 @@ Upfly optimize · applied
 | `npx upfly init` | Writes `upfly.config.json` with the folders your site is served from, and why. `--agents` also points your coding agents at Upfly. |
 | `npx upfly audit` | Reports your images, the references to them, the references that point at nothing, the images nothing uses, and what `optimize` would save, measured by encoding each image it could convert. Changes no project file. |
 | `npx upfly optimize` | Converts each image that comes out smaller, updates the references it can rewrite safely, and removes each original they replace (`--keep-originals` keeps them). Shows the plan until you add `--apply`. |
-| `npx upfly undo` | Puts back every file the last `optimize`, `move` or `dedupe` run with `--apply` changed. |
+| `npx upfly undo` | Puts back every file the last `optimize`, `move` or `dedupe` run with `--apply` changed; with `--file`, only one file's changes, and with `--line`, one line's. `--list` shows what the run changed. |
 | `npx upfly refs <image>` | Lists every line that names one image, whether Upfly can rewrite each, and what `optimize` would do with it. Changes nothing. |
 | `npx upfly move <from> <to>` | Moves an image, or the images in a folder, updates the references Upfly can rewrite, and lists every other line that still names the old path. Shows the plan until you add `--apply`. |
 | `npx upfly dedupe` | Keeps one copy of each image stored more than once and points the references at it. Deletes nothing. |
@@ -437,7 +437,9 @@ that the lines no reader follows are listed too, each with the reason.
   a rebase, a cherry-pick or a revert is in progress, it refuses before writing anything, since its commit would
   become part of that operation.
 - **`npx upfly undo` puts back every file** the last `optimize`, `dedupe` or `move` run with `--apply` changed. It
-  checks each file first and changes nothing if any of them was edited since that run.
+  checks each file first and changes nothing if any of them was edited since that run. `--file` and `--line` take
+  back one file or one line, with any original that line names, and a later `npx upfly undo` still puts back every
+  byte of the run.
 - **Upfly never deletes an image that nothing uses.** It lists each one with its size, and the decision is yours.
   `move` and `dedupe` delete no image either.
 - **An original is removed once no file Upfly reads still names it**, wherever it sits: in a folder the site is
