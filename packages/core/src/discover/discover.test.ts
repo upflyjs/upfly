@@ -204,6 +204,31 @@ describe('discover', () => {
     ]);
   });
 
+  it('prunes a Python environment, its installed packages and its compiled modules', async () => {
+    // A project's own pages are its sources: a compiled module is read by Python only beside
+    // its source, and a package's files are a dependency's, as in node_modules.
+    const root = await makeTree({
+      'venv/pyvenv.cfg': '',
+      'venv/Lib/site-packages/django/contrib/admin/static/admin/img/icon.svg': '',
+      '.venv/lib/python3.12/site-packages/pkg/a.png': '',
+      'conda/lib/python3.12/site-packages/pkg/b.png': '',
+      'app/__pycache__/views.cpython-313.pyc': '',
+      'app/views.py': '',
+      'static/img/a.png': '',
+    });
+
+    const result = await discover({ root, adapters });
+
+    expect(result.assets.map((asset) => asset.relative)).toEqual(['static/img/a.png']);
+    expect(result.unscannedFiles.map((file) => file.relative)).toEqual(['app/views.py']);
+    expect(result.excludedRoots.map((entry) => [entry.relative, entry.reason])).toEqual([
+      ['.venv', "a Python environment named '.venv'"],
+      ['app/__pycache__', "a cache directory named '__pycache__'"],
+      ['conda/lib/python3.12/site-packages', "a dependency directory named 'site-packages'"],
+      ['venv', "a Python environment named 'venv'"],
+    ]);
+  });
+
   describe('a site generator that builds into public', () => {
     // Hugo, Gatsby and Hexo build a site into `public`, the name Vite and Next.js give the
     // folder they serve as written, so only the generator's own settings beside it tell the

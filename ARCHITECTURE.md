@@ -1462,6 +1462,14 @@ about. A site built before Upfly runs is handled by name instead: the folders on
 `discover.ts`) are pruned, so a built Eleventy site's second copy of every image is not read as
 source.
 
+A Python environment is pruned as `node_modules` is: by the names Python's documentation and uv
+give one (`venv`, `.venv`), and inside any environment by `site-packages`, where an installer puts
+packages, and `__pycache__`, where Python keeps the modules it compiled. A file a page loads from an
+environment is a package's, a dependency's like any in `node_modules`. A module in `__pycache__`
+holds the text of its source beside it, which is read, and Python never loads it once that source
+is gone (PEP 3147); a module shipped compiled without its source sits where the source would be,
+outside `__pycache__`, and is read.
+
 **`public` is a source folder's name as well as a build's, so the settings beside it decide.** Vite
 and Next.js serve `public/` as written; Hugo, Gatsby and Hexo build a whole site into it, with a
 copy of every image the site serves. Read as source, that copy is what a post's `/img/a.png`
@@ -2397,8 +2405,8 @@ concatenation), and a file nobody handed the search, such as one in an excluded 
 
 **A file that is not text is searched as its bytes.** The search reads every file the walk
 found, and a project can hold databases, compiled libraries and archives under names Upfly has no
-rule for: a site's `db.sqlite3`, a Python environment's `.dll`, `.so` and `.pyc`, a vector store's
-`.sst`. A database holds the pages a site renders from it, and a compiled module the strings its
+rule for: a site's `db.sqlite3`, a vendored library's `.dll` and `.so`, a module shipped compiled
+as `.pyc`, a vector store's `.sst`. A database holds the pages a site renders from it, and a compiled module the strings its
 code asks for, as plain bytes, so a path written in one can still load the image, and it keeps the
 original as a line of text does. Decoded as UTF-8, though, such a file is a string up to twice its
 size, every byte that is not UTF-8 a character of its own, and the copies the search makes of a

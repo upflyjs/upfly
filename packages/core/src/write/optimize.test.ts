@@ -987,31 +987,28 @@ describe('replace refuses to delete an original a mention would outlive', () => 
   });
 
   it('searches a file whose first bytes say it is not text as its bytes, whatever its name, and a path inside one keeps the original', async () => {
-    // A library or a compiled module under a name Upfly has no rule for, as a Python
-    // environment holds. Read as text, one of a few hundred megabytes took more memory than
-    // the run had; searched as its bytes, a chunk at a time, it still keeps what it names.
+    // A library or a compiled module under a name Upfly has no rule for. Read as text, one of
+    // a few hundred megabytes took more memory than the run had; searched as its bytes, a
+    // chunk at a time, it still keeps what it names.
     const project = recorded(
       servedProject(
         {
           'index.html': '<img src="/logo.png">',
-          'venv/lib/torch_cpu.dll': 'MZ\u0090\0\u0003\0\0\0 a resource named /logo.png',
-          'venv/app/__pycache__/main.cpython-312.pyc': '\xcb\r\r\n\0\0\0\0 ICON = "/logo.png"',
+          'vendor/lib/torch_cpu.dll': 'MZ\u0090\0\u0003\0\0\0 a resource named /logo.png',
+          'app/main.pyc': '\xcb\r\r\n\0\0\0\0 ICON = "/logo.png"',
           'public/logo.png': 'PNG',
         },
-        ['index.html', 'venv/lib/torch_cpu.dll', 'venv/app/__pycache__/main.cpython-312.pyc'],
+        ['index.html', 'vendor/lib/torch_cpu.dll', 'app/main.pyc'],
       ),
     );
 
     const result = await optimize(project.input);
 
-    expect([...new Set(project.asBytes)]).toEqual([
-      'venv/app/__pycache__/main.cpython-312.pyc',
-      'venv/lib/torch_cpu.dll',
-    ]);
+    expect([...new Set(project.asBytes)]).toEqual(['app/main.pyc', 'vendor/lib/torch_cpu.dll']);
     expect(result.plan.conversions).toEqual([]);
     expect(
       result.plan.declined.find((entry) => entry.path === 'public/logo.png')?.reason,
-    ).toContain('venv/app/__pycache__/main.cpython-312.pyc:2 (and 1 more)');
+    ).toContain('app/main.pyc:2 (and 1 more)');
   });
 
   it('refuses it as well when that mention spells the path in another letter case', async () => {

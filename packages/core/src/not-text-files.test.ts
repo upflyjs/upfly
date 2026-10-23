@@ -146,11 +146,13 @@ describe('a path written in a file that is not text keeps the original, in refs 
       'in a .sqlite file, a type Upfly does not read',
     ],
     [
+      // Beside where its source would be, the one place Python loads a module whose source
+      // is gone; it ignores such a module in `__pycache__`, which the walk leaves out.
       'a compiled module whose source is gone, a type letter right after the path',
-      'app/__pycache__/views.cpython-313.pyc',
+      'app/views.pyc',
       COMPILED_MODULE,
       // The compiled module's magic number ends in a line break.
-      'app/__pycache__/views.cpython-313.pyc:2',
+      'app/views.pyc:2',
       '/screenshot.png',
       'in a .pyc file, a type Upfly does not read',
     ],
@@ -225,13 +227,13 @@ describe('a path written in a file that is not text keeps the original, in refs 
     const root = await project({
       'public/screenshot.png': 'IMAGE',
       'index.html': '<img src="/screenshot.png" alt="">\n',
-      'venv/torch/lib/torch_cpu.dll': library,
+      'vendor/torch/lib/torch_cpu.dll': library,
     });
     const breaks = library.subarray(0, MEGABYTE - 7).filter((byte) => byte === 0x0a).length;
 
     const seen = await throughEachCommand(root, 'public/screenshot.png');
 
-    const where = `venv/torch/lib/torch_cpu.dll:${breaks + 1}`;
+    const where = `vendor/torch/lib/torch_cpu.dll:${breaks + 1}`;
     expect(seen.declined).toContain(where);
     expect(seen.refs).toEqual([where]);
     expect(seen.move).toEqual([where]);

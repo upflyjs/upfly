@@ -755,6 +755,10 @@ export const ORACLE_SKIPS: ReadonlySet<string> = new Set([
   '.vercel',
   '.netlify',
   '.angular',
+  'venv',
+  '.venv',
+  'site-packages',
+  '__pycache__',
 ]);
 
 /**
