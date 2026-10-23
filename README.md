@@ -315,7 +315,14 @@ most clients:
 ```
 
 With Claude Code: `claude mcp add upfly -- npx -y upfly-mcp /path/to/project`. On Windows, a client that cannot start
-`npx` itself takes `"command": "cmd"` with `"/c", "npx"` before the same arguments.
+`npx` itself takes `"command": "cmd"` with `"/c", "npx"` before the same arguments, which for Claude Code is
+`claude mcp add upfly -- cmd /c npx -y upfly-mcp C:\path\to\project`. In PowerShell, write the `--` as `'--'`:
+PowerShell drops a bare `--` before handing the rest to the claude.ps1 script npm installs, and Claude Code then reads
+`-y` as an option of its own.
+
+```powershell
+claude mcp add upfly '--' cmd /c npx -y upfly-mcp C:\path\to\project
+```
 
 There is one tool for each of `audit`, `check`, `refs`, `optimize`, `dedupe`, `move` and `undo`. Each runs its
 command with `--json` and answers with the line the command prints last: the same result, or the same error with its

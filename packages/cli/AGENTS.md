@@ -280,4 +280,11 @@ Desktop's config, and in that of most clients:
 
 With Claude Code: `claude mcp add upfly -- npx -y upfly-mcp /path/to/project`. On Windows,
 a client that cannot start npx itself takes `"command": "cmd"` with `"/c", "npx"` before the
-same arguments.
+same arguments, which for Claude Code is
+`claude mcp add upfly -- cmd /c npx -y upfly-mcp C:\path\to\project`. In PowerShell, write
+the `--` as `'--'`: PowerShell drops a bare `--` before handing the rest to the claude.ps1
+script npm installs, and Claude Code then reads `-y` as an option of its own.
+
+```powershell
+claude mcp add upfly '--' cmd /c npx -y upfly-mcp C:\path\to\project
+```

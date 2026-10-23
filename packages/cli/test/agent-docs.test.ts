@@ -190,6 +190,22 @@ describe('AGENTS.md', () => {
   });
 });
 
+describe('the command that adds the MCP server to Claude Code', () => {
+  // PowerShell drops a bare `--` before handing the rest to a script such as the claude.ps1
+  // npm installs, so Claude Code reads `-y` as its own option; a quoted one reaches it.
+  it.each(['../../README.md', 'AGENTS.md', '../mcp/README.md'])(
+    'comes in %s with the form PowerShell passes whole',
+    (doc) => {
+      const text = readFileSync(join(PACKAGE, doc), 'utf8');
+
+      expect(text).toContain('claude mcp add upfly -- npx -y upfly-mcp /path/to/project');
+      expect(text).toContain(
+        "```powershell\nclaude mcp add upfly '--' cmd /c npx -y upfly-mcp C:\\path\\to\\project\n```",
+      );
+    },
+  );
+});
+
 describe('the Agent Skill', () => {
   it('is named for its folder and describes when to use it, within the format limits', () => {
     const text = readFileSync(join(PACKAGE, 'skill', 'upfly', 'SKILL.md'), 'utf8');
