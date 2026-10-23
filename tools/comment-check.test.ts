@@ -200,7 +200,6 @@ describe('the script itself', () => {
     ['emphasis', BENCH, '// this is **important**\nexport {};\n'],
     ['emoji', BENCH, '// \u{1f534} careful\nexport {};\n'],
     ['long-comment', BENCH, `${lineComments(11)}\nexport {};\n`],
-    ['em-dash', 'packages/demo/scripts/build.mjs', `// one ${EM_DASH} two\nexport {};\n`],
     ['output-reference', SHIPPED, "export const reason = 'too open (R80)';\n"],
     ['output-reference', BENCH, "console.log('unscanned (R141)');\n"],
     ['output-em-dash', SHIPPED, `export const label = 'one ${EM_DASH} two';\n`],

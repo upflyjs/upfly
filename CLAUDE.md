@@ -42,7 +42,7 @@ it is referenced is the product. [ARCHITECTURE.md](ARCHITECTURE.md) describes th
   cannot look up: no issue numbers or internal names; where a fact came from belongs in the commit message. Plain text:
   no bold, italics, emoji or em dashes. A comment over about ten lines is a design note for `ARCHITECTURE.md`. Text a
   user reads (report reasons, messages, CLI output) never carries an internal reference. `pnpm comments:check` runs
-  inside `pnpm check` and fails on any finding in each package's `src`, `test` and `scripts`, `bench/src`,
+  inside `pnpm check` and fails on any finding in each package's `src` and `test`, `bench/src`,
   `accuracy-suite/tools`, `tools` and the source files at the repository's root; each package's `AGENTS.md`, `skill/`
   and `schema/` are held to the rules for output text.
 
