@@ -1470,6 +1470,11 @@ holds the text of its source beside it, which is read, and Python never loads it
 is gone (PEP 3147); a module shipped compiled without its source sits where the source would be,
 outside `__pycache__`, and is read.
 
+`__MACOSX` is pruned too: a zip made on macOS keeps each file's resource fork and attributes there,
+as a binary `._` file under that file's own name and extension, which no page loads. Read by the
+reader its extension names, each was a parse failure or an unused image. A `._` file macOS writes
+beside its file on a drive that keeps no resource forks is outside that folder and still read.
+
 **`public` is a source folder's name as well as a build's, so the settings beside it decide.** Vite
 and Next.js serve `public/` as written; Hugo, Gatsby and Hexo build a whole site into it, with a
 copy of every image the site serves. Read as source, that copy is what a post's `/img/a.png`

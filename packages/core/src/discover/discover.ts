@@ -34,11 +34,10 @@ import type {
  * Each is a name a tool writes and people do not: `_site` is the output of Eleventy and
  * Jekyll, `.docusaurus` Docusaurus's generated files, `storybook-static` what `storybook
  * build` writes, `.vercel` and `.netlify` what those platforms' command-line tools write, and
- * `.angular` the Angular CLI's cache. `venv` and `.venv` are the names Python's documentation
- * and uv give a Python environment, `site-packages` is where an installer puts packages, and
- * `__pycache__` holds modules Python compiled from their sources, which it never loads once
- * the source is gone (https://peps.python.org/pep-3147/). A folder a person may name, such as
- * Hugo's `public`, is not here: the settings beside it decide, in `SITE_GENERATOR_SETTINGS`.
+ * `.angular` the Angular CLI's cache. `venv`, `.venv`, `site-packages` and `__pycache__` are
+ * a Python environment's, and `__MACOSX` a zip's macOS metadata; "Discovery" in
+ * ARCHITECTURE.md says why none holds a page. A folder a person may name, such as Hugo's
+ * `public`, is not here: the settings beside it decide, in `SITE_GENERATOR_SETTINGS`.
  */
 const PRUNED_DIRECTORIES: ReadonlyMap<string, string> = new Map([
   ['.angular', 'a cache directory'],
@@ -56,6 +55,7 @@ const PRUNED_DIRECTORIES: ReadonlyMap<string, string> = new Map([
   ['.upfly', "Upfly's own directory"],
   ['.venv', 'a Python environment'],
   ['.vercel', 'a build-output directory'],
+  ['__MACOSX', 'a directory of macOS file metadata'],
   ['__pycache__', 'a cache directory'],
   ['_site', 'a build-output directory'],
   ['build', 'a build-output directory'],

@@ -759,6 +759,7 @@ export const ORACLE_SKIPS: ReadonlySet<string> = new Set([
   '.venv',
   'site-packages',
   '__pycache__',
+  '__MACOSX',
 ]);
 
 /**

@@ -229,6 +229,25 @@ describe('discover', () => {
     ]);
   });
 
+  it('prunes the metadata a zip made on macOS holds beside its files', async () => {
+    // Each `._` file is the resource fork and attributes of the file of the same name, in
+    // binary under a source or image extension: no page loads one.
+    const root = await makeTree({
+      '__MACOSX/theme/._style.css': '\0\u0005\u0016\u0007\0\u0002\0\0Mac OS X',
+      '__MACOSX/theme/._logo.png': '\0\u0005\u0016\u0007\0\u0002\0\0Mac OS X',
+      'theme/style.css': 'a { color: red }',
+      'theme/logo.png': '',
+    });
+
+    const result = await discover({ root, adapters });
+
+    expect(result.assets.map((asset) => asset.relative)).toEqual(['theme/logo.png']);
+    expect(result.sourceFiles.map((file) => file.relative)).toEqual(['theme/style.css']);
+    expect(result.excludedRoots.map((entry) => [entry.relative, entry.reason])).toEqual([
+      ['__MACOSX', "a directory of macOS file metadata named '__MACOSX'"],
+    ]);
+  });
+
   describe('a site generator that builds into public', () => {
     // Hugo, Gatsby and Hexo build a site into `public`, the name Vite and Next.js give the
     // folder they serve as written, so only the generator's own settings beside it tell the
