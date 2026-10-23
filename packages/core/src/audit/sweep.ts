@@ -20,7 +20,7 @@ import {
 import { formatBytes } from '../format.js';
 import type { Graph } from '../graph/graph.js';
 import { unreferencedAssets } from '../graph/graph.js';
-import { isBinaryExtension } from '../graph/unscanned.js';
+import { holdsNoPathAPageLoads } from '../graph/unscanned.js';
 import { compareStrings, imageFilenameCandidates } from '../paths.js';
 import { provenPath } from '../resolve/reference.js';
 import { contextCouldTake, globFromAnyRoot, servedFromAnyRoot } from '../resolve/resolve.js';
@@ -104,9 +104,9 @@ export interface SweepOptions {
   /**
    * Largest file the sweep will search, in bytes. Defaults to 2 MiB.
    *
-   * The unread set is mostly templates and config, but it can also hold video and archives,
-   * whose known binary types are never read. A larger file is skipped with a reason, because
-   * a silent skip would turn a hedge back into a confident `dead`.
+   * The unread set is mostly templates and config, but it can also hold databases and compiled
+   * code, which are read, and video and archives, which are not. A larger file is skipped with
+   * a reason, because a silent skip would turn a hedge back into a confident `dead`.
    */
   readonly maxBytes?: number;
   /**
@@ -184,17 +184,18 @@ function candidateBasenames(graph: Graph): ReadonlyMap<string, readonly string[]
 }
 
 /**
- * A file's text, or why the sweep does not search it: `null` for a known binary type, which
- * holds no text and which the report already counts among the binary files no adapter reads,
- * and a skip with its reason for a file past the limit or one that could not be read. Bytes
- * are compared with bytes, asked of `sizeOf` before the read when there is one.
+ * A file's text, or why the sweep does not search it: `null` for a type that holds no path a
+ * page loads, as the search before a delete leaves it unread (`holdsNoPathAPageLoads`), and a
+ * skip with its reason for a file past the limit or one that could not be read. A database or
+ * compiled code is searched, since its bytes can hold a path. Bytes are compared with bytes,
+ * asked of `sizeOf` before the read when there is one.
  */
 async function textToSearch(
   file: { readonly path: string; readonly relative: string; readonly extension?: string },
   options: SweepOptions,
   maxBytes: number,
 ): Promise<string | SweepSkip | null> {
-  if (file.extension !== undefined && isBinaryExtension(file.extension)) return null;
+  if (file.extension !== undefined && holdsNoPathAPageLoads(file.extension)) return null;
   const tooLarge: SweepSkip = {
     relative: file.relative,
     // Human scale, since the report prints this verbatim. `formatBytes` rather than fixed

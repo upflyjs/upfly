@@ -901,6 +901,20 @@ describe('sweepForMentions', () => {
       expect(result.mentions.size).toBe(0);
       expect(result.skipped).toEqual([]);
     });
+
+    it('reads a database and compiled code, which can hold a path a page loads', async () => {
+      const names = ['content.db', 'pages.sqlite', 'app.wasm', 'addon.node', 'blob.bin', 'old.swf'];
+      const graph = graphOf({ assets: [asset('hero.png')], unscannedFiles: names.map(unscanned) });
+
+      const result = await sweepForMentions({
+        graph,
+        readFile: async () => '\0\0\0<img src="/hero.png">',
+      });
+
+      expect(result.mentions.get('hero.png')?.map((mention) => mention.where)).toEqual(
+        names.map((name) => `${name}:1`).sort(),
+      );
+    });
   });
 
   describe('determinism and shape', () => {

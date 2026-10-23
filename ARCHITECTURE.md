@@ -823,10 +823,11 @@ The sweep reads three things: files **no adapter claimed**, the raw path of ever
 while each file's text was already in memory, so no source file is read twice. That last one
 covers a name that parses fine and yields no reference, such as `{ file: 'My Logo.png' }`, a spaced
 file name with no slash, which has the shape of a UI label (see "What counts as a path-shaped
-string"). Of the files no adapter claimed, a known binary type (a video, a font, an archive) is
-never read, since it holds no text and the report already counts it as binary, and any other is
-read only when its size on disk, asked first, is within the limit (2 MiB, bytes against bytes);
-a larger one is skipped with that reason rather than read whole.
+string"). Of the files no adapter claimed, a type whose bytes hold no path a page loads (a video,
+a font, an archive) is never read, as the search before a delete never reads one
+(`holdsNoPathAPageLoads`), and any other is read only when its size on disk, asked first, is
+within the limit (2 MiB, bytes against bytes), a database and compiled code among them, since
+their bytes can hold a path; a larger one is skipped with that reason rather than read whole.
 
 A name is found with the spaces and parentheses it holds, though the filename token stops at
 both, and in any script: `Zaječar (2).jpg` and `Рисунок3.png` are found whole, not as
@@ -2334,8 +2335,10 @@ regression of three says nothing about a fourth break the count could not see.
 
 The limit names each class a reader would act on differently:
 
-- Unread file types that could hold a path, with their file counts. Binary types such as fonts are
-  left out, since no path text can hide in them. An unread type wants an adapter.
+- Unread file types that could hold a path, with their file counts. The types whose bytes hold no
+  path a page loads, such as fonts, are left out (`holdsNoPathAPageLoads`, the list the search
+  before a delete leaves unread); a database and compiled code are named, since their bytes can
+  hold one. An unread type wants an adapter.
 - Files of a type Upfly reads that could not be parsed, each named with the parser's complaint.
   Grouped by extension they would read as a missing adapter, when the cause is usually one invalid
   construct, such as bad CSS inside an inline `<style>`, which makes a whole HTML file unreadable.

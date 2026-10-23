@@ -82,27 +82,20 @@ export function groupUnscanned(extensions: readonly UnscannedExtension[]): Unsca
 }
 
 /**
- * The unread file types a literal path could be hiding in: the text types, and SVG, which
- * can carry an `<image href>` a move would fail to repoint. Binary types are left out, since
- * a font holds no path text for a move to miss.
+ * The unread file types a literal path could be hiding in: every type but those that hold no
+ * path a page loads (`holdsNoPathAPageLoads`). The text types are among them, SVG, which can
+ * carry an `<image href>` a move would fail to repoint, and a database or compiled code, whose
+ * bytes can hold a path; a font holds no path text for a move to miss.
  */
 export function couldHideAReference(
   extensions: readonly UnscannedExtension[],
 ): readonly UnscannedExtension[] {
-  const groups = groupUnscanned(extensions);
-  const svg = extensions.find((entry) => entry.ext === '.svg');
-
   // Most files first, so a caller that names only the first few leaves out the smallest
   // types rather than whichever sort last alphabetically. Ties break on extension, so the
   // order is deterministic.
-  return [...groups.adapterCould, ...(svg === undefined ? [] : [svg])].sort(
-    (a, b) => b.fileCount - a.fileCount || (a.ext < b.ext ? -1 : a.ext > b.ext ? 1 : 0),
-  );
-}
-
-/** Whether an extension (as `extensionOf` returns it) names a known binary format. */
-export function isBinaryExtension(extension: string): boolean {
-  return BINARY_EXTENSIONS.has(extension);
+  return extensions
+    .filter((entry) => !holdsNoPathAPageLoads(entry.ext))
+    .sort((a, b) => b.fileCount - a.fileCount || (a.ext < b.ext ? -1 : a.ext > b.ext ? 1 : 0));
 }
 
 /**

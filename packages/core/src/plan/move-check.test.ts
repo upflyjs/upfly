@@ -220,6 +220,21 @@ describe('a move’s regression count, and what it cannot see', () => {
     expect(check.limit.unreadFileCount).toBe(3);
   });
 
+  it('names a database and compiled code, whose bytes can hold a path a page loads', () => {
+    const could = ['.db', '.sqlite', '.wasm', '.node', '.bin', '.swf'];
+    const check = checkMoveRegression({
+      before: graphWith({ broken: 0 }),
+      after: graphWith({
+        broken: 0,
+        unread: [...could, '.mp4', '.zip'].map((ext) => ({ ext, count: 1 })),
+      }),
+      excludedRoots: [],
+    });
+
+    expect(check.limit.typesThatCouldHide.map((entry) => entry.ext)).toEqual([...could].sort());
+    expect(check.limit.unreadFileCount).toBe(could.length);
+  });
+
   it('names the types holding most files first, so truncation hides the smallest', () => {
     // In alphabetical order the one type that matters can sit behind "and 1 more". The
     // data below is built so the two orderings disagree: alphabetically `.aaa` leads, by

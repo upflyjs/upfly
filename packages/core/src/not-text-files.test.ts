@@ -192,6 +192,32 @@ describe('a path written in a file that is not text keeps the original, in refs 
     expect(seen.move).toEqual(['site.sqlite3:1']);
   });
 
+  it.each(['content.db', 'pages.sqlite', 'site.sqlite3'])(
+    'calls an image that only %s names possibly unused, as the search before a delete finds it',
+    async (file) => {
+      const root = await project({
+        'public/old-banner.png': 'IMAGE',
+        'index.html': '<p>Our office</p>\n',
+        [file]: sqlite('<img src="/old-banner.png" alt="">'),
+      });
+
+      const pipeline = await runPipeline({
+        root,
+        servingRoots: servingRootsFor(SERVED),
+        publicDirs: (servingRoots) => servingRoots.dirs,
+        probeOptions: null,
+      });
+      const refs = await unfollowedLines(pipeline, ['public/old-banner.png']);
+
+      expect(refs.lines.map((line) => `${line.file}:${line.line}`)).toEqual([`${file}:1`]);
+      expect(
+        pipeline.audit.findings.filter(
+          (finding) => 'asset' in finding && finding.asset === 'public/old-banner.png',
+        ),
+      ).toMatchObject([{ kind: 'possibly-dead', evidence: [{ where: `${file}:1` }] }]);
+    },
+  );
+
   it('finds a path in a library of 24 megabytes once, across the place one read of it ends and the next begins', async () => {
     // Random bytes, as compiled code reads; the path straddles the first megabyte.
     const library = randomBytes(24 * MEGABYTE);
