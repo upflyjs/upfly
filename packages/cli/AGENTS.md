@@ -71,7 +71,8 @@ reads the folder given after it, or the current folder, and prints plain text; a
    and a later `npx upfly undo` still puts back the whole run. `npx upfly undo --list --json`
    shows the run's changes line by line (`run.files`, each change with its `line`, its
    `paths` before and after, and whether it is `undone`) and each removed original, with
-   whether it is `back`. It changes nothing.
+   whether it is `back`, and `runs`, the runs kept in `.upfly`, newest first. It changes
+   nothing. `--run <id>` undoes or lists one of the earlier runs instead of the last.
 
 Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
 `--keep-originals` (keeping each original beside its converted file), and `--format avif`.
@@ -196,6 +197,10 @@ often a `reason` to branch on:
 - `CODE_CONFIG_NOT_RUN`: the command was given `--no-code-config` and the project holds a
   config written as code, such as `upfly.config.ts`, which it would have to run. Nothing
   was read. Ask the user whether the project's code may run.
+- `RUN_NOT_FOUND`: `undo --run` named a run whose record is not kept; `.upfly` keeps the
+  last ten. `npx upfly undo --list` shows them.
+- `LATER_RUN_STANDS`: `undo --run` named a run, and a later run that changed the same
+  files still stands. Nothing was changed; the message names the later run, to undo first.
 - `NOT_IN_RUN`: `undo --file` named a file, or `--line` a line, that the last run did not
   change, or a file it created, which only undoing the whole run removes. Nothing was
   changed; `npx upfly undo --list` shows what the run changed.

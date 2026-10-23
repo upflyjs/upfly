@@ -11,6 +11,7 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import {
   type FileChanges,
+  type FileStore,
   type Manifest,
   type OperationState,
   type PartUndone,
@@ -21,10 +22,10 @@ import {
   createNodeFileStore,
   describeRun,
   inspect,
-  readManifest,
   revert,
   undoPart,
 } from 'upfly-core';
+import { KEPT_RUNS, type KeptRun, keptRuns, refuseUnderLaterRun } from 'upfly-core/internal';
 import type { UndoOptions } from './args.js';
 import { isDirectory } from './audit.js';
 import { EXIT_CODES, type ExitCode, type RefusalReason } from './exit-codes.js';
@@ -40,6 +41,7 @@ const REFUSALS: readonly RefusalReason[] = [
   'TRANSACTION_LOCKED',
   'TRANSACTION_INTERRUPTED',
   'MANIFEST_VERSION_UNSUPPORTED',
+  'LATER_RUN_STANDS',
 ];
 
 /** The refusal `error` is, if the engine threw one of `REFUSALS`. */
@@ -93,9 +95,63 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
   }
   const store = createNodeFileStore(root);
 
-  let manifest: Manifest | null;
+  const runs = await readRuns(store, options, io);
+  if (typeof runs === 'number') return runs;
+  const target =
+    options.run === null ? runs[0] : runs.find((run) => run.manifest.runId === options.run);
+  if (options.run !== null && target === undefined) {
+    return stopWith(
+      io,
+      options,
+      EXIT_CODES.USAGE,
+      `No run ${options.run} is kept in .upfly, which keeps the last ${KEPT_RUNS} runs. ${upfly} undo --list shows them.`,
+      'RUN_NOT_FOUND',
+    );
+  }
+  if (options.list) return list(options, io, target ?? null, runs, part, root, upfly);
+  if (target === undefined) {
+    return nothingToUndo(
+      options,
+      io,
+      'No Upfly run has written to this project, so there is nothing to undo.',
+      part,
+    );
+  }
+  const manifest = target.manifest;
   try {
-    manifest = await readManifest(store);
+    await refuseUnderLaterRun(target, runs, store);
+  } catch (error) {
+    const refused = refusalIn(error);
+    if (refused === null) throw error;
+    return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
+  }
+  if (part !== null) return undoOnePart(options, io, target, part, root, upfly);
+  if (manifest.state === 'reverted') {
+    return nothingToUndo(options, io, alreadyUndone(manifest, target === runs[0]), null);
+  }
+
+  let states: readonly OperationState[];
+  try {
+    states = await inspect(manifest, store);
+    await revert(manifest, store, undefined, undefined, target.at);
+  } catch (error) {
+    const refused = refusalIn(error);
+    if (refused === null) throw error;
+    return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
+  }
+
+  write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId));
+  return EXIT_CODES.OK;
+}
+
+/** Every kept run, newest first, or the exit code of the stop when the records cannot be read. */
+async function readRuns(
+  store: FileStore,
+  options: UndoOptions,
+  io: Io,
+): Promise<readonly KeptRun[] | ExitCode> {
+  try {
+    return await keptRuns(store);
   } catch (error) {
     const refused = refusalIn(error);
     if (refused !== null) {
@@ -109,32 +165,6 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
       'MANIFEST_UNREADABLE',
     );
   }
-  if (options.list) return list(options, io, manifest, part, root, upfly);
-  if (manifest === null) {
-    return nothingToUndo(
-      options,
-      io,
-      'No Upfly run has written to this project, so there is nothing to undo.',
-      part,
-    );
-  }
-  if (part !== null) return undoOnePart(options, io, manifest, part, root, upfly);
-  if (manifest.state === 'reverted') {
-    return nothingToUndo(options, io, alreadyUndone(manifest), null);
-  }
-
-  let states: readonly OperationState[];
-  try {
-    states = await inspect(manifest, store);
-    await revert(manifest, store);
-  } catch (error) {
-    const refused = refusalIn(error);
-    if (refused === null) throw error;
-    return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
-  }
-
-  write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId));
-  return EXIT_CODES.OK;
 }
 
 /** The path as the user wrote it, POSIX-relative to the project, or null when outside it. */
@@ -146,22 +176,23 @@ function projectPath(root: string, written: string): string | null {
   return within.split(sep).join('/');
 }
 
-function alreadyUndone(manifest: Manifest): string {
-  return `The last run (${manifest.runId}) was already undone, at ${manifest.revertedAt}. Nothing was changed.`;
+function alreadyUndone(manifest: Manifest, last = true): string {
+  return `${last ? 'The last run' : 'The run'} (${manifest.runId}) was already undone, at ${manifest.revertedAt}. Nothing was changed.`;
 }
 
 /** Undo what the run did to one file, or to one line of it. */
 async function undoOnePart(
   options: UndoOptions,
   io: Io,
-  manifest: Manifest,
+  target: KeptRun,
   part: RunPart,
   root: string,
   upfly: UpflyCommand,
 ): Promise<ExitCode> {
+  const { manifest } = target;
   let done: PartUndone;
   try {
-    done = await undoPart(manifest, part, createNodeFileStore(root));
+    done = await undoPart(manifest, part, createNodeFileStore(root), { at: target.at });
   } catch (error) {
     if (error instanceof UpflyError && error.code === 'NOT_IN_RUN') {
       return stopWith(io, options, EXIT_CODES.USAGE, error.message, 'NOT_IN_RUN');
@@ -347,12 +378,13 @@ function nothingToUndo(options: UndoOptions, io: Io, why: string, part: RunPart 
 async function list(
   options: UndoOptions,
   io: Io,
-  manifest: Manifest | null,
+  target: KeptRun | null,
+  runs: readonly KeptRun[],
   part: RunPart | null,
   root: string,
   upfly: UpflyCommand,
 ): Promise<ExitCode> {
-  if (manifest === null) {
+  if (target === null) {
     const why = 'No Upfly run has written to this project, so there is nothing to undo.';
     if (options.json) {
       emit(io, {
@@ -364,6 +396,7 @@ async function list(
         commit: null,
         notes: [why],
         run: null,
+        runs: [],
       });
     } else {
       io.stdout.write(
@@ -373,6 +406,7 @@ async function list(
     return EXIT_CODES.OK;
   }
 
+  const { manifest } = target;
   let described: RunChanges;
   try {
     described = await describeRun(manifest, createNodeFileStore(root));
@@ -386,6 +420,11 @@ async function list(
       ? described
       : { ...described, files: described.files.filter((file) => file.path === part.file) };
   const commit = commitForRun(root, manifest.runId);
+  const kept = runs.map(({ manifest: each }) => ({
+    id: each.runId,
+    startedAt: each.startedAt,
+    state: stateOf(each),
+  }));
   if (options.json) {
     emit(io, {
       type: 'result',
@@ -396,11 +435,19 @@ async function list(
       commit,
       notes: [],
       run,
+      runs: kept,
     });
     return EXIT_CODES.OK;
   }
-  io.stdout.write(listed(run, options, io, upfly));
+  const named = target === runs[0] ? null : manifest.runId;
+  io.stdout.write(listed(run, kept, named, options, io, upfly));
   return EXIT_CODES.OK;
+}
+
+/** A run's state in the words `--list` uses. */
+function stateOf(manifest: Manifest): RunChanges['state'] {
+  if (manifest.state === 'pending') return 'interrupted';
+  return manifest.state === 'reverted' ? 'undone' : 'applied';
 }
 
 const STATE_WORDS: Readonly<Record<RunChanges['state'], string>> = {
@@ -410,13 +457,25 @@ const STATE_WORDS: Readonly<Record<RunChanges['state'], string>> = {
 };
 
 /** The run's changes as text: each file's lines, the originals, the created files, the commands. */
-function listed(run: RunChanges, options: UndoOptions, io: Io, upfly: UpflyCommand): string {
+function listed(
+  run: RunChanges,
+  kept: readonly { readonly id: string; readonly state: RunChanges['state'] }[],
+  named: string | null,
+  options: UndoOptions,
+  io: Io,
+  upfly: UpflyCommand,
+): string {
   const styles = stylesFor(io.stdout, io.env, options);
   const lines = [
     headline(styles, 'undo', 'list'),
     '',
     `Run ${run.id}, started ${run.startedAt}: ${STATE_WORDS[run.state]}.`,
   ];
+  if (kept.length > 1) {
+    lines.push(
+      `Kept runs, newest first: ${kept.map((each) => `${each.id} (${STATE_WORDS[each.state]})`).join(', ')}.`,
+    );
+  }
   for (const file of run.files) lines.push('', ...fileLines(file, styles));
   if (run.originals.length > 0) {
     lines.push('', 'Images it removed or moved away', ...originalLines(run.originals, styles));
@@ -425,7 +484,7 @@ function listed(run: RunChanges, options: UndoOptions, io: Io, upfly: UpflyComma
     lines.push('', 'Files it created, which only undoing the whole run removes');
     for (const path of run.created) lines.push(`  ${path}`);
   }
-  if (run.state === 'applied') lines.push('', ...nextCommands(run, upfly));
+  if (run.state === 'applied') lines.push('', ...nextCommands(run, named, upfly));
   return spaced(lines);
 }
 
@@ -457,21 +516,21 @@ function originalLines(originals: readonly RunOriginal[], styles: Styles): strin
 }
 
 /** The commands that undo a line, a file and the whole run, for this run's first change. */
-function nextCommands(run: RunChanges, upfly: UpflyCommand): string[] {
-  const words = upfly.split(' ');
+function nextCommands(run: RunChanges, named: string | null, upfly: UpflyCommand): string[] {
+  const words = [...upfly.split(' '), 'undo', ...(named === null ? [] : ['--run', named])];
   const first = run.files.find((file) => !file.changedSince);
   const line = first?.changes.find((change) => change.undone === false && change.line !== null);
   const commands: [string, string | null][] = [];
   if (first !== undefined && line !== undefined) {
     commands.push([
       'Undo one line',
-      commandLine([...words, 'undo', '--file', first.path, '--line', String(line.line)]),
+      commandLine([...words, '--file', first.path, '--line', String(line.line)]),
     ]);
   }
   if (first !== undefined) {
-    commands.push(['Undo one file', commandLine([...words, 'undo', '--file', first.path])]);
+    commands.push(['Undo one file', commandLine([...words, '--file', first.path])]);
   }
-  commands.push(['Undo the run', commandLine([...words, 'undo'])]);
+  commands.push(['Undo the run', commandLine(words)]);
   return commands.flatMap(([label, command]) =>
     command === null ? [] : [`${label.padEnd(15)}${command}`],
   );

@@ -142,7 +142,7 @@ Upfly optimize · applied
 | `npx upfly init` | Writes `upfly.config.json` with the folders your site is served from, and why. `--agents` also points your coding agents at Upfly. |
 | `npx upfly audit` | Reports your images, the references to them, the references that point at nothing, the images nothing uses, and what `optimize` would save, measured by encoding each image it could convert. Changes no project file. |
 | `npx upfly optimize` | Converts each image that comes out smaller, updates the references it can rewrite safely, and removes each original they replace (`--keep-originals` keeps them). Shows the plan until you add `--apply`. |
-| `npx upfly undo` | Puts back every file the last `optimize`, `move` or `dedupe` run with `--apply` changed; with `--file`, only one file's changes, and with `--line`, one line's. `--list` shows what the run changed. |
+| `npx upfly undo` | Puts back every file the last `optimize`, `move` or `dedupe` run with `--apply` changed; with `--file`, only one file's changes, and with `--line`, one line's. `--list` shows what the run changed, and `--run` names one of the last ten runs instead. |
 | `npx upfly refs <image>` | Lists every line that names one image, whether Upfly can rewrite each, and what `optimize` would do with it. Changes nothing. |
 | `npx upfly move <from> <to>` | Moves an image, or the images in a folder, updates the references Upfly can rewrite, and lists every other line that still names the old path. Shows the plan until you add `--apply`. |
 | `npx upfly dedupe` | Keeps one copy of each image stored more than once and points the references at it. Deletes nothing. |

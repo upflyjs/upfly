@@ -13,10 +13,13 @@ import {
 } from './manifest.js';
 import {
   type FileStore,
+  KEPT_RUNS,
   type PlannedOperation,
   type RunContext,
   commit,
   inspect,
+  keptRecordPath,
+  keptRuns,
   prepare,
   revert,
 } from './transaction.js';
@@ -419,6 +422,41 @@ describe('the folders of earlier runs, each holding its staged files and backups
     expect(runFolders(harness.files)).toEqual([RUN_DIR]);
     await revert(manifest, harness.store);
     expect(harness.files.get('images/old.png')).toBe('OLD-BYTES');
+  });
+
+  it('keep the newest ten, each with its own record, which undoes it by name', async () => {
+    const harness = memoryStore(tree());
+    const runs = Array.from({ length: 12 }, (_, i) => `r${String(i + 1).padStart(2, '0')}`);
+    for (const [i, runId] of runs.entries()) {
+      const runDir = `.upfly/runs/${runId}`;
+      harness.files.set(`${runDir}/staged/n${i}.txt`, `N${i}`);
+      const at = `2026-01-01T00:00:${String(i).padStart(2, '0')}.000Z`;
+      await commit(
+        [
+          {
+            kind: 'create',
+            path: `gen/n${i}.txt`,
+            staged: `staged/n${i}.txt`,
+            afterHash: sha(`N${i}`),
+          },
+        ],
+        harness.store,
+        { runId, runDir, now: () => at, declined: [] },
+      );
+    }
+
+    const kept = runs.slice(-KEPT_RUNS);
+    expect(runFolders(harness.files)).toEqual(kept.map((runId) => `.upfly/runs/${runId}`));
+    const listed = await keptRuns(harness.store);
+    expect(listed.map((run) => run.manifest.runId)).toEqual([...kept].reverse());
+    expect(listed[0]?.at).toBe(MANIFEST_PATH);
+    expect(listed[1]?.at).toBe(keptRecordPath(kept.at(-2) as string));
+
+    const earlier = listed.at(-1) as (typeof listed)[number];
+    await revert(earlier.manifest, harness.store, undefined, undefined, earlier.at);
+    expect(harness.files.has(`gen/n${runs.length - KEPT_RUNS}.txt`)).toBe(false);
+    expect(harness.files.has('gen/n11.txt')).toBe(true);
+    expect((await keptRuns(harness.store)).at(-1)?.manifest.state).toBe('reverted');
   });
 
   it('stay when the commit stops part way, since that run is the one undo must follow', async () => {

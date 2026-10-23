@@ -31,7 +31,14 @@ export type { Mention } from './audit/sweep.js';
 export { planRelocation } from './plan/relocate.js';
 export type { Move, RelocationPlan } from './plan/relocate.js';
 export { PROJECT_MARKERS, detectServingRoots } from './resolve/serving-roots.js';
-export { commit, prepare } from './write/transaction.js';
+export {
+  KEPT_RUNS,
+  commit,
+  keptRuns,
+  prepare,
+  refuseUnderLaterRun,
+} from './write/transaction.js';
+export type { KeptRun } from './write/transaction.js';
 export type { PlannedOperation } from './write/transaction.js';
 export { scanSources } from './scan/scan.js';
 export type { ScanDiagnostic } from './scan/scan.js';

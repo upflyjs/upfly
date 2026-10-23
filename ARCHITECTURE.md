@@ -2077,10 +2077,18 @@ policy removed. A run refused before it writes, while staging or in `prepare`, i
 case: nothing will ever read what it staged, so its encodes and backups are removed. Staging
 encodes four images at a time and records each staged path before the step that writes it; the
 original is hashed before its encode and checked after each step that reads it; the operations
-keep the plan's order whichever encode finished first. And once a
-run commits, every earlier run's directory is removed: `undo` restores only the run the manifest
-names, and the committed manifest has just replaced the last one, so nothing can restore from an
-earlier directory again. A run that stops part way removes none, its own included.
+keep the plan's order whichever encode finished first. **The last ten runs keep their
+directories** (`KEPT_RUNS`), so each can still be undone by name (`undo --run`): before a run's
+record replaces the last one in `.upfly/manifest.json`, the last one is copied into its own run
+directory, and once the run commits, the directories past the ten newest are removed, with any
+earlier one that holds no record, such as a run refused before it wrote. Each kept run costs the
+disk its removed originals take. A run that stops part way removes none, its own included.
+
+Undoing an earlier run is refused (`LATER_RUN_STANDS`) while a later run that still stands
+changed one of the same files: its undo would write over the later run's changes, and the hashes
+would call that file somebody else's edit anyway. The refusal names the later run to undo first.
+A later run whose changes to those files are all undone, on their own or as a whole, is no longer
+in the way.
 
 On top of all that, `upfly optimize --apply` refuses a project folder with uncommitted changes
 unless forced, and `--commit` produces exactly one commit, making `git revert` the real undo

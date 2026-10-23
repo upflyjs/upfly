@@ -147,6 +147,8 @@ Options:
   --line <n>             With --file, undo only the changes on this line, counted from 1
   --list                 Show what the last run changed, line by line, and what of it is
                          undone, changing nothing
+  --run <id>             Undo, or list, an earlier run kept in .upfly instead of the last
+                         one; refused while a later run that changed the same files stands
   --json                 Print one JSON object per line: the result
 
 Exit status: 0 when the files were put back, there was nothing to undo, or the run was

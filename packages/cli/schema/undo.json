@@ -76,8 +76,22 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "runs": {
+      "description": "With --list only: every run whose record is kept, newest first, the last run first; upfly undo --run takes each id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "startedAt", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "startedAt": { "type": "string" },
+          "state": { "enum": ["applied", "undone", "interrupted"] }
+        }
+      }
+    },
     "run": {
-      "description": "With --list only: what the last run changed, as it stands now, or null when no run has written to the project. With --file, files holds that file alone.",
+      "description": "With --list only: what the last run changed, or with --run the run named, as it stands now, or null when no run has written to the project. With --file, files holds that file alone.",
       "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/run" }]
     }
   },
