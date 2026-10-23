@@ -41,7 +41,7 @@ describe('no command reaches the network', () => {
     expect(attempted(script)).toBe(`${api}\n`);
   });
 
-  it('init, audit, optimize --apply --commit, undo in each form, check, refs and dedupe', () => {
+  it('init, audit, optimize --apply --commit, undo in each form, check, refs, dedupe and move --apply --commit', () => {
     const root = copyFixture('vite-react', tempFolder(roots, 'upfly-net-'));
     commitAll(root);
     const log = join(tempFolder(roots, 'upfly-net-log-'), 'attempts.log');
@@ -74,5 +74,17 @@ describe('no command reaches the network', () => {
     expect(run('check', root).stdout).toContain('Passed');
     run('refs', join(root, 'src/assets/logo.png'), root);
     run('dedupe', root);
+    git(root, 'add', '-A');
+    git(root, 'commit', '--quiet', '-m', 'the files undo put back');
+    const moved = run(
+      'move',
+      join(root, 'src/assets/hero.jpg'),
+      join(root, 'src/assets/moved/'),
+      root,
+      '--apply',
+      '--commit',
+    );
+    expect(moved.stdout).toMatch(/\n {2}Commit {7}[0-9a-f]{12},/);
+    expect(existsSync(join(root, 'src/assets/moved/hero.jpg'))).toBe(true);
   }, 120_000);
 });
