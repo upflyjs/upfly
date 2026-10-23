@@ -381,7 +381,8 @@ The `watch` settings are for the editor; the commands check them and act on none
 
 Every command reads the file from then on. Its JSON Schema is
 [`packages/cli/schema/config.json`](packages/cli/schema/config.json), so an editor checks it as you type.
-`upfly.config.ts`, or `.js` and `.mjs`, works too.
+`upfly.config.ts`, or `.js` and `.mjs`, works too. Upfly runs such a file to read it, so for a folder whose code you
+do not trust, `--no-code-config` makes any command stop at one instead of running it.
 
 ## Checking image paths in CI
 

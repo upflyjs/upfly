@@ -25,6 +25,11 @@ export interface CommonOptions {
   readonly json: boolean;
   /** `--no-color`; the environment is consulted separately. */
   readonly noColor: boolean;
+  /**
+   * `--no-code-config`: never run a config written as code, such as `upfly.config.ts`, and
+   * stop when the project holds one. `upfly.config.json` is still read, as data.
+   */
+  readonly noCodeConfig: boolean;
 }
 
 export interface ScopeOptions {
@@ -51,6 +56,10 @@ export interface AuditOptions extends CommonOptions, ScopeOptions, ReportOptions
   readonly probe: boolean;
   /** How many images to measure by encoding; `null` is every one (`--probe-all`). */
   readonly maxEncodes: number | null;
+  /** `--include-images`: add each image, its references and its findings to the JSON result. */
+  readonly includeImages: boolean;
+  /** `--include-text`: add the report file's text to the JSON result, writing no file. */
+  readonly includeText: boolean;
 }
 
 export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOptions {
@@ -197,6 +206,7 @@ const COMMANDS: readonly CommandName[] = [
 const COMMON = {
   json: { type: 'boolean' },
   'no-color': { type: 'boolean' },
+  'no-code-config': { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 
@@ -219,6 +229,8 @@ const AUDIT = {
   'no-probe': { type: 'boolean' },
   'max-encodes': { type: 'string' },
   'probe-all': { type: 'boolean' },
+  'include-images': { type: 'boolean' },
+  'include-text': { type: 'boolean' },
 } as const;
 
 const OPTIMIZE = {
@@ -342,6 +354,7 @@ function parseDedupe(args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       full: values.full === true,
       show: values.show ?? null,
       apply,
@@ -397,6 +410,7 @@ function parseMove(args: readonly string[], upfly: UpflyCommand): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       full: values.full === true,
       show: values.show ?? null,
       apply,
@@ -441,6 +455,7 @@ function parseRefs(args: readonly string[], upfly: UpflyCommand): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       ...scope,
     },
   };
@@ -475,6 +490,7 @@ function parseCheck(args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       changed: changed === undefined ? null : { against: changed === '' ? null : changed },
       failOn,
       warn: values.warn === true,
@@ -536,7 +552,13 @@ function parseAudit(args: readonly string[]): Parsed {
   if (typeof maxEncodes === 'string') return { kind: 'usage-error', command, message: maxEncodes };
   const conflict =
     fullConflict(values.full, values.json) ??
-    showConflict(command, values.show, values.full, values.json);
+    showConflict(command, values.show, values.full, values.json) ??
+    (values['include-images'] === true && values.json !== true
+      ? '--include-images needs --json: it adds each image to the JSON result'
+      : null) ??
+    (values['include-text'] === true && values.json !== true
+      ? '--include-text needs --json: it adds the report as text to the JSON result, which the text output already is'
+      : null);
   if (conflict !== null) return { kind: 'usage-error', command, message: conflict };
 
   return {
@@ -546,6 +568,9 @@ function parseAudit(args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
+      includeImages: values['include-images'] === true,
+      includeText: values['include-text'] === true,
       probe: values['no-probe'] !== true,
       maxEncodes,
       full: values.full === true,
@@ -601,6 +626,7 @@ function parseOptimize(args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       show: values.show ?? null,
       apply,
       commit,
@@ -702,6 +728,7 @@ function parseInit(args: readonly string[]): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       agents: values.agents === true,
     },
   };
@@ -740,6 +767,7 @@ function parseUndo(args: readonly string[], upfly: UpflyCommand): Parsed {
       dir: dir.value,
       json: values.json === true,
       noColor: values['no-color'] === true,
+      noCodeConfig: values['no-code-config'] === true,
       file: values.file ?? null,
       line,
       list: values.list === true,

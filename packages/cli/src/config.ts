@@ -135,13 +135,16 @@ const WATCH_KEYS = ['folders', 'skip', 'keepOriginals', 'outside'] as const;
 export type ConfigOutcome =
   | { readonly kind: 'none' }
   | { readonly kind: 'loaded'; readonly file: string; readonly config: UpflyConfig }
-  /** Another product's file, left untouched. The command stops for safety. */
+  /**
+   * Another product's file, left untouched, or a config written as code that the command was
+   * told not to run. The command stops for safety.
+   */
   | {
       readonly kind: 'refused';
       readonly file: string;
       readonly message: string;
       /** The name `--json` gives this refusal. */
-      readonly reason: 'V2_EXTENSION_CONFIG';
+      readonly reason: 'V2_EXTENSION_CONFIG' | 'CODE_CONFIG_NOT_RUN';
     }
   /** A file Upfly cannot use as written. The command stops as a usage error. */
   | { readonly kind: 'invalid'; readonly file: string; readonly message: string };
@@ -150,12 +153,27 @@ export type ConfigOutcome =
  * Finds and reads the configuration in `root`.
  *
  * @param root the project directory, the same one the command runs on
+ * @param options `runCode: false` refuses a config written as code rather than running it,
+ *   for a project whose code is not to be run, such as a folder an editor does not trust
  * @returns `none` when there is no file, or the validated config, or why it cannot be used
  */
-export async function loadConfig(root: string): Promise<ConfigOutcome> {
+export async function loadConfig(
+  root: string,
+  options: { readonly runCode?: boolean } = {},
+): Promise<ConfigOutcome> {
   const present = CONFIG_FILES.filter((file) => existsSync(join(root, file)));
   const code = present.filter((file) => file !== 'upfly.config.json');
   const hasJson = present.includes('upfly.config.json');
+
+  const [first] = code;
+  if (options.runCode === false && first !== undefined) {
+    return {
+      kind: 'refused',
+      file: first,
+      message: `${first} is a config written as code, and --no-code-config says to run no code from the project, so it was not read and nothing was done. Run Upfly without --no-code-config where the project's code can be trusted, or write the settings in upfly.config.json.`,
+      reason: 'CODE_CONFIG_NOT_RUN',
+    };
+  }
 
   if (code.length > 1) {
     return {

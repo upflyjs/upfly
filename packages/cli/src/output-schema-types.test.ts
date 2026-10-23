@@ -51,6 +51,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import type { InstructionFile, SkillFile } from './agents.js';
 import type { CommandName } from './args.js';
+import type { AuditImage, AuditImageReference, ImageFindingKind } from './audit-images.js';
 import type { TooLargeFinding } from './check.js';
 import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
@@ -748,6 +749,32 @@ describe('the command schemas and the types each command prints agree', () => {
     expectFields(
       at(m, '/properties/run'),
       fields<MoveRun>({ id: 'required', moved: 'required', changed: 'required' }),
+    );
+  });
+
+  it('audit: the images --include-images lists', () => {
+    const a = 'audit.json';
+    expectFields(
+      at(a, '/properties/images/items'),
+      fields<AuditImage>({
+        path: 'required',
+        bytes: 'required',
+        references: 'required',
+        findings: 'required',
+      }),
+    );
+    expectFields(
+      at(a, '/properties/images/items/properties/references/items'),
+      fields<AuditImageReference>({ file: 'required', line: 'required', text: 'required' }),
+    );
+    expect(enumOf(at(a, '/properties/images/items/properties/findings/items'))).toEqual(
+      members<ImageFindingKind>({
+        dead: true,
+        'possibly-dead': true,
+        oversized: true,
+        'format-opportunity': true,
+        duplicate: true,
+      }),
     );
   });
 

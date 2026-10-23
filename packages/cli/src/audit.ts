@@ -17,6 +17,7 @@ import {
 } from 'upfly-core';
 import { convertibleImages, optimizeFromPipeline } from 'upfly-core/internal';
 import type { AuditOptions } from './args.js';
+import { type AuditImage, auditImages } from './audit-images.js';
 import { loadConfig } from './config.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
@@ -47,7 +48,7 @@ export async function runAudit(options: AuditOptions, io: Io): Promise<ExitCode>
     return stopWith(io, options, EXIT_CODES.USAGE, `${options.dir} is not a directory`);
   }
 
-  const config = await loadConfig(root);
+  const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
     return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason);
   }
@@ -98,7 +99,8 @@ export async function runAudit(options: AuditOptions, io: Io): Promise<ExitCode>
     includeDiscarded: options.includeDiscarded,
     includeUnusedVectors: options.includeUnusedSvg,
   });
-  write(options, io, { report, savings, output, root, started });
+  const images = options.includeImages ? await auditImages(output, report) : null;
+  write(options, io, { report, savings, output, root, started, images });
   return EXIT_CODES.OK;
 }
 
@@ -165,6 +167,8 @@ function write(
     readonly output: PipelineOutput;
     readonly root: string;
     readonly started: Date;
+    /** With `--include-images`, every image; otherwise null, and the result leaves them out. */
+    readonly images: readonly AuditImage[] | null;
   },
 ): void {
   const { report, savings, output, root } = run;
@@ -191,6 +195,8 @@ function write(
               unmeasured: savings.unmeasured,
               conversions: savings.conversions,
             },
+      ...(run.images === null ? {} : { images: run.images }),
+      ...(options.includeText ? { text: reportText(options, io, run) } : {}),
     });
     return;
   }
@@ -210,6 +216,25 @@ function write(
       `The imaging and parsing libraries left ${said} ${said === 1 ? 'message' : 'messages'} of their own; \`${upfly} audit --json\` includes their text.\n`,
     );
   }
+}
+
+/** The report file's text, as `.upfly/audit.txt` holds it after a run without `--json`. */
+function reportText(
+  options: AuditOptions,
+  io: Io,
+  run: {
+    readonly report: Report;
+    readonly savings: Savings | null;
+    readonly root: string;
+    readonly started: Date;
+  },
+): string {
+  const upfly = upflyCommand(io.env, io.script);
+  const next = nextAfterAudit(options, run.report, run.savings, upfly);
+  return renderFile(
+    auditSummary(run.report, run.savings, { written: reportPath('audit') }, next, upfly),
+    { when: localTime(run.started), folder: run.root, options: typedOptions(options) },
+  );
 }
 
 /**

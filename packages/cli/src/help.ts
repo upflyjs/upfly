@@ -33,6 +33,9 @@ Commands:
 
 Options for every command:
   --json         Print one JSON object per line: progress, then the result
+  --no-code-config
+                 Run no config written as code, such as upfly.config.ts, and stop when
+                 the project has one; upfly.config.json is still read
   -h, --help     Show help for a command
   -v, --version  Print the version
 
@@ -68,10 +71,15 @@ Options:
   --no-probe             Read no image at all; sizes and savings are then not measured
   --include-discarded    Also list the path-like strings that linked nothing
   --include-unused-svg   Also list the unused SVG files, which are otherwise only counted
+  --include-images       With --json, also list every image with its size, each reference
+                         to it at its file and line, and the findings that name it
+  --include-text         With --json, also give the full report as text, as the report
+                         file holds it, writing no file
   --json                 Print one JSON object per line: progress, then the report
 
 Exit status: 0 when the audit ran, 2 for a usage or configuration error, 3 when the
-configuration file belongs to another tool, 4 for a failure Upfly did not anticipate.
+configuration file belongs to another tool or is code --no-code-config refuses to run, 4
+for a failure Upfly did not anticipate.
 `;
 
 const OPTIMIZE = `Usage: upfly optimize [dir] [options]

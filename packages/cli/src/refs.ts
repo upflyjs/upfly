@@ -97,7 +97,7 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
   if (!isDirectory(root)) {
     return stopWith(io, options, EXIT_CODES.USAGE, `${options.dir} is not a directory`);
   }
-  const config = await loadConfig(root);
+  const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
     return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason);
   }

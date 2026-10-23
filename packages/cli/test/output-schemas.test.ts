@@ -80,6 +80,7 @@ function record(line: Line): void {
 const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] = [
   ['audit savings', (line) => line.command === 'audit' && line.savings !== null],
   ['audit no savings', (line) => line.command === 'audit' && line.savings === null],
+  ['audit images', (line) => line.command === 'audit' && Array.isArray(line.images)],
   ['check --changed', (line) => line.command === 'check' && line.changed !== null],
   ['check unread', (line) => line.command === 'check' && line.unread !== undefined],
   [
@@ -241,6 +242,19 @@ describe('every --json line validates against the published schemas', () => {
     );
     expect((listed.report as Report).findings.length).toBeGreaterThan(0);
     result(upfly(['audit', site, '--json', '--public', '.', '--no-probe']));
+    const imaged = result(
+      upfly([
+        'audit',
+        site,
+        '--json',
+        '--public',
+        '.',
+        '--no-probe',
+        '--include-images',
+        '--include-text',
+      ]),
+    );
+    expect((imaged.images as unknown[]).length).toBeGreaterThan(0);
   }, 120_000);
 
   it('dedupe, applied and committed, and undo putting it back', () => {
@@ -452,6 +466,7 @@ describe('every --json line validates against the published schemas', () => {
       'result audit',
       'audit savings',
       'audit no savings',
+      'audit images',
       'result optimize',
       'result undo',
       'result check',

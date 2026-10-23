@@ -31,7 +31,10 @@ reads the folder given after it, or the current folder, and prints plain text; a
   largest of the images optimize could convert, so optimize converts and saves at least
   that much; `--probe-all` measures them all. `report.summary.potentialSavingBytes` is a
   different number: every image measured smaller, including ones optimize would not
-  convert. Quote `savings`.
+  convert. Quote `savings`. `--include-images` adds `images`: every image with its size,
+  each reference to it with `file`, `line` and the path as written, and the kinds of
+  finding that name it, and `--include-text` adds `text`, the full report as
+  `.upfly/audit.txt` would hold it, with no file written.
 
 ## Converting images, safely
 
@@ -189,6 +192,9 @@ often a `reason` to branch on:
   wrote it.
 - `MANIFEST_UNREADABLE`: `.upfly/manifest.json`, the record `undo` follows, cannot be read,
   so nothing was changed. Tell the user.
+- `CODE_CONFIG_NOT_RUN`: the command was given `--no-code-config` and the project holds a
+  config written as code, such as `upfly.config.ts`, which it would have to run. Nothing
+  was read. Ask the user whether the project's code may run.
 - `NOT_IN_RUN`: `undo --file` named a file, or `--line` a line, that the last run did not
   change, or a file it created, which only undoing the whole run removes. Nothing was
   changed; `npx upfly undo --list` shows what the run changed.

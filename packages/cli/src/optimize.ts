@@ -140,13 +140,13 @@ function onlyNotes(result: OptimizeProjectResult): string[] {
 
 /** The project directory and its settings, or why the command cannot use them. */
 export async function openProject(
-  options: Pick<OptimizeOptions, 'dir'>,
+  options: Pick<OptimizeOptions, 'dir' | 'noCodeConfig'>,
 ): Promise<{ readonly root: string; readonly settings: UpflyConfig } | Refusal> {
   const root = resolve(options.dir);
   if (!isDirectory(root)) {
     return { code: EXIT_CODES.USAGE, message: `${options.dir} is not a directory` };
   }
-  const config = await loadConfig(root);
+  const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
     return { code: EXIT_CODES.ABORTED, reason: config.reason, message: config.message };
   }

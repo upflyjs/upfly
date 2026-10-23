@@ -50,6 +50,48 @@
           }
         }
       ]
+    },
+    "text": {
+      "description": "With --include-text only: the report as text, as .upfly/audit.txt holds it after an audit without --json. No file is written.",
+      "type": "string"
+    },
+    "images": {
+      "description": "With --include-images only: every image the audit found, in path order, with its size, each reference that links it, and the kinds of finding that name it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "bytes", "references", "findings"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "description": "The image, as a path inside the project.", "type": "string" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "references": {
+            "description": "Each reference that links it, where it is written.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file", "line", "text"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string" },
+                "line": {
+                  "description": "Counted from 1, or null when the file could not be read again to count it.",
+                  "type": ["integer", "null"],
+                  "minimum": 1
+                },
+                "text": { "description": "The path as written.", "type": "string" }
+              }
+            }
+          },
+          "findings": {
+            "description": "The kind of each finding in report.findings that names the image.",
+            "type": "array",
+            "items": {
+              "enum": ["dead", "possibly-dead", "oversized", "format-opportunity", "duplicate"]
+            }
+          }
+        }
+      }
     }
   }
 }
