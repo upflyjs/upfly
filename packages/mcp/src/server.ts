@@ -230,6 +230,12 @@ function serverFor(folder: string): McpServer {
           .array(z.string())
           .optional()
           .describe('Convert only the images these patterns match, in .gitignore syntax (--only).'),
+        images: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Convert only these images, each named by its path exactly as it is, whatever characters it holds, read from the project folder (--image).',
+          ),
         includeDeclined: z
           .boolean()
           .optional()
@@ -248,6 +254,7 @@ function serverFor(folder: string): McpServer {
         ...flag(args.replace, '--replace'),
         ...(args.format === undefined ? [] : [`--format=${args.format}`]),
         ...each('--only', args.only),
+        ...each('--image', args.images),
         ...flag(args.includeDeclined, '--include-declined'),
         ...flag(args.includeDiscarded, '--include-discarded'),
         ...flag(args.includeUnusedSvg, '--include-unused-svg'),

@@ -109,6 +109,9 @@ Options:
   --only <pattern>       Convert only the matching images, in .gitignore syntax relative to
                          the project, such as images/logo.png or *.jpg; repeatable. The
                          whole project is still read, as on any run
+  --image <path>         Convert only this image, named by its path exactly, whatever
+                         characters it holds (brackets, spaces); read from the current
+                         folder, and repeatable. Beside --only, either may name an image
   --public <dir>         A folder the site is served from, such as public; repeat it for
                          several, and use . for the project root itself
   --exclude <pattern>    Leave matching paths out, in .gitignore syntax; repeatable

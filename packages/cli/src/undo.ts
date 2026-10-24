@@ -8,7 +8,7 @@
  * each file against it before changing any.
  */
 
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import {
   type FileChanges,
   type Manifest,
@@ -31,7 +31,7 @@ import { EXIT_CODES, type ExitCode, type RefusalReason } from './exit-codes.js';
 import { commitForRun } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { commandLine, headline, spaced } from './layout.js';
-import { putBackCutOffRun } from './optimize.js';
+import { projectPath, putBackCutOffRun } from './optimize.js';
 import { type Io, type Styles, emit, stopWith, stylesFor } from './output.js';
 import { count } from './plan-text.js';
 
@@ -143,15 +143,6 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
 
   write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId), before);
   return EXIT_CODES.OK;
-}
-
-/** The path as the user wrote it, POSIX-relative to the project, or null when outside it. */
-function projectPath(root: string, written: string): string | null {
-  const within = relative(root, resolve(written));
-  if (within === '' || within === '..' || within.startsWith(`..${sep}`) || isAbsolute(within)) {
-    return null;
-  }
-  return within.split(sep).join('/');
 }
 
 function alreadyUndone(manifest: Manifest): string {

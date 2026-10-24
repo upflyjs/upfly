@@ -88,6 +88,11 @@ export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOpti
   readonly includeDeclined: boolean;
   /** Patterns from `--only`, in `.gitignore` syntax, or `null` when every image may convert. */
   readonly only: readonly string[] | null;
+  /**
+   * Paths from `--image`, as the user wrote them, resolved from the current folder: each names
+   * one image exactly, whatever characters it holds. `null` without the flag.
+   */
+  readonly images: readonly string[] | null;
 }
 
 export interface UndoOptions extends CommonOptions {
@@ -253,6 +258,7 @@ const OPTIMIZE = {
   'no-undo': { type: 'boolean' },
   'include-declined': { type: 'boolean' },
   only: { type: 'string', multiple: true },
+  image: { type: 'string', multiple: true },
 } as const;
 
 const CHECK = {
@@ -654,6 +660,7 @@ function parseOptimize(args: readonly string[]): Parsed {
       includeDiscarded: values['include-discarded'] === true,
       includeUnusedSvg: values['include-unused-svg'] === true,
       only: values.only === undefined ? null : [...values.only],
+      images: values.image === undefined ? null : [...values.image],
       ...scope,
     },
   };

@@ -132,6 +132,7 @@ export function typedOptions(
     ]),
     ...(options.format === null ? [] : ['--format', options.format]),
     ...(options.only ?? []).flatMap((pattern) => ['--only', pattern]),
+    ...(options.images ?? []).flatMap((path) => ['--image', path]),
     ...writes,
     ...flags([
       [options.noUndo, '--no-undo'],

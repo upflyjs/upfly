@@ -109,6 +109,18 @@ describe('upfly-mcp', () => {
     },
   );
 
+  it('names images by their exact paths, read from the project folder, as --image does', async () => {
+    const { line } = await call('optimize', { images: ['src/assets/banner.png'] });
+
+    expect((line as { only: unknown }).only).toEqual({
+      images: ['src/assets/banner.png'],
+      unmatched: [],
+    });
+    expect((line as { only: unknown }).only).toEqual(
+      cli('optimize', '--image', 'src/assets/banner.png')?.only,
+    );
+  });
+
   it("reads the folder a call names, and gives the command's own error for one that is not there", async () => {
     expect((await call('check', { dir: root })).line).toEqual(cli('check'));
 

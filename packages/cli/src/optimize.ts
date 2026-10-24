@@ -6,9 +6,10 @@
  * folder is looked at, and committed, even when the repository around it is larger.
  */
 
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import {
   type Manifest,
+  type OnlyImages,
   type OptimizationPlan,
   type OptimizeProjectResult,
   type PlannedConversion,
@@ -91,7 +92,9 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
   const { git, unfinished } = start;
 
   const policy = policyFor(options, settings);
-  const result = await carryOut(options, io, root, settings, policy);
+  const only = onlyFor(options, root, upfly);
+  if ('code' in only) return stop(only);
+  const result = await carryOut(options, io, root, settings, policy, only.only);
   if ('code' in result) return stop(result);
 
   let commit: string | null = null;
@@ -108,7 +111,11 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
     commit,
     unfinished: unfinished !== null,
     format: options.format ?? settings.format ?? 'webp',
-    notes: [...start.notes, ...notes(options, git, unfinished, upfly), ...onlyNotes(result)],
+    notes: [
+      ...start.notes,
+      ...notes(options, git, unfinished, upfly),
+      ...onlyNotes(result, only.only),
+    ],
     started,
   });
   return EXIT_CODES.OK;
@@ -156,16 +163,72 @@ export function withPublicDir(
   }));
 }
 
-/** How many images `--only` left out, and each pattern that named none, on every run. */
-function onlyNotes(result: OptimizeProjectResult): string[] {
-  if (result.only === undefined) return [];
+/**
+ * How many images `--only` and `--image` left out, and each pattern or path that named none, on
+ * every run.
+ */
+function onlyNotes(result: OptimizeProjectResult, only: OnlyImages | null): string[] {
+  if (result.only === undefined || only === null) return [];
   const total = result.pipeline.graph.assets.length;
   const named = result.only.images.length;
   const left = total - named;
+  const flags = [
+    ...(only.patterns === undefined ? [] : ['--only']),
+    ...(only.paths === undefined ? [] : ['--image']),
+  ].join(' and ');
+  const paths = new Set(only.paths ?? []);
   return [
-    `--only named ${named} of ${count(total, 'image')}; the other ${left} ${left === 1 ? 'was' : 'were'} not measured, and none of them converts.`,
-    ...result.only.unmatched.map((pattern) => `--only ${pattern} named no image in the project.`),
+    `${flags} named ${named} of ${count(total, 'image')}; the other ${left} ${left === 1 ? 'was' : 'were'} not measured, and none of them converts.`,
+    ...result.only.unmatched.map((unmatched) =>
+      paths.has(unmatched)
+        ? `--image ${unmatched} is not an image in the project, so nothing was converted for it.`
+        : `--only ${unmatched} named no image in the project.`,
+    ),
   ];
+}
+
+/**
+ * The images a run may convert, from `--only` and `--image`, or null when every image may. Each
+ * `--image` path is read from the current folder, as a person or a program wrote it.
+ */
+function onlyFor(
+  options: Pick<OptimizeOptions, 'only' | 'images'>,
+  root: string,
+  upfly: UpflyCommand,
+): { readonly only: OnlyImages | null } | Refusal {
+  if (options.only === null && options.images === null) return { only: null };
+  const paths: string[] = [];
+  for (const written of options.images ?? []) {
+    const path = projectPath(root, written);
+    if (path === null) {
+      return {
+        code: EXIT_CODES.USAGE,
+        message: `${written} is outside the project at ${root}. Name an image inside it, or name its project after the command: ${upfly} optimize <folder> --image <path>.`,
+      };
+    }
+    paths.push(path);
+  }
+  return {
+    only: {
+      ...(options.images === null ? {} : { paths }),
+      ...(options.only === null ? {} : { patterns: options.only }),
+    },
+  };
+}
+
+/**
+ * A path as a person or a program wrote it, read from the current folder, POSIX-relative to the
+ * project, or null when it is outside the project.
+ *
+ * @param root the project directory
+ * @param written the path as given
+ */
+export function projectPath(root: string, written: string): string | null {
+  const within = relative(root, resolve(written));
+  if (within === '' || within === '..' || within.startsWith(`..${sep}`) || isAbsolute(within)) {
+    return null;
+  }
+  return within.split(sep).join('/');
 }
 
 /** The project directory and its settings, or why the command cannot use them. */
@@ -193,6 +256,7 @@ async function carryOut(
   root: string,
   settings: UpflyConfig,
   policy: PublicPolicy,
+  only: OnlyImages | null,
 ): Promise<OptimizeProjectResult | Refusal> {
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
   const progress = progressReporter(io, 'optimize', options.json, options.apply);
@@ -208,7 +272,7 @@ async function carryOut(
       apply: options.apply,
       ...(options.noUndo ? { undoable: false } : {}),
       extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
-      ...(options.only === null ? {} : { only: { patterns: options.only } }),
+      ...(only === null ? {} : { only }),
       onProgress: (event) => progress.update(event),
       // Decided on the finished plan, so that a commit that could not hold every file the
       // run writes stops the run before it writes any.
@@ -725,6 +789,7 @@ function planFlags(options: OptimizeOptions): string[] {
     ...(options.format === null ? [] : ['--format', options.format]),
     ...scopeWords({ ...options, dir: '.' }),
     ...(options.only ?? []).flatMap((pattern) => ['--only', pattern]),
+    ...(options.images ?? []).flatMap((path) => ['--image', path]),
   ];
 }
 

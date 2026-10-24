@@ -30,7 +30,7 @@
     "commit": { "$ref": "#/definitions/commit" },
     "repository": { "$ref": "#/definitions/repository" },
     "only": {
-      "description": "With --only: the images it named, and each pattern that named none. null without --only.",
+      "description": "With --only or --image: the images they named, and each pattern, or path given with --image, that named none. null without either.",
       "oneOf": [
         { "type": "null" },
         {
