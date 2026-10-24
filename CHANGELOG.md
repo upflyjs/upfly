@@ -33,6 +33,10 @@ field of 3.2.0 was removed or renamed.
   words now.
 - The audit report's own text, in `.upfly/audit.txt` and in `--include-text`, said ".upfly/audit.txt lists them" of
   the unused images, though `--include-text` writes no file; it says "this report lists them".
+- On a project of about 40,000 files, the progress dots stopped for about 1.8 s while Upfly matched each reference to
+  its file. That work now runs in pieces, and I measured the pause at about 0.55 s; the plan `audit` and `optimize`
+  make afterwards still pauses for about 1.3 s. A run there also peaks about 180 MB lower in memory, since a
+  reference found no longer keeps its file's whole text.
 
 ## 3.2.0
 
