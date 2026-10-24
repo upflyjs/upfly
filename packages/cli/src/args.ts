@@ -95,8 +95,6 @@ export interface UndoOptions extends CommonOptions {
   readonly line: number | null;
   /** `--list`: show what the run changed, and what of it is undone, changing nothing. */
   readonly list: boolean;
-  /** `--run`: the kept run to undo or list, by its id, or null for the last run. */
-  readonly run: string | null;
 }
 
 export interface CheckOptions extends CommonOptions, ScopeOptions {
@@ -265,7 +263,6 @@ const UNDO = {
   file: { type: 'string' },
   line: { type: 'string' },
   list: { type: 'boolean' },
-  run: { type: 'string' },
 } as const;
 
 const INIT = { ...COMMON, agents: { type: 'boolean' } } as const;
@@ -774,7 +771,6 @@ function parseUndo(args: readonly string[], upfly: UpflyCommand): Parsed {
       file: values.file ?? null,
       line,
       list: values.list === true,
-      run: values.run ?? null,
     },
   };
 }

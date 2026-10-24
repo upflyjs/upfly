@@ -13,9 +13,7 @@ and fixes to 3.1.0. No command, option or JSON field of 3.1.0 was removed or ren
   undone, since other lines may still name it, and `upfly undo` afterwards still puts back every byte. A file changed
   since the run, or since its last partial undo, is refused as the whole undo refuses it.
 - `upfly undo --list` shows what the last run changed, line by line, what of it is undone, and whether each removed
-  original is back; with `--json`, in `run` and `runs`. It changes nothing.
-- The last ten runs keep their record in `.upfly`, and `upfly undo --run <id>` undoes one of them, whole or in part.
-  It is refused while a later run that changed the same files still stands, and the message names that run.
+  original is back; with `--json`, in `run`. It changes nothing.
 - `audit --json --include-images` lists every image with its size, each reference to it at its file and line, and
   the findings that name it. `--include-text` adds the report as text, as `.upfly/audit.txt` holds it, without
   writing the file.

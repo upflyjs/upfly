@@ -67,12 +67,7 @@ export type UpflyErrorCode =
    * run did not rewrite, remove or move, a line holding none of its changes, or a file the
    * run created, which only an undo of the whole run removes.
    */
-  | 'NOT_IN_RUN'
-  /**
-   * A kept run asked to be undone while a later run that still stands changed one of the same
-   * files: undoing the earlier one first would write over the later one's changes.
-   */
-  | 'LATER_RUN_STANDS';
+  | 'NOT_IN_RUN';
 
 /**
  * An error the engine throws on purpose, with a stable `code`.

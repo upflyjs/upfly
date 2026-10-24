@@ -210,17 +210,14 @@ describe('parseCommandLine', () => {
     const undo = { command: 'undo', dir: 'site', json: true, noColor: false, noCodeConfig: false };
     expect(parseCommandLine(['undo', 'site', '--json'])).toEqual({
       kind: 'run',
-      options: { ...undo, file: null, line: null, list: false, run: null },
+      options: { ...undo, file: null, line: null, list: false },
     });
     expect(
       parseCommandLine(['undo', 'site', '--json', '--file', 'a.html', '--line', '12']),
-    ).toEqual({
-      kind: 'run',
-      options: { ...undo, file: 'a.html', line: 12, list: false, run: null },
-    });
+    ).toEqual({ kind: 'run', options: { ...undo, file: 'a.html', line: 12, list: false } });
     expect(parseCommandLine(['undo', 'site', '--json', '--list', '--file', 'a.html'])).toEqual({
       kind: 'run',
-      options: { ...undo, file: 'a.html', line: null, list: true, run: null },
+      options: { ...undo, file: 'a.html', line: null, list: true },
     });
   });
 

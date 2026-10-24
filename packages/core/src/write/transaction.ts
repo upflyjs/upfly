@@ -27,7 +27,6 @@ import {
   UPFLY_DIRECTORY,
   type UndoEdit,
   parseManifest,
-  pathsTouched,
   placeUndoEdits,
   schemaVersionOf,
   serialiseManifest,
@@ -251,7 +250,6 @@ async function commitUnderLock(
   context: RunContext,
 ): Promise<Manifest> {
   await refuseOverInterruptedRun(store, context.runId);
-  await keepLastRecord(store, context.runId);
   const operations = await manifestOperations(plan, store);
   const pending: Manifest = {
     schemaVersion: schemaVersionOf(operations),
@@ -282,162 +280,23 @@ async function commitUnderLock(
 const RUNS_DIRECTORY = `${UPFLY_DIRECTORY}/runs`;
 
 /**
- * How many runs keep their folder, and with it their record and the backups of the originals
- * they removed, so that each can still be undone: the last run and the ones before it. Each
- * kept run costs the disk its removed originals take.
- */
-export const KEPT_RUNS = 10;
-
-/** Where an earlier run's record is kept, in its own folder, once a later run replaces it. */
-export function keptRecordPath(runId: string): string {
-  return `${RUNS_DIRECTORY}/${runId}/manifest.json`;
-}
-
-/** A run id as a folder name: no separator and no dot segment, so it stays inside `runs`. */
-function isRunFolderName(runId: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(runId) && !runId.includes('..');
-}
-
-/**
- * Keep the last run's record in that run's own folder before this run's record replaces it,
- * so the earlier run can still be undone by name. A record that cannot be parsed records
- * nothing to keep, as `refuseOverInterruptedRun` treats it.
- */
-async function keepLastRecord(store: FileStore, runId: string): Promise<void> {
-  if ((await store.hash(MANIFEST_PATH)) === null) return;
-  const text = await store.readText(MANIFEST_PATH);
-  let last: Manifest;
-  try {
-    last = parseManifest(text);
-  } catch {
-    return;
-  }
-  if (last.runId === runId || typeof last.runId !== 'string' || !isRunFolderName(last.runId)) {
-    return;
-  }
-  await store.writeText(keptRecordPath(last.runId), text);
-}
-
-/**
- * Remove the folders of all but the newest `KEPT_RUNS` runs, this one included, and of any
- * earlier run that left no record, such as one refused before it wrote. Only after the
+ * Remove the folder of every run but this one. `undo` restores only the run the manifest
+ * names, and this run's committed manifest has just replaced the last one, so no earlier
+ * folder can be restored from again; kept, they would grow with every run. Only after the
  * commit: a run that stops part way leaves every folder, its own included, for `undo`. A
  * folder that cannot be removed now stays, and the next committed run tries again, since
  * the run itself has already succeeded.
  */
 async function pruneEarlierRuns(store: FileStore, runDir: string): Promise<void> {
-  const earlier: { readonly folder: string; readonly startedAt: string }[] = [];
   for (const name of await store.listDirectory(RUNS_DIRECTORY)) {
     const folder = `${RUNS_DIRECTORY}/${name}`;
     if (folder === runDir) continue;
-    const kept = await readKeptRecord(store, name);
-    earlier.push({ folder, startedAt: kept?.startedAt ?? '' });
-  }
-  earlier.sort(
-    (a, b) => b.startedAt.localeCompare(a.startedAt) || b.folder.localeCompare(a.folder),
-  );
-  const kept = new Set(
-    earlier
-      .filter((run) => run.startedAt !== '')
-      .slice(0, KEPT_RUNS - 1)
-      .map((run) => run.folder),
-  );
-  for (const { folder } of earlier) {
-    if (kept.has(folder)) continue;
     try {
       await store.removeDirectory(folder);
     } catch {
       // Left for the next committed run; see above.
     }
   }
-}
-
-/** The record kept in an earlier run's folder, or null when there is none to read. */
-async function readKeptRecord(store: FileStore, runId: string): Promise<Manifest | null> {
-  if (!isRunFolderName(runId)) return null;
-  const path = keptRecordPath(runId);
-  if ((await store.hash(path)) === null) return null;
-  try {
-    const manifest = parseManifest(await store.readText(path));
-    return manifest.runId === runId ? manifest : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A run's record and where it is kept. */
-export interface KeptRun {
-  readonly manifest: Manifest;
-  /** The record's path: `.upfly/manifest.json` for the last run, its own folder for an earlier one. */
-  readonly at: string;
-  /** Whether this is the last run, whose record is `.upfly/manifest.json`: the one a plain undo takes. */
-  readonly last: boolean;
-}
-
-/**
- * Every run whose record is kept, newest first: the last run, then the earlier ones still in
- * their folders. When the last run's record is gone, deleted by hand, only the earlier ones
- * are listed and none of them is the last, since a later run may have changed their files.
- *
- * @throws {UpflyError} `MANIFEST_VERSION_UNSUPPORTED` when the last run's record is of a
- *   version this build does not know
- */
-export async function keptRuns(store: FileStore): Promise<readonly KeptRun[]> {
-  const last = await readManifest(store);
-  const earlier: KeptRun[] = [];
-  for (const name of await store.listDirectory(RUNS_DIRECTORY)) {
-    if (name === last?.runId) continue;
-    const manifest = await readKeptRecord(store, name);
-    if (manifest !== null) {
-      earlier.push({ manifest: checkedVersion(manifest), at: keptRecordPath(name), last: false });
-    }
-  }
-  earlier.sort(
-    (a, b) =>
-      b.manifest.startedAt.localeCompare(a.manifest.startedAt) ||
-      b.manifest.runId.localeCompare(a.manifest.runId),
-  );
-  return last === null ? earlier : [{ manifest: last, at: MANIFEST_PATH, last: true }, ...earlier];
-}
-
-/**
- * Refuse to undo a kept run, whole or in part, while a later run that still stands changed a
- * file it changed: undoing the earlier one would write over the later one's changes. A later
- * run stands while any of its changes to such a file is not undone.
- *
- * @param target the run to undo
- * @param runs every kept run, newest first, as `keptRuns` lists them
- * @throws {UpflyError} `LATER_RUN_STANDS` naming the later run and the files
- */
-export async function refuseUnderLaterRun(
-  target: KeptRun,
-  runs: readonly KeptRun[],
-  store: FileStore,
-): Promise<void> {
-  const touched = new Set(pathsTouched(target.manifest));
-  for (const later of runs) {
-    if (later.manifest.runId === target.manifest.runId) return;
-    if (later.manifest.state === 'reverted') continue;
-    const shared = later.manifest.operations.filter((operation) =>
-      operationPaths(operation).some((path) => touched.has(path)),
-    );
-    if (shared.length === 0) continue;
-    const states = await inspect({ ...later.manifest, operations: shared }, store);
-    const standing = states.filter((state) => state.status !== 'not-applied');
-    if (standing.length === 0) continue;
-    const files = [...new Set(standing.flatMap((state) => operationPaths(state.operation)))]
-      .filter((path) => touched.has(path))
-      .sort();
-    throw new UpflyError(
-      'LATER_RUN_STANDS',
-      `The run ${later.manifest.runId}, made after ${target.manifest.runId}, changed ${files.join(', ')} too, and still stands. Undo ${later.manifest.runId} first; undoing ${target.manifest.runId} now would write over its changes.`,
-    );
-  }
-}
-
-/** The project paths one operation touches. */
-function operationPaths(operation: Operation): string[] {
-  return operation.kind === 'move' ? [operation.from, operation.to] : [operation.path];
 }
 
 /**
@@ -521,8 +380,6 @@ export async function inspect(
  * Both are the same job, reversing whatever the disk says actually happened, so there is
  * no separate recovery branch that is rarely run and could be wrong.
  *
- * @param at where the run's record is kept, which the undone record replaces: the last run's
- *   `.upfly/manifest.json` unless given
  * @throws {UpflyError} `TRANSACTION_FOREIGN_CHANGE` naming every file changed by
  *         something other than this run, or every removed original whose backup is gone.
  *         Nothing is reverted in either case, so the tree is never left in a third state
@@ -533,13 +390,12 @@ export async function revert(
   store: FileStore,
   now: () => string = () => new Date().toISOString(),
   lock: LockPorts = {},
-  at: string = MANIFEST_PATH,
 ): Promise<Manifest> {
   // Undo writes the same shared manifest, so it takes the same lock. Re-entry lets a run
   // undo itself while it still holds the lock.
   const held = await acquireLock({ store, runId: manifest.runId, now, ...lock });
   try {
-    return await revertUnderLock(manifest, store, now, at);
+    return await revertUnderLock(manifest, store, now);
   } finally {
     await held.release();
   }
@@ -550,7 +406,6 @@ async function revertUnderLock(
   manifest: Manifest,
   store: FileStore,
   now: () => string,
-  at: string,
 ): Promise<Manifest> {
   const states = await inspect(manifest, store);
   const foreign = states.filter((state) => state.status === 'foreign');
@@ -572,7 +427,7 @@ async function revertUnderLock(
     // manifest does nothing, and stamping a fresh time would claim otherwise.
     revertedAt: manifest.revertedAt ?? now(),
   };
-  await store.writeText(at, serialiseManifest(reverted));
+  await store.writeText(MANIFEST_PATH, serialiseManifest(reverted));
   return reverted;
 }
 
