@@ -4,10 +4,7 @@
 > command-line tool that optimizes the images in a codebase.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/upfly-readme-banner-dark.svg">
-    <img src="assets/upfly-readme-banner-light.svg" alt="Upfly: optimize your repo's images without breaking a reference.">
-  </picture>
+  <img src="assets/upfly-readme-banner.svg" alt="Upfly: optimize your repo's images without breaking a reference.">
 </p>
 
 <p align="center">
