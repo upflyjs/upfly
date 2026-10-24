@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.1
+## 3.2.0
 
 Undoing part of a run, and what the Upfly VS Code extension, which I am rebuilding on Upfly 3, needs from the CLI;
 and fixes to 3.1.0. No command, option or JSON field of 3.1.0 was removed or renamed.
@@ -46,7 +46,7 @@ and fixes to 3.1.0. No command, option or JSON field of 3.1.0 was removed or ren
 ### Changed
 
 - A run's record, `.upfly/manifest.json`, stays at version 1, which 3.1.0 reads, until part of a file is undone on
-  its own; it then says version 2, which 3.1.0 refuses to undo rather than misread. Undo such a run with 3.1.1.
+  its own; it then says version 2, which 3.1.0 refuses to undo rather than misread. Undo such a run with 3.2.0.
 
 ## 3.1.0
 
