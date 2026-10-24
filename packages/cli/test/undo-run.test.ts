@@ -54,6 +54,17 @@ function twoRuns(first: string, second: string) {
   return { root, before, a, b };
 }
 
+/**
+ * Three runs on one copy, then the last run's record deleted by hand: the first and the third
+ * convert images `index.html` names, the second one `css/site.css` names.
+ */
+function threeRunsWithoutTheLastRecord() {
+  const { root, a, b } = twoRuns('images/logo.png', 'images/texture.png');
+  convert(root, 'images/inline.png', '--allow-dirty');
+  rmSync(join(root, '.upfly', 'manifest.json'));
+  return { root, a, b };
+}
+
 function undo(root: string, ...args: string[]) {
   return upfly(['undo', ...args], { cwd: root });
 }
@@ -112,6 +123,33 @@ describe('undo --run', () => {
     expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('images/logo.png');
     expect((last(listed.stdout).runs as { id: string }[]).map((run) => run.id)).toEqual([b, a]);
     expect((last(named.stdout).run as { id: string }).id).toBe(a);
+  }, 120_000);
+
+  it('lists the runs still kept newest first when the record of the last run is gone', () => {
+    const { root, a, b } = threeRunsWithoutTheLastRecord();
+
+    const listed = undo(root, '--list', '--json');
+
+    expect(listed.status, listed.stdout).toBe(0);
+    expect(last(listed.stdout)).toMatchObject({
+      run: null,
+      notes: [expect.stringContaining('.upfly/manifest.json, is gone')],
+    });
+    expect((last(listed.stdout).runs as { id: string }[]).map((run) => run.id)).toEqual([b, a]);
+  }, 120_000);
+
+  it('undoes nothing on a plain undo when the record of the last run is gone, and names --run', () => {
+    const { root } = threeRunsWithoutTheLastRecord();
+    const before = snapshot(root, NOT_THE_PROJECT);
+
+    const plain = undo(root, '--json');
+
+    expect(plain.status, plain.stdout).toBe(0);
+    expect(last(plain.stdout)).toMatchObject({
+      undone: null,
+      notes: [expect.stringContaining('undo --run <id> undoes one of them')],
+    });
+    expect(snapshot(root, NOT_THE_PROJECT)).toEqual(before);
   }, 120_000);
 
   it('names a run that is not kept as a usage error', () => {

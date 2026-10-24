@@ -370,27 +370,34 @@ export interface KeptRun {
   readonly manifest: Manifest;
   /** The record's path: `.upfly/manifest.json` for the last run, its own folder for an earlier one. */
   readonly at: string;
+  /** Whether this is the last run, whose record is `.upfly/manifest.json`: the one a plain undo takes. */
+  readonly last: boolean;
 }
 
 /**
  * Every run whose record is kept, newest first: the last run, then the earlier ones still in
- * their folders.
+ * their folders. When the last run's record is gone, deleted by hand, only the earlier ones
+ * are listed and none of them is the last, since a later run may have changed their files.
  *
  * @throws {UpflyError} `MANIFEST_VERSION_UNSUPPORTED` when the last run's record is of a
  *   version this build does not know
  */
 export async function keptRuns(store: FileStore): Promise<readonly KeptRun[]> {
   const last = await readManifest(store);
-  const runs: KeptRun[] = last === null ? [] : [{ manifest: last, at: MANIFEST_PATH }];
+  const earlier: KeptRun[] = [];
   for (const name of await store.listDirectory(RUNS_DIRECTORY)) {
     if (name === last?.runId) continue;
     const manifest = await readKeptRecord(store, name);
-    if (manifest !== null)
-      runs.push({ manifest: checkedVersion(manifest), at: keptRecordPath(name) });
+    if (manifest !== null) {
+      earlier.push({ manifest: checkedVersion(manifest), at: keptRecordPath(name), last: false });
+    }
   }
-  const [newest, ...rest] = runs;
-  rest.sort((a, b) => b.manifest.startedAt.localeCompare(a.manifest.startedAt));
-  return newest === undefined ? [] : [newest, ...rest];
+  earlier.sort(
+    (a, b) =>
+      b.manifest.startedAt.localeCompare(a.manifest.startedAt) ||
+      b.manifest.runId.localeCompare(a.manifest.runId),
+  );
+  return last === null ? earlier : [{ manifest: last, at: MANIFEST_PATH, last: true }, ...earlier];
 }
 
 /**
