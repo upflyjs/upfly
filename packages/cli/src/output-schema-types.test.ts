@@ -814,7 +814,12 @@ describe('the command schemas and the types each command prints agree', () => {
     );
     expectFields(
       at(u, '/definitions/file/properties/changes/items'),
-      fields<LineChanges>({ line: 'required', undone: 'required', paths: 'required' }),
+      fields<LineChanges>({
+        line: 'required',
+        undone: 'required',
+        paths: 'required',
+        text: 'required',
+      }),
     );
     expectFields(
       at(u, '/definitions/file/properties/changes/items/properties/paths/items'),

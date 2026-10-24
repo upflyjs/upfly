@@ -400,6 +400,11 @@ export interface LineChanges {
   /** Whether the line is undone; null when the file changed since, so the disk cannot say. */
   readonly undone: boolean | null;
   readonly paths: readonly ChangedPath[];
+  /**
+   * The whole line as it was before the run and as the run left it, without its line break.
+   * Null when the file changed since, or an older record does not hold the path the run wrote.
+   */
+  readonly text: { readonly before: string; readonly after: string } | null;
 }
 
 /** A file a run rewrote, and its changes line by line. */
@@ -499,23 +504,53 @@ async function fileChanges(
 ): Promise<FileChanges> {
   const changedSince = state.status === 'foreign';
   const placed = placeUndoEdits(operation.inverse, changedSince ? [] : undoneIn(operation, state));
-  const needsText =
-    !changedSince &&
-    placed.some((each) => each.edit.line === undefined || each.edit.expected === undefined);
-  const text = needsText ? await store.readText(operation.path) : null;
+  const text = changedSince ? null : await store.readText(operation.path);
 
-  const changes: LineChanges[] = [];
+  const groups: { line: number | null; placed: PlacedUndoEdit[] }[] = [];
   for (const each of placed) {
     const line = each.edit.line ?? (text === null ? null : lineAt(text, each.start));
-    const path = changedPath(each, text);
-    const last = changes.at(-1);
-    if (last !== undefined && last.line === line && line !== null) {
-      changes[changes.length - 1] = { ...last, paths: [...last.paths, path] };
-    } else {
-      changes.push({ line, undone: changedSince ? null : each.undone, paths: [path] });
-    }
+    const last = groups.at(-1);
+    if (last !== undefined && last.line === line && line !== null) last.placed.push(each);
+    else groups.push({ line, placed: [each] });
   }
+  const changes: LineChanges[] = groups.map(({ line, placed: onLine }) => ({
+    line,
+    undone: changedSince ? null : (onLine[0]?.undone ?? null),
+    paths: onLine.map((each) => changedPath(each, text)),
+    text: text === null ? null : lineTexts(text, onLine),
+  }));
   return { path: operation.path, changedSince, changes };
+}
+
+/**
+ * One line as it was before the run and as the run left it, from its text now: each change on
+ * it holds one of its two paths, and the other is put in its place. Null when an older record
+ * does not hold the path the run wrote, for a change that is undone.
+ */
+function lineTexts(
+  text: string,
+  onLine: readonly PlacedUndoEdit[],
+): { readonly before: string; readonly after: string } | null {
+  const first = onLine[0];
+  if (first === undefined) return null;
+  const start = text.lastIndexOf('\n', first.start - 1) + 1;
+  const end = text.indexOf('\n', first.start);
+  const now = text.slice(start, end === -1 ? text.length : end).replace(/\r$/, '');
+  const rebuilt = (other: (each: PlacedUndoEdit) => string | undefined): string | null => {
+    let out = '';
+    let at = 0;
+    for (const each of onLine) {
+      const swapped = other(each);
+      if (swapped === undefined) return null;
+      out += now.slice(at, each.start - start) + swapped;
+      at = each.end - start;
+    }
+    return out + now.slice(at);
+  };
+  const standing = (each: PlacedUndoEdit) => now.slice(each.start - start, each.end - start);
+  const before = rebuilt((each) => (each.undone ? standing(each) : each.edit.replacement));
+  const after = rebuilt((each) => (each.undone ? each.edit.expected : standing(each)));
+  return before === null || after === null ? null : { before, after };
 }
 
 /** Which of an edit's changes the file has undone: all of them once it is back as it was. */

@@ -147,6 +147,7 @@ describe('upfly init', () => {
       command: 'init',
       exitCode: 3,
       reason: 'CONFIG_EXISTS',
+      file: 'upfly.config.ts',
     });
     expect(snapshot(code)).toEqual(before);
   });
@@ -345,6 +346,7 @@ describe('upfly init --agents', () => {
     expect(jsonLines(run.stdout).at(-1)).toMatchObject({
       type: 'error',
       reason: 'UPFLY_BLOCK_UNCLOSED',
+      file: expect.any(String),
     });
   });
 

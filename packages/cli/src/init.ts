@@ -75,6 +75,7 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
       EXIT_CODES.ABORTED,
       await existsMessage(root, existing),
       'CONFIG_EXISTS',
+      onlyOne(existing),
     );
   }
   // Planned before anything is written, so a block Upfly cannot place stops the whole run.
@@ -86,6 +87,7 @@ export async function runInit(options: InitOptions, io: Io): Promise<ExitCode> {
       EXIT_CODES.ABORTED,
       `${plan.file} holds the line ${BLOCK_START} with no ${BLOCK_END} after it, so Upfly cannot tell where its block ends and wrote nothing. Remove that line, or add the end line after the block, and run it again.`,
       'UPFLY_BLOCK_UNCLOSED',
+      plan.file,
     );
   }
 
@@ -176,6 +178,7 @@ async function writeConfig(
       EXIT_CODES.ABORTED,
       await existsMessage(root, [FILE]),
       'CONFIG_EXISTS',
+      FILE,
     );
   }
 
@@ -344,4 +347,9 @@ function skillDone(file: SkillFile): string {
     case 'unchanged':
       return 'the Upfly skill, already up to date';
   }
+}
+
+/** The one file of a list that holds exactly one, which an error line names. */
+function onlyOne(files: readonly string[]): string | undefined {
+  return files.length === 1 ? files[0] : undefined;
 }

@@ -44,7 +44,9 @@ reads the folder given after it, or the current folder, and prints plain text; a
 2. Run `npx upfly optimize`. It changes no project file and prints a short summary of the
    plan: how many images convert and how much smaller they get, how many references
    change, and how many images are left alone, counted by reason. Show the user that
-   summary, and its notes. The full plan is then in `.upfly/optimize.txt`: the same rows,
+   summary, and its notes; in `--json`, `applyRefusals` gives each note that says what
+   `--apply` would refuse with the `reason` it would stop with. The full plan is then in
+   `.upfly/optimize.txt`: the same rows,
    each with its complete list, such as each image and reference left alone and the
    reason for each (`npx upfly optimize --show leave` prints that row alone); `--json` holds the whole plan.
    To convert only some images, name each with `--image <path>`, its path exactly as it is;
@@ -73,7 +75,8 @@ reads the folder given after it, or the current folder, and prints plain text; a
    `--line <n>` only that line's; an original the line names again comes back with it,
    and a later `npx upfly undo` still puts back the whole run. `npx upfly undo --list --json`
    shows the run's changes line by line (`run.files`, each change with its `line`, its
-   `paths` before and after, and whether it is `undone`) and each removed original, with
+   `paths` before and after, the whole line's `text` before and after, and whether it is
+   `undone`) and each removed original, with
    whether it is `back`. It changes nothing.
 
 Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
@@ -153,8 +156,9 @@ user's.
 | 3 | Upfly refused to act, for safety. The message says why and what to do. |
 | 4 | Something failed that Upfly did not anticipate. |
 
-With `--json`, a command that stops prints an error line with `exitCode`, `message`, and
-often a `reason` to branch on:
+With `--json`, a command that stops prints an error line with `exitCode`, `message`, often
+a `reason` to branch on, and `file` when the stop is about one file, such as the config
+it would not run:
 
 - `UNCOMMITTED_CHANGES`: ask the user to commit or stash, then run again.
 - `NO_REPOSITORY`: git does not track the folder. `--commit` needs it; ask the user.

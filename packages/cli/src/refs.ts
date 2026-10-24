@@ -99,7 +99,7 @@ export async function runRefs(options: RefsOptions, io: Io): Promise<ExitCode> {
   }
   const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
-    return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason);
+    return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason, config.file);
   }
   if (config.kind === 'invalid') {
     return stopWith(io, options, EXIT_CODES.USAGE, `${config.file} ${config.message}`);

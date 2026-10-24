@@ -68,6 +68,8 @@ export interface Refusal {
   readonly code: ExitCode;
   readonly reason?: RefusalReason;
   readonly message: string;
+  /** The one file the refusal is about, as a path inside the project, when there is one. */
+  readonly file?: string;
 }
 
 /**
@@ -81,7 +83,7 @@ export interface Refusal {
 export async function runOptimize(options: OptimizeOptions, io: Io): Promise<ExitCode> {
   const started = new Date();
   const stop = (refusal: Refusal): ExitCode =>
-    stopWith(io, options, refusal.code, refusal.message, refusal.reason);
+    stopWith(io, options, refusal.code, refusal.message, refusal.reason, refusal.file);
   const project = await openProject(options);
   if ('code' in project) return stop(project);
   const { root, settings } = project;
@@ -116,6 +118,7 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
       ...notes(options, git, unfinished, upfly),
       ...onlyNotes(result, only.only),
     ],
+    applyRefusals: applyRefusals(options, git, unfinished, upfly),
     started,
   });
   return EXIT_CODES.OK;
@@ -241,7 +244,12 @@ export async function openProject(
   }
   const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
-    return { code: EXIT_CODES.ABORTED, reason: config.reason, message: config.message };
+    return {
+      code: EXIT_CODES.ABORTED,
+      reason: config.reason,
+      message: config.message,
+      file: config.file,
+    };
   }
   if (config.kind === 'invalid') {
     return { code: EXIT_CODES.USAGE, message: `${config.file} ${config.message}` };
@@ -654,6 +662,8 @@ interface Outcome {
   readonly unfinished: boolean;
   readonly format: 'webp' | 'avif';
   readonly notes: readonly string[];
+  /** The notes that say what `--apply` would refuse, with each reason. */
+  readonly applyRefusals: readonly ApplyRefusal[];
   /** When the run started, for the report file's first lines. */
   readonly started: Date;
 }
@@ -665,22 +675,56 @@ export function notes(
   unfinished: Refusal | null,
   upfly: UpflyCommand,
 ): string[] {
+  return codedNotes(options, git, unfinished, upfly).map((said) => said.note);
+}
+
+/** A dry run's note that says what `--apply` would refuse, and the reason it would give. */
+export interface ApplyRefusal {
+  readonly reason: RefusalReason;
+  readonly note: string;
+}
+
+/**
+ * Each of a dry run's notes that says what `--apply` would refuse, with the reason its error
+ * line would give, so a program can tell those notes from the rest without reading them.
+ */
+export function applyRefusals(
+  options: Pick<OptimizeOptions, 'apply' | 'dir'>,
+  git: GitState,
+  unfinished: Refusal | null,
+  upfly: UpflyCommand,
+): ApplyRefusal[] {
+  return codedNotes(options, git, unfinished, upfly).flatMap(({ note, reason }) =>
+    reason === null ? [] : [{ reason, note }],
+  );
+}
+
+/** The dry run's notes in order, each with the reason `--apply` would refuse for, or null. */
+function codedNotes(
+  options: Pick<OptimizeOptions, 'apply' | 'dir'>,
+  git: GitState,
+  unfinished: Refusal | null,
+  upfly: UpflyCommand,
+): { readonly note: string; readonly reason: RefusalReason | null }[] {
   if (options.apply) return [];
-  const said: string[] = [];
-  if (unfinished !== null) said.push(unfinished.message);
+  const said: { note: string; reason: RefusalReason | null }[] = [];
+  if (unfinished !== null)
+    said.push({ note: unfinished.message, reason: unfinished.reason ?? null });
   const inside = insideRepository(git);
-  if (inside !== null) said.push(inside);
+  if (inside !== null) said.push({ note: inside, reason: null });
   if (git.kind === 'repository' && git.tracked) {
     const changed = git.changed.filter((path) => !ownPath(path));
     if (changed.length > 0) {
-      said.push(
-        `Uncommitted changes in ${count(changed.length, 'file')} under this folder: --apply refuses to write until they are committed, unless run with --allow-dirty.`,
-      );
+      said.push({
+        note: `Uncommitted changes in ${count(changed.length, 'file')} under this folder: --apply refuses to write until they are committed, unless run with --allow-dirty.`,
+        reason: 'UNCOMMITTED_CHANGES',
+      });
     }
   } else {
-    said.push(
-      `${capitalise(unprotected(git, options.dir))}: --apply writes here only with --allow-dirty, and \`${upfly} undo\` is then the way back.`,
-    );
+    said.push({
+      note: `${capitalise(unprotected(git, options.dir))}: --apply writes here only with --allow-dirty, and \`${upfly} undo\` is then the way back.`,
+      reason: 'NO_REPOSITORY',
+    });
   }
   return said;
 }
@@ -731,6 +775,7 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       repository,
       only: result.only ?? null,
       notes: outcome.notes,
+      applyRefusals: outcome.applyRefusals,
       report,
     });
     return;

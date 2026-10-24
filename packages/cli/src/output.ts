@@ -156,6 +156,7 @@ export interface Style {
  * @param code the exit code
  * @param message what happened and what to do about it, in sentences
  * @param reason a stable name for a refusal, for scripts that branch on it
+ * @param file the one file the stop is about, as a path inside the project, when there is one
  * @returns `code`
  */
 export function stopWith(
@@ -164,6 +165,7 @@ export function stopWith(
   code: ExitCode,
   message: string,
   reason?: RefusalReason,
+  file?: string,
 ): ExitCode {
   if (style.json) {
     emit(io, {
@@ -172,6 +174,7 @@ export function stopWith(
       exitCode: code,
       ...(reason === undefined ? {} : { reason }),
       message,
+      ...(file === undefined ? {} : { file }),
     });
   } else {
     const { red } = stylesFor(io.stderr, io.env, style);

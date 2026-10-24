@@ -168,6 +168,10 @@
         "message": {
           "description": "What happened and what to do about it, in sentences.",
           "type": "string"
+        },
+        "file": {
+          "description": "The one file the stop is about, as a path inside the project: the config written as code with CODE_CONFIG_NOT_RUN, the config found with CONFIG_EXISTS or V2_EXTENSION_CONFIG, the instruction file with UPFLY_BLOCK_UNCLOSED. Absent when the stop is about no one file.",
+          "type": "string"
         }
       }
     }

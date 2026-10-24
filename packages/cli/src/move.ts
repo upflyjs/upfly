@@ -22,7 +22,9 @@ import { type GitState, RUN_TRAILER, commitPaths } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
+  type ApplyRefusal,
   type Refusal,
+  applyRefusals,
   engineRefusal,
   notes,
   openProject,
@@ -70,7 +72,7 @@ interface Paths {
 export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
   const started = new Date();
   const stop = (refusal: Refusal): ExitCode =>
-    stopWith(io, options, refusal.code, refusal.message, refusal.reason);
+    stopWith(io, options, refusal.code, refusal.message, refusal.reason, refusal.file);
   const project = await openProject(options);
   if ('code' in project) return stop(project);
   const { root, settings } = project;
@@ -134,6 +136,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
     commit,
     unfinished: unfinished !== null,
     notes: [...start.notes, ...notes(options, git, unfinished, upfly)],
+    applyRefusals: applyRefusals(options, git, unfinished, upfly),
     started,
     upfly,
   });
@@ -229,6 +232,8 @@ interface Outcome {
   /** Whether an earlier run stopped part way, which `undo` has to finish first. */
   readonly unfinished: boolean;
   readonly notes: readonly string[];
+  /** The notes that say what `--apply` would refuse, with each reason. */
+  readonly applyRefusals: readonly ApplyRefusal[];
   /** When the run started, for the report file's first lines. */
   readonly started: Date;
   /** How the commands it prints are typed. */
@@ -252,6 +257,7 @@ function write(options: MoveOptions, io: Io, result: MoveProjectResult, outcome:
           ? { top: outcome.git.top, path: outcome.git.prefix }
           : null,
       notes: outcome.notes,
+      applyRefusals: outcome.applyRefusals,
     });
     return;
   }

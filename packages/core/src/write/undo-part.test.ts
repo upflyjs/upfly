@@ -417,6 +417,10 @@ describe.each([inMemory, onDisk])('undoing part of a run, $name', (matrix) => {
         paths: [
           { before: './logo.png', after: './logo.webp', image: 'src/logo.png', inComment: false },
         ],
+        text: {
+          before: "import logo from './logo.png';",
+          after: "import logo from './logo.webp';",
+        },
       },
       {
         line: 2,
@@ -424,6 +428,7 @@ describe.each([inMemory, onDisk])('undoing part of a run, $name', (matrix) => {
         paths: [
           { before: './logo.png', after: './logo.webp', image: 'src/logo.png', inComment: false },
         ],
+        text: { before: "const again = './logo.png';", after: "const again = './logo.webp';" },
       },
       {
         line: 3,
@@ -436,6 +441,7 @@ describe.each([inMemory, onDisk])('undoing part of a run, $name', (matrix) => {
             inComment: false,
           },
         ],
+        text: { before: "const hero = '/hero.png';", after: "const hero = '/img/hero.png';" },
       },
     ]);
     expect(run.originals).toEqual([
@@ -443,6 +449,18 @@ describe.each([inMemory, onDisk])('undoing part of a run, $name', (matrix) => {
       { path: 'src/logo.png', movedTo: null, back: false, changedSince: false },
     ]);
     expect(run.created).toEqual(['public/img/hero.png', 'src/logo.webp']);
+    await harness.dispose();
+  });
+
+  it('gives no line text for a file changed since the run, whose lines cannot be told', async () => {
+    const harness = await applied(matrix);
+    await harness.store.writeText('src/b.css', 'a { color: red; }\n');
+
+    const run = await describeRun(await harness.record(), harness.store);
+
+    const css = run.files.find((file) => file.path === 'src/b.css');
+    expect(css?.changedSince).toBe(true);
+    expect(css?.changes.map((change) => change.text)).toEqual([null]);
     await harness.dispose();
   });
 });

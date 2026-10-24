@@ -43,6 +43,7 @@
     "run": { "$ref": "optimize.json#/definitions/run" },
     "commit": { "$ref": "optimize.json#/definitions/commit" },
     "repository": { "$ref": "optimize.json#/definitions/repository" },
+    "applyRefusals": { "$ref": "optimize.json#/definitions/applyRefusals" },
     "notes": {
       "description": "On a dry run, what --apply would refuse, each a sentence.",
       "type": "array",

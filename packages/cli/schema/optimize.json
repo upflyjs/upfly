@@ -45,9 +45,23 @@
       ]
     },
     "notes": { "$ref": "#/definitions/notes" },
+    "applyRefusals": { "$ref": "#/definitions/applyRefusals" },
     "report": { "$ref": "report.json" }
   },
   "definitions": {
+    "applyRefusals": {
+      "description": "On a dry run, each note that says what --apply would refuse, with the reason its error line would give, such as UNCOMMITTED_CHANGES or NO_REPOSITORY. Each note is also in notes. Empty with --apply.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["reason", "note"],
+        "additionalProperties": false,
+        "properties": {
+          "reason": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "note": { "type": "string" }
+        }
+      }
+    },
     "plan": {
       "description": "What the run converts and rewrites, and what it decided against. The same with and without --apply.",
       "type": "object",

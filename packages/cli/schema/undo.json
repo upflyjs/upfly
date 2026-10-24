@@ -144,7 +144,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["line", "undone", "paths"],
+            "required": ["line", "undone", "paths", "text"],
             "additionalProperties": false,
             "properties": {
               "line": {
@@ -155,6 +155,21 @@
               "undone": {
                 "description": "Whether the line is undone; null when the file changed since, so its state cannot be told.",
                 "type": ["boolean", "null"]
+              },
+              "text": {
+                "description": "The whole line as it was before the run and as the run left it, without its line break, so a reader can show the change without rebuilding it. null when the file changed since, or for a run an older Upfly recorded whose line is undone.",
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "required": ["before", "after"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "before": { "type": "string" },
+                      "after": { "type": "string" }
+                    }
+                  }
+                ]
               },
               "paths": {
                 "description": "Each path the run rewrote on the line.",

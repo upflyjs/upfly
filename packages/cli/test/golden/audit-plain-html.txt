@@ -25,7 +25,7 @@ Options: none
 
   Unused       1 image, 70 B
                  1 possibly unused: its name appears in the project
-                 .upfly/audit.txt lists them; Upfly never deletes one
+                 this report lists them; Upfly never deletes one
 
     Nothing Upfly can see uses these images, and Upfly never deletes an image
     that nothing uses: delete one yourself once you are sure nothing outside the

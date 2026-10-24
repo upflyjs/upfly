@@ -61,6 +61,7 @@ describe('--no-code-config', () => {
         type: 'error',
         reason: 'CODE_CONFIG_NOT_RUN',
         message: expect.stringContaining('upfly.config.mjs'),
+        file: 'upfly.config.mjs',
       });
       expect(existsSync(mark)).toBe(false);
     },

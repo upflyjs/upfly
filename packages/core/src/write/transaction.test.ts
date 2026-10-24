@@ -485,6 +485,16 @@ describe('commit refuses a file that changed after the plan was checked', () => 
 });
 
 describe('revert', () => {
+  it('names how many files changed since the run in words a person reads', async () => {
+    const harness = memoryStore(tree());
+    const manifest = await commit(plan(), harness.store, context());
+    harness.files.set('src/App.jsx', 'edited');
+
+    await expect(revert(manifest, harness.store)).rejects.toMatchObject({
+      message: expect.stringContaining('1 file changed since this run: src/App.jsx.'),
+    });
+  });
+
   it('restores a byte-identical tree after a complete run', async () => {
     const original = tree();
     const harness = memoryStore(original);

@@ -24,14 +24,7 @@ import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import { policyFor, withPublicDir } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
-import {
-  type ReportFile,
-  localTime,
-  printRun,
-  reportPath,
-  typedOptions,
-  writeReport,
-} from './report-file.js';
+import { type ReportFile, localTime, printRun, typedOptions, writeReport } from './report-file.js';
 import { type NextStep, auditSummary } from './summary.js';
 
 /**
@@ -50,7 +43,7 @@ export async function runAudit(options: AuditOptions, io: Io): Promise<ExitCode>
 
   const config = await loadConfig(root, { runCode: !options.noCodeConfig });
   if (config.kind === 'refused') {
-    return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason);
+    return stopWith(io, options, EXIT_CODES.ABORTED, config.message, config.reason, config.file);
   }
   if (config.kind === 'invalid') {
     return stopWith(io, options, EXIT_CODES.USAGE, `${config.file} ${config.message}`);
@@ -203,7 +196,7 @@ function write(
   const upfly = upflyCommand(io.env, io.script);
   const next = nextAfterAudit(options, report, savings, upfly);
   const summary = (file: ReportFile) => auditSummary(report, savings, file, next, upfly);
-  const text = renderFile(summary({ written: reportPath('audit') }), {
+  const text = renderFile(summary(IN_THIS_REPORT), {
     when: localTime(run.started),
     folder: root,
     options: typedOptions(options),
@@ -218,6 +211,12 @@ function write(
   }
 }
 
+/**
+ * What the report's own text calls the report where a summary row sends its reader to it: the
+ * text is the report, in the file or in the JSON, so it names no file.
+ */
+const IN_THIS_REPORT: ReportFile = { written: 'this report' };
+
 /** The report file's text, as `.upfly/audit.txt` holds it after a run without `--json`. */
 function reportText(
   options: AuditOptions,
@@ -231,10 +230,11 @@ function reportText(
 ): string {
   const upfly = upflyCommand(io.env, io.script);
   const next = nextAfterAudit(options, run.report, run.savings, upfly);
-  return renderFile(
-    auditSummary(run.report, run.savings, { written: reportPath('audit') }, next, upfly),
-    { when: localTime(run.started), folder: run.root, options: typedOptions(options) },
-  );
+  return renderFile(auditSummary(run.report, run.savings, IN_THIS_REPORT, next, upfly), {
+    when: localTime(run.started),
+    folder: run.root,
+    options: typedOptions(options),
+  });
 }
 
 /**

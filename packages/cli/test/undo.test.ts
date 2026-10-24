@@ -126,7 +126,7 @@ describe('upfly undo', () => {
     expect(undo.status).toBe(3);
     expect(result(undo.stdout)).toMatchObject({
       reason: 'TRANSACTION_FOREIGN_CHANGE',
-      message: expect.stringContaining('backup of 1 removed original(s) is gone'),
+      message: expect.stringContaining('The backup of 1 removed original is gone'),
     });
     expect(snapshot(root, NOT_THE_PROJECT)).toEqual(before);
   }, 60_000);

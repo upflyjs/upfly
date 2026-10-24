@@ -78,6 +78,9 @@ describe('audit --include-text', () => {
       report.split('\n').slice(3).join('\n').replaceAll(folder, '<root>');
     expect(body(text, root)).toBe(body(file, written));
     expect(text).toContain('Upfly audit');
+    // Nor does the text send its reader to a file the run did not write.
+    expect(text).not.toContain('.upfly/audit.txt');
+    expect(text).toContain('this report lists them');
     expect(existsSync(join(root, '.upfly'))).toBe(false);
   }, 60_000);
 });

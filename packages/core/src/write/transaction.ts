@@ -466,7 +466,7 @@ export async function revertUnderLock(
 export function changedSince(paths: readonly string[]): UpflyError {
   return new UpflyError(
     'TRANSACTION_FOREIGN_CHANGE',
-    `${paths.length} file(s) changed since this run: ${paths.join(', ')}. Nothing was reverted, because undoing over somebody else's edit would lose it.`,
+    `${paths.length === 1 ? '1 file' : `${paths.length} files`} changed since this run: ${paths.join(', ')}. Nothing was reverted, because undoing over somebody else's edit would lose it.`,
   );
 }
 
@@ -491,7 +491,7 @@ export async function refuseMissingBackups(
   if (missing.length === 0) return;
   throw new UpflyError(
     'TRANSACTION_FOREIGN_CHANGE',
-    `The backup of ${missing.length} removed original(s) is gone from ${manifest.runDir}: ${missing.join(', ')}. Nothing was reverted, because putting the rest back would leave those still missing.`,
+    `${missing.length === 1 ? 'The backup of 1 removed original is' : `The backups of ${missing.length} removed originals are`} gone from ${manifest.runDir}: ${missing.join(', ')}. Nothing was reverted, because putting the rest back would leave ${missing.length === 1 ? 'it' : 'them'} still missing.`,
   );
 }
 
