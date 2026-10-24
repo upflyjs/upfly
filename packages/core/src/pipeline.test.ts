@@ -284,6 +284,25 @@ describe('runPipeline', () => {
     ]);
   });
 
+  it('lets a timer that fell due run once the serving roots are decided, before resolving', async () => {
+    const order: string[] = [];
+    await runPipeline({
+      root: site(),
+      servingRoots: (discovery, scanned) => {
+        setTimeout(() => order.push('timer'), 0);
+        // Holds the thread past the timer's due time, as deciding the roots of a large
+        // project does.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+        return servingRootsFor()(discovery, scanned);
+      },
+      publicDirs: (servingRoots) => servingRoots.dirs,
+      probeOptions: null,
+      onProgress: (event) => order.push(event.stage),
+    });
+
+    expect(order).toEqual(['discovered', 'scanned', 'timer', 'resolved', 'audited']);
+  });
+
   it('counts the images as it measures them, before saying they are measured', async () => {
     const events: PipelineProgress[] = [];
     await runPipeline({

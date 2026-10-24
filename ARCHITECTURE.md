@@ -50,6 +50,7 @@ scanSources(sourceFiles, adapters, readFile) ──► rawReferences[], unscanne
 resolveReferences(rawReferences, assets, excludedRoots, exists) ──► references[]
         │  an eight-rung ladder producing one of seven outcomes
         │  final confidence = ceiling if it resolved, otherwise `unsafe`
+        │  a thousand at a time in the pipeline, with a turn of the event loop between
         ▼
 buildGraph(assets, references, unscannedFiles) ──► asset ↔ refs, via isLinked()
         │  byResolution[]         every reference bucketed, so none can be lost
@@ -2925,9 +2926,11 @@ progress line is rewritten as each stage finishes, and names the stage that runs
 `refs`' search of every file; while it works, one to three dots move beside the line four times a
 second, so a stage that takes seconds never looks stuck. Their
 timer never keeps the process alive, and a command clears the line however its work ends, so a
-failure is printed on a line of its own. Resolution and planning each run without a turn of the
-event loop, so on a project of tens of thousands of files the dots stand still for a second or two
-while they run.
+failure is printed on a line of its own. Resolution takes a turn of the event loop before every
+thousand references (`resolveReferencesInSlices`), so the dots keep moving while it runs, and the
+result is the same wherever the turns fall. Deciding the serving roots and planning each run
+without one, so on a project of tens of thousands of files the dots stand still for about half a
+second while the roots are decided, and for a second or more while a plan is made.
 
 **`audit`, `optimize` and `dedupe` print a short summary**: what will happen or happened, the
 totals, every image left alone counted by reason, and the next command to run, in labelled rows no

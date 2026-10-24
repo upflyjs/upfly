@@ -8,6 +8,7 @@
  */
 
 import { dirname, posix, resolve as resolvePath, win32 } from 'node:path';
+import { setImmediate as immediate } from 'node:timers/promises';
 import {
   INTERPOLATIONS,
   type PathSpelling,
@@ -126,6 +127,58 @@ export function resolveReferences(
   rawReferences: readonly RawReference[],
   options: ResolveOptions,
 ): Reference[] {
+  const resolveEach = resolverFor(options);
+  const resolved: Reference[] = [];
+
+  for (const raw of rawReferences) {
+    const reference = resolveEach(raw);
+    if (reference !== null) resolved.push(reference);
+  }
+
+  return resolved;
+}
+
+/** How many references `resolveReferencesInSlices` resolves between two turns of the loop. */
+const SLICE_SIZE = 1_000;
+
+/**
+ * `resolveReferences`, with a turn of the event loop before every `sliceSize` references, so a
+ * project of tens of thousands of files is not resolved in one stretch that holds the thread
+ * and stops a caller's timers, such as a terminal's progress dots. Each reference is resolved
+ * as `resolveReferences` resolves it and in the same order, so the result is the same wherever
+ * the turns fall.
+ *
+ * @param sliceSize how many references to resolve between two turns
+ */
+export async function resolveReferencesInSlices(
+  rawReferences: readonly RawReference[],
+  options: ResolveOptions,
+  sliceSize = SLICE_SIZE,
+): Promise<Reference[]> {
+  const resolveEach = resolverFor(options);
+  const resolved: Reference[] = [];
+
+  for (const [index, raw] of rawReferences.entries()) {
+    if (index % sliceSize === 0) await turnOfTheLoop();
+    const reference = resolveEach(raw);
+    if (reference !== null) resolved.push(reference);
+  }
+
+  return resolved;
+}
+
+/**
+ * Settles once the event loop has run the timers that fell due. The second immediate is queued
+ * while the first runs, so it waits for the loop's next iteration, which runs those timers
+ * first. A zero-delay timer would also wait for the clock's next tick, about 16 ms on Windows.
+ */
+async function turnOfTheLoop(): Promise<void> {
+  await immediate();
+  await immediate();
+}
+
+/** Resolves one reference at a time, against a context built once from `options`. */
+function resolverFor(options: ResolveOptions): (raw: RawReference) => Reference | null {
   const context: ResolveContext = {
     index: new AssetIndex(options.assets, options.unindexed, options.foldCase ?? false),
     root: options.root,
@@ -144,14 +197,7 @@ export function resolveReferences(
       skipped: context.aliases.skipped,
     },
   };
-  const resolved: Reference[] = [];
-
-  for (const raw of rawReferences) {
-    const reference = resolveOne(raw, raw.shape === 'js.new-url' ? assetUrlContext : context);
-    if (reference !== null) resolved.push(reference);
-  }
-
-  return resolved;
+  return (raw) => resolveOne(raw, raw.shape === 'js.new-url' ? assetUrlContext : context);
 }
 
 interface ResolveContext {

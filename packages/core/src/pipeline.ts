@@ -30,7 +30,7 @@ import {
   probeAssets,
 } from './probe/probe.js';
 import { type AliasMap, loadAliases } from './resolve/aliases.js';
-import { type ServingRoots, resolveReferences } from './resolve/resolve.js';
+import { type ServingRoots, resolveReferencesInSlices } from './resolve/resolve.js';
 import { decideServingRoots } from './resolve/serving-root-decision.js';
 import { type ScanDiagnostic, scanSources } from './scan/scan.js';
 import type { Adapter, Asset, DiscoveryResult, Reference } from './types.js';
@@ -273,7 +273,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineOutput>
     readFile: readFileText,
   });
   const servingRoots = input.servingRoots(discovery, scanned);
-  const references = resolveReferences(scanned.references, {
+  const references = await resolveReferencesInSlices(scanned.references, {
     root: discovery.root,
     assets: discovery.assets,
     servingRoots,

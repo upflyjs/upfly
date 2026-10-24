@@ -11,8 +11,13 @@ import { discover } from './discover/discover.js';
 import { buildGraph, unreferencedAssets } from './graph/graph.js';
 import { createSharpProbe } from './probe/probe-sharp.js';
 import { probeAssets } from './probe/probe.js';
+import { buildReport } from './report/report.js';
 import { isLinked } from './resolve/reference.js';
-import { resolveReferences } from './resolve/resolve.js';
+import {
+  type ResolveOptions,
+  resolveReferences,
+  resolveReferencesInSlices,
+} from './resolve/resolve.js';
 import { detectServingRoots } from './resolve/serving-roots.js';
 import { scanSources } from './scan/scan.js';
 import type { ReadFilePort } from './scan/scan.js';
@@ -597,4 +602,51 @@ describe('the serving-root diagnosis, reached through a real tree', () => {
     expect(health.rate).toBe(1);
     expect(health.servingRootUnknown).toBe(false);
   });
+});
+
+describe('a tree resolved in slices', () => {
+  it.each(NAMES)(
+    '%s: gives the graph and report of one stretch, with a slice ending inside a file',
+    async (name) => {
+      const { discovered, references, unscanned } = await scan(name);
+      const options: ResolveOptions = {
+        root: discovered.root,
+        assets: discovered.assets,
+        servingRoots: { declared: true, dirs: [PUBLIC_DIRS[name]] },
+        excludedRoots: discovered.excludedRoots,
+        exists: (path) => existsSync(path),
+      };
+      const size = 2;
+      const endsInsideAFile = references.some(
+        (reference, index) => index % size === 0 && references[index - 1]?.file === reference.file,
+      );
+      const readFile: ReadFilePort = (path) => readFile_(path, 'utf8');
+      const engine = async (resolved: readonly Reference[]) => {
+        const graph = buildGraph({
+          root: discovered.root,
+          assets: discovered.assets,
+          references: resolved,
+          unscannedFiles: [...discovered.unscannedFiles, ...unscanned],
+        });
+        const sweep = await sweepForMentions({ graph, readFile });
+        const report = buildReport({
+          graph,
+          audit: await audit({ graph, sweep, readFile, publicDirs: options.servingRoots.dirs }),
+          discovery: discovered,
+          sweep,
+          servingRoots: options.servingRoots,
+          aliases: { rules: [], skipped: [] },
+        });
+        return { resolved, graph, report: JSON.stringify(report) };
+      };
+
+      const inOneStretch = await engine(resolveReferences(references, options));
+      const inSlices = await engine(await resolveReferencesInSlices(references, options, size));
+
+      expect(endsInsideAFile).toBe(true);
+      expect(inSlices.resolved).toEqual(inOneStretch.resolved);
+      expect(inSlices.graph).toEqual(inOneStretch.graph);
+      expect(inSlices.report).toBe(inOneStretch.report);
+    },
+  );
 });

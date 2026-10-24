@@ -8,6 +8,7 @@ import {
   CONVENTIONAL_SERVING_ROOTS,
   contextCouldTake,
   resolveReferences,
+  resolveReferencesInSlices,
   servedFromAnyRoot,
 } from './resolve.js';
 
@@ -2150,5 +2151,67 @@ describe("what a bundler's context could take, for the name search", () => {
     );
 
     expect(couldTake('src/icons/old/a.gif')).toBe(true);
+  });
+});
+
+describe('resolving in slices, with a turn of the event loop before each', () => {
+  const STYLES = join(ROOT, 'src', 'styles.css');
+  // Two files, each holding references of several outcomes, so a slice can end inside one
+  // file's references or between the two files.
+  const references: readonly RawReference[] = [
+    raw({ rawPath: './assets/logo.png' }),
+    raw({ rawPath: './missing.png' }),
+    raw({ rawPath: './images/${n}.png', ceiling: 'medium' }),
+    raw({ rawPath: './fonts/inter.woff2' }),
+    raw({ rawPath: '/banner.png', file: STYLES }),
+    raw({ rawPath: './assets/hero.jpg', file: STYLES }),
+    raw({ rawPath: '../at-root.png', file: STYLES }),
+  ];
+  const options = {
+    root: ROOT,
+    assets: ASSETS,
+    servingRoots: CONVENTIONAL_SERVING_ROOTS,
+    exists: NOTHING_EXISTS,
+  };
+
+  it.each([1, 2, 3, 4, 7, 1_000])(
+    'resolves every reference as in one stretch, in the same order, in slices of %i',
+    async (size) => {
+      expect(await resolveReferencesInSlices(references, options, size)).toEqual(
+        resolveReferences(references, options),
+      );
+    },
+  );
+
+  it('lets a timer that fell due during one slice run before the next slice', async () => {
+    const order: string[] = [];
+    let timerSet = false;
+    await resolveReferencesInSlices(
+      ['a', 'b', 'c', 'd'].map((name) => raw({ rawPath: `./missing-${name}.png` })),
+      {
+        ...options,
+        // Asked about each reference that did not resolve, while it is resolved.
+        exists: (path) => {
+          const name = path.slice(path.lastIndexOf('/') + 1);
+          if (order.at(-1) !== name) order.push(name);
+          if (!timerSet) {
+            timerSet = true;
+            setTimeout(() => order.push('timer'), 0);
+            // Holds the thread past the timer's due time, as a long slice of work would.
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+          }
+          return false;
+        },
+      },
+      2,
+    );
+
+    expect(order).toEqual([
+      'missing-a.png',
+      'missing-b.png',
+      'timer',
+      'missing-c.png',
+      'missing-d.png',
+    ]);
   });
 });
