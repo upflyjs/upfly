@@ -72,6 +72,10 @@ export { createNodeFileStore } from './write/file-store-node.js';
 export { inspect, readManifest, revert } from './write/transaction.js';
 export type { FileStore, OperationState } from './write/transaction.js';
 export { describeRun, undoPart } from './write/undo-part.js';
+// A run made without undo (`OptimizeProjectInput.undoable`) that was cut off part way is put
+// back by this, which every caller that writes runs first.
+export { settleNoUndoRun } from './write/no-undo.js';
+export type { SettleOptions } from './write/no-undo.js';
 export type {
   ChangedPath,
   FileChanges,

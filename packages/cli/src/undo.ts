@@ -31,6 +31,7 @@ import { EXIT_CODES, type ExitCode, type RefusalReason } from './exit-codes.js';
 import { commitForRun } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { commandLine, headline, spaced } from './layout.js';
+import { putBackCutOffRun } from './optimize.js';
 import { type Io, type Styles, emit, stopWith, stylesFor } from './output.js';
 import { count } from './plan-text.js';
 
@@ -92,6 +93,13 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
     part = { file, line: options.line };
   }
   const store = createNodeFileStore(root);
+  // Before the record is read: putting back a run made with --no-undo can rewrite a file the
+  // last run changed too, and that file's undo then finds it as the last run left it.
+  const settled = options.list ? { notes: [] } : await putBackCutOffRun(root);
+  if ('code' in settled) {
+    return stopWith(io, options, settled.code, settled.message, settled.reason);
+  }
+  const before = settled.notes;
 
   let manifest: Manifest | null;
   try {
@@ -114,13 +122,13 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
     return nothingToUndo(
       options,
       io,
-      'No Upfly run has written to this project, so there is nothing to undo.',
+      [...before, 'No Upfly run has written to this project, so there is nothing to undo.'],
       part,
     );
   }
-  if (part !== null) return undoOnePart(options, io, manifest, part, root, upfly);
+  if (part !== null) return undoOnePart(options, io, manifest, part, root, before);
   if (manifest.state === 'reverted') {
-    return nothingToUndo(options, io, alreadyUndone(manifest), null);
+    return nothingToUndo(options, io, [...before, alreadyUndone(manifest)], null);
   }
 
   let states: readonly OperationState[];
@@ -133,7 +141,7 @@ export async function runUndo(options: UndoOptions, io: Io): Promise<ExitCode> {
     return stopWith(io, options, EXIT_CODES.ABORTED, refused.message, refused.reason);
   }
 
-  write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId));
+  write(options, io, undoneFrom(manifest, states), commitForRun(root, manifest.runId), before);
   return EXIT_CODES.OK;
 }
 
@@ -150,14 +158,18 @@ function alreadyUndone(manifest: Manifest): string {
   return `The last run (${manifest.runId}) was already undone, at ${manifest.revertedAt}. Nothing was changed.`;
 }
 
-/** Undo what the run did to one file, or to one line of it. */
+/**
+ * Undo what the run did to one file, or to one line of it.
+ *
+ * @param before notes on what was put back before the record was read
+ */
 async function undoOnePart(
   options: UndoOptions,
   io: Io,
   manifest: Manifest,
   part: RunPart,
   root: string,
-  upfly: UpflyCommand,
+  before: readonly string[],
 ): Promise<ExitCode> {
   let done: PartUndone;
   try {
@@ -176,7 +188,10 @@ async function undoOnePart(
     return nothingToUndo(
       options,
       io,
-      manifest.state === 'reverted' ? alreadyUndone(manifest) : partAlreadyUndone(manifest, part),
+      [
+        ...before,
+        manifest.state === 'reverted' ? alreadyUndone(manifest) : partAlreadyUndone(manifest, part),
+      ],
       part,
     );
   }
@@ -190,7 +205,7 @@ async function undoOnePart(
     moved: done.copiedBack.map((move) => ({ ...move })),
   };
   const commit = commitForRun(root, manifest.runId);
-  const notes = commit === null ? [] : [afterCommit(commit)];
+  const notes = [...before, ...(commit === null ? [] : [afterCommit(commit)])];
   if (options.json) {
     emit(io, {
       type: 'result',
@@ -203,6 +218,7 @@ async function undoOnePart(
     });
     return EXIT_CODES.OK;
   }
+  const upfly = upflyCommand(io.env, io.script);
   io.stdout.write(
     spaced([
       headline(stylesFor(io.stdout, io.env, options), 'undo'),
@@ -274,8 +290,14 @@ function undoneFrom(manifest: Manifest, states: readonly OperationState[]): Undo
   return undone;
 }
 
-function write(options: UndoOptions, io: Io, undone: Undone, commit: string | null): void {
-  const notes = commit === null ? [] : [afterCommit(commit)];
+function write(
+  options: UndoOptions,
+  io: Io,
+  undone: Undone,
+  commit: string | null,
+  before: readonly string[],
+): void {
+  const notes = [...before, ...(commit === null ? [] : [afterCommit(commit)])];
   if (options.json) {
     emit(io, {
       type: 'result',
@@ -325,7 +347,13 @@ function afterCommit(commit: string): string {
   return `That run was committed as ${short}, which is still in the history, so the files undo put back now show as uncommitted changes. Commit them to record the undo; \`git revert ${short}\` would have done the same in one step.`;
 }
 
-function nothingToUndo(options: UndoOptions, io: Io, why: string, part: RunPart | null): ExitCode {
+/** Nothing was undone: say why, after anything put back first. */
+function nothingToUndo(
+  options: UndoOptions,
+  io: Io,
+  why: readonly string[],
+  part: RunPart | null,
+): ExitCode {
   if (options.json) {
     emit(io, {
       type: 'result',
@@ -334,11 +362,11 @@ function nothingToUndo(options: UndoOptions, io: Io, why: string, part: RunPart 
       undone: null,
       part,
       commit: null,
-      notes: [why],
+      notes: why,
     });
   } else {
     const styles = stylesFor(io.stdout, io.env, options);
-    io.stdout.write(spaced([headline(styles, 'undo'), '', why]));
+    io.stdout.write(spaced([headline(styles, 'undo'), '', ...why]));
   }
   return EXIT_CODES.OK;
 }

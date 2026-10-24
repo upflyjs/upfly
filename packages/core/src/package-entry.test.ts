@@ -66,8 +66,9 @@ describe('the package entry, imported the way a user imports it', () => {
 
   it('exports as values only what the documented tasks need, so any change to them is seen', () => {
     // Running the audit and reading its report, optimizeProject, dedupeProject, undo of a
-    // whole run or part of one and the list of what a run changed, the errors they throw,
-    // and writing an adapter. Everything else is in upfly-core/internal.
+    // whole run or part of one and the list of what a run changed, putting back a run made
+    // without undo that was cut off, the errors they throw, and writing an adapter.
+    // Everything else is in upfly-core/internal.
     expect(Object.keys(source).sort()).toEqual([
       'REPORT_SCHEMA_VERSION',
       'UpflyError',
@@ -84,6 +85,7 @@ describe('the package entry, imported the way a user imports it', () => {
       'rewriteByEdits',
       'runPipeline',
       'servingRootsFor',
+      'settleNoUndoRun',
       'undoPart',
     ]);
     const shared = Object.keys(internal).filter((name) => name in source);

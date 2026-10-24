@@ -187,7 +187,7 @@
       }
     },
     "run": {
-      "description": "What an applied run wrote, or null when it wrote nothing: a dry run, or a plan with nothing to do. upfly undo puts every one of these files back.",
+      "description": "What an applied run wrote, or null when it wrote nothing: a dry run, or a plan with nothing to do. Unless undoable is false, upfly undo puts every one of these files back.",
       "oneOf": [
         { "type": "null" },
         {
@@ -201,7 +201,11 @@
             },
             "created": { "type": "array", "items": { "type": "string" } },
             "changed": { "type": "array", "items": { "type": "string" } },
-            "removed": { "type": "array", "items": { "type": "string" } }
+            "removed": { "type": "array", "items": { "type": "string" } },
+            "undoable": {
+              "description": "Given by optimize: false for a run made with --no-undo, which keeps no record once it finishes, so upfly undo leaves it as it is and still puts back the last run made without it. dedupe and move leave it out: upfly undo always puts their runs back.",
+              "type": "boolean"
+            }
           }
         }
       ]

@@ -19,14 +19,17 @@ import {
   createNodeFileStore,
   optimizeProject,
   readManifest,
+  settleNoUndoRun,
 } from 'upfly-core';
 import {
   LOCK_PATH,
+  NO_UNDO_DIRECTORY,
   UPFLY_DIRECTORY,
   formatBytes,
   pathsTouched,
   processIsAlive,
   readLockHolder,
+  readNoUndoRecord,
   servingRootOf,
 } from 'upfly-core/internal';
 import type { OptimizeOptions } from './args.js';
@@ -82,13 +85,10 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
   if ('code' in project) return stop(project);
   const { root, settings } = project;
 
-  const git = gitState(root);
   const upfly = upflyCommand(io.env, io.script);
-  const unfinished = await unfinishedRun(root, upfly);
-  if (options.apply) {
-    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
-    if (refusal !== null) return stop(refusal);
-  }
+  const start = await startRun(root, options, upfly);
+  if ('code' in start) return stop(start);
+  const { git, unfinished } = start;
 
   const policy = policyFor(options, settings);
   const result = await carryOut(options, io, root, settings, policy);
@@ -108,7 +108,7 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
     commit,
     unfinished: unfinished !== null,
     format: options.format ?? settings.format ?? 'webp',
-    notes: [...notes(options, git, unfinished, upfly), ...onlyNotes(result)],
+    notes: [...start.notes, ...notes(options, git, unfinished, upfly), ...onlyNotes(result)],
     started,
   });
   return EXIT_CODES.OK;
@@ -206,6 +206,7 @@ async function carryOut(
       format: options.format ?? settings.format ?? 'webp',
       publicPolicy: policy,
       apply: options.apply,
+      ...(options.noUndo ? { undoable: false } : {}),
       extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
       ...(options.only === null ? {} : { only: { patterns: options.only } }),
       onProgress: (event) => progress.update(event),
@@ -312,6 +313,92 @@ function commitRun(
       reason: 'GIT_COMMIT_FAILED',
       message: `The run was applied, but git did not commit it (${firstLine(error)}). Its files are written: commit them yourself, or run \`${upfly} undo\` to put every file back.`,
     };
+  }
+}
+
+/**
+ * How a command that may write starts, before it reads the project. One that applies first
+ * puts back a run made with --no-undo that was cut off part way, which changes files, and only
+ * then asks git about the folder and refuses what a write must wait for: a run in progress, the
+ * last run stopped part way, or what git does not allow. A dry run names the cut-off run instead.
+ *
+ * @param root the project directory
+ * @param options the parsed command line
+ * @param upfly how to name Upfly in a message
+ * @returns git's state, any unfinished run and the notes to give, or the refusal
+ */
+export async function startRun(
+  root: string,
+  options: Pick<OptimizeOptions, 'apply' | 'dir' | 'commit' | 'allowDirty'>,
+  upfly: UpflyCommand,
+): Promise<
+  | { readonly git: GitState; readonly unfinished: Refusal | null; readonly notes: string[] }
+  | Refusal
+> {
+  const settled = options.apply ? await putBackCutOffRun(root) : { notes: [] };
+  if ('code' in settled) return settled;
+  const git = gitState(root);
+  const unfinished = await unfinishedRun(root, upfly);
+  if (options.apply) {
+    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
+    return refusal ?? { git, unfinished, notes: settled.notes };
+  }
+  // A record still being written belongs to a run in progress, which the lock names.
+  const cutOff = unfinished?.reason === 'TRANSACTION_LOCKED' ? null : await cutOffRun(root);
+  const said =
+    cutOff === null
+      ? []
+      : [
+          `A run made with --no-undo (${cutOff.runId}, started ${cutOff.startedAt}) stopped before it finished; the next command that writes puts it back first.`,
+        ];
+  return { git, unfinished, notes: said };
+}
+
+/**
+ * Puts back a run made with --no-undo that was cut off part way, and clears what a finished one
+ * left, before a command writes anything. Its note says what was put back.
+ *
+ * @param root the project directory
+ * @returns the notes to give, or the refusal when the run could not be put back
+ */
+export async function putBackCutOffRun(
+  root: string,
+): Promise<{ readonly notes: string[] } | Refusal> {
+  const cutOff = await cutOffRun(root);
+  let putBack: Manifest | null;
+  try {
+    putBack = await settleNoUndoRun(createNodeFileStore(root));
+  } catch (error) {
+    if (!(error instanceof UpflyError)) throw error;
+    if (error.code === 'TRANSACTION_FOREIGN_CHANGE') {
+      const which = cutOff === null ? '' : ` (${cutOff.runId})`;
+      return {
+        code: EXIT_CODES.ABORTED,
+        reason: error.code,
+        message: `A run made with --no-undo${which} stopped before it finished, and Upfly puts such a run back before it writes anything else, but this one cannot be: ${error.message} To keep every file as it is now, delete ${NO_UNDO_DIRECTORY} and the backups that run kept in it, then run this again.`,
+      };
+    }
+    if (error.code === 'TRANSACTION_LOCKED' || error.code === 'MANIFEST_VERSION_UNSUPPORTED') {
+      return { code: EXIT_CODES.ABORTED, reason: error.code, message: error.message };
+    }
+    throw error;
+  }
+  if (putBack === null) return { notes: [] };
+  const files = pathsTouched(putBack).length;
+  return {
+    notes: [
+      `A run made with --no-undo (${putBack.runId}, started ${putBack.startedAt}) had stopped before it finished, so it was put back first: ${count(files, 'file')} as ${files === 1 ? 'it was' : 'they were'} before it.`,
+    ],
+  };
+}
+
+/** The record of a run made with --no-undo that stopped part way, or null. */
+async function cutOffRun(root: string): Promise<Manifest | null> {
+  try {
+    const record = await readNoUndoRecord(createNodeFileStore(root));
+    return record?.state === 'pending' ? record : null;
+  } catch {
+    return null;
   }
 }
 
@@ -433,12 +520,18 @@ export async function engineRefusal(
   switch (error.code) {
     case 'TRANSACTION_LOCKED':
       return { code: EXIT_CODES.ABORTED, reason: error.code, message: error.message };
-    case 'TRANSACTION_INTERRUPTED':
+    case 'TRANSACTION_INTERRUPTED': {
+      // The last run's record is the one undo follows; a run made with --no-undo is put back
+      // by the next command that writes, as its own message says.
+      const last = (await unfinishedRun(root, upfly))?.reason === 'TRANSACTION_INTERRUPTED';
       return {
         code: EXIT_CODES.ABORTED,
         reason: error.code,
-        message: `${error.message} Run \`${upfly} undo\`, then run this again.`,
+        message: last
+          ? `${error.message} Run \`${upfly} undo\`, then run this again.`
+          : error.message,
       };
+    }
     case 'TRANSACTION_PLAN_INVALID':
     case 'TRANSACTION_FOREIGN_CHANGE': {
       // Either can happen before the first write or part way through; only part way
@@ -563,7 +656,13 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
         conversions: withPublicDir(run.plan.conversions, pipeline.servingRoots),
       },
       run:
-        run.manifest === null ? null : { id: run.manifest.runId, ...writtenByKind(run.manifest) },
+        run.manifest === null
+          ? null
+          : {
+              id: run.manifest.runId,
+              ...writtenByKind(run.manifest),
+              undoable: !options.noUndo,
+            },
       commit: outcome.commit,
       repository,
       only: result.only ?? null,
@@ -576,8 +675,9 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
   const nothingToDo = run.plan.conversions.length === 0 && run.plan.rewrites.length === 0;
   const upfly = upflyCommand(io.env, io.script);
   let next: NextStep | null = null;
-  if (options.apply) next = run.manifest === null ? null : nextAfterRun(outcome.commit, upfly);
-  else if (!nothingToDo) {
+  if (options.apply) {
+    next = run.manifest === null ? null : nextAfterRun(outcome.commit, upfly, !options.noUndo);
+  } else if (!nothingToDo) {
     next = nextAfterPlan(
       'optimize',
       options.dir,
@@ -611,7 +711,9 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
     folder: pipeline.graph.root,
     options: typedOptions(options),
   });
-  const file = writeReport(pipeline.graph.root, 'optimize', text, run.manifest?.runDir ?? null);
+  // A run made with --no-undo leaves no folder of its own to keep a copy in.
+  const runDir = options.noUndo ? null : (run.manifest?.runDir ?? null);
+  const file = writeReport(pipeline.graph.root, 'optimize', text, runDir);
   printRun(io, options, summary(file), text, file);
 }
 

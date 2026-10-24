@@ -133,7 +133,11 @@ export function typedOptions(
     ...(options.format === null ? [] : ['--format', options.format]),
     ...(options.only ?? []).flatMap((pattern) => ['--only', pattern]),
     ...writes,
-    ...flags([[options.includeDeclined, '--include-declined'], ...listFlags(options)]),
+    ...flags([
+      [options.noUndo, '--no-undo'],
+      [options.includeDeclined, '--include-declined'],
+      ...listFlags(options),
+    ]),
   ];
 }
 

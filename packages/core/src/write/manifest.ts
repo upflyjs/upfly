@@ -39,6 +39,16 @@ export const UPFLY_DIRECTORY = '.upfly';
 export const MANIFEST_PATH = `${UPFLY_DIRECTORY}/manifest.json`;
 
 /**
+ * Where a run made without undo keeps its record and its folder while it writes, apart from
+ * the manifest and the folder of the last run `undo` follows, which it never touches. Nothing
+ * stays here once such a run finishes.
+ */
+export const NO_UNDO_DIRECTORY = `${UPFLY_DIRECTORY}/no-undo`;
+
+/** The record of a run made without undo, while it writes. */
+export const NO_UNDO_MANIFEST_PATH = `${NO_UNDO_DIRECTORY}/manifest.json`;
+
+/**
  * Put a file at a path that does not exist yet.
  *
  * The bytes are already on disk under the run directory, so committing this is a

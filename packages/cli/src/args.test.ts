@@ -86,6 +86,7 @@ describe('parseCommandLine', () => {
         show: null,
         apply: false,
         commit: false,
+        noUndo: false,
         policy: null,
         format: null,
         allowDirty: false,
@@ -136,6 +137,7 @@ describe('parseCommandLine', () => {
         show: null,
         apply: true,
         commit: true,
+        noUndo: false,
         policy: 'replace',
         format: 'avif',
         allowDirty: false,
@@ -150,6 +152,9 @@ describe('parseCommandLine', () => {
     });
     expect(parseCommandLine(['optimize', '--apply', '--allow-dirty'])).toMatchObject({
       options: { apply: true, allowDirty: true },
+    });
+    expect(parseCommandLine(['optimize', '--apply', '--no-undo'])).toMatchObject({
+      options: { apply: true, noUndo: true },
     });
   });
 

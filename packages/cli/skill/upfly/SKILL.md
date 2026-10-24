@@ -49,7 +49,7 @@ Upfly never deletes an image that nothing uses; deleting one is the user's decis
 5. If anything is wrong: `npx upfly undo` puts every file back, or with `--file <path>`
    (and `--line <n>`) only that file's changes (or that line's).
 
-Do not add `--allow-dirty` or `--keep-originals` unless the user asks for it.
+Do not add `--allow-dirty`, `--keep-originals` or `--no-undo` unless the user asks for it.
 
 ## Moving or renaming an image
 

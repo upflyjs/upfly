@@ -41,7 +41,8 @@ export {
   looksLikeAsset,
 } from './resolve/serving-root-decision.js';
 export type { ServingRootDecision } from './resolve/serving-root-decision.js';
-export { UPFLY_DIRECTORY, pathsTouched } from './write/manifest.js';
+export { NO_UNDO_DIRECTORY, UPFLY_DIRECTORY, pathsTouched } from './write/manifest.js';
+export { readNoUndoRecord } from './write/no-undo.js';
 export { applyEdits } from './write/edits.js';
 export { checkMoveRegression } from './plan/move-check.js';
 export { citeReferences } from './scan/citation.js';

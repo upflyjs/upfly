@@ -450,6 +450,17 @@ describe('every --json line validates against the published schemas', () => {
     result(upfly(['undo', '--list', '--json'], { cwd: plain }));
   }, 120_000);
 
+  it('optimize --apply --no-undo, on a project of its own', () => {
+    const plain = copyFixture('plain-html', tempFolder(roots, 'upfly-schema-no-undo-'));
+    commitAll(plain);
+
+    const applied = result(
+      upfly(['optimize', plain, '--json', '--public', '.', '--apply', '--no-undo']),
+    );
+
+    expect(applied.run).toMatchObject({ undoable: false });
+  }, 120_000);
+
   it('reached every branch the schemas describe', () => {
     const expected = [
       'progress discovered',

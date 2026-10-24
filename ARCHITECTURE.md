@@ -2144,6 +2144,37 @@ existed has no lines, written paths or images: lines and paths are read from the
 holds the text the run left, and the image a line names is matched by file name among what the run
 took away, so every original of that name comes back.
 
+### Runs made without undo
+
+An editor that converts each new image as it arrives runs `optimize --apply --no-undo`. Such a run
+must not become the run `undo` follows: the last run a person started, and the review an editor
+draws from its record, would be replaced by every image added after it. So a run made without undo
+keeps its record at `.upfly/no-undo/manifest.json` and its staged files and backups in
+`.upfly/no-undo/<run-id>/`, and never writes `.upfly/manifest.json` or removes a folder under
+`.upfly/runs/`. While it writes it is any run: the same lock, its record pending before the first
+change and committed after the last, the same phases and checks. Once it has committed,
+`.upfly/no-undo/` is removed whole, so nothing of it stays to undo it from. A file both the last run
+and a run made without undo changed is one the last run's undo finds changed since, and refuses, as
+after any other edit.
+
+**Cut off part way, it is put back, not finished.** Its record holds only the inverse edits, so
+finishing it would need a forward record and a recovery path that rarely runs; putting it back is
+`revert`, the code every undo runs, proven at every crash point. The image it was converting is
+still new, so it is converted again at the next look. While its process lives (a write failed), it
+puts itself back before it throws, under the lock it holds. When its process died, its record stays
+pending and `settleNoUndoRun` puts it back: every CLI command that writes (optimize, dedupe and move
+with `--apply`, and undo) calls it before it reads the project, so what it reads is whole, and a dry
+run names the cut-off run instead. `commit` also refuses to start over a pending record of either
+kind, so a caller that skipped the call cannot write over one.
+
+The record is written only while the project is whole: before the first change, after the last,
+and once put back. So a record cut off mid-write names nothing to put back and is cleared. When a
+file the cut-off run wrote has changed since, nothing is put back and the command stops, naming it;
+deleting `.upfly/no-undo/` keeps every file as it is. An Upfly older than this never reads
+`.upfly/no-undo/`: after finished runs nothing is there, and the last run's record and folder are as
+that run left them; the files of a run cut off part way are, to it, uncommitted changes like any
+other.
+
 ### Images a build loads
 
 A rewritten reference has to load in whatever resolves it. A browser resolves a path to a file the

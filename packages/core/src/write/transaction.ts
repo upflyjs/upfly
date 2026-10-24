@@ -23,6 +23,7 @@ import {
   MANIFEST_SCHEMA_VERSION,
   type Manifest,
   type MoveOperation,
+  NO_UNDO_MANIFEST_PATH,
   type Operation,
   UPFLY_DIRECTORY,
   type UndoEdit,
@@ -237,17 +238,23 @@ export async function commit(
   // See "One writer at a time" in ARCHITECTURE.md.
   const held = await acquireLock({ store, runId: context.runId, now: context.now, ...lock });
   try {
-    return await commitUnderLock(plan, store, context);
+    const committed = await commitUnderLock(plan, store, context, MANIFEST_PATH);
+    await pruneEarlierRuns(store, context.runDir);
+    return committed;
   } finally {
     await held.release();
   }
 }
 
-/** The body of `commit`, once the lock is held. Split so the lock cannot be skipped. */
-async function commitUnderLock(
+/**
+ * The body of `commit`, once the lock is held, writing the record at `record`. Split so the
+ * lock cannot be skipped.
+ */
+export async function commitUnderLock(
   plan: readonly PlannedOperation[],
   store: FileStore,
   context: RunContext,
+  record: string,
 ): Promise<Manifest> {
   await refuseOverInterruptedRun(store, context.runId);
   const operations = await manifestOperations(plan, store);
@@ -263,7 +270,7 @@ async function commitUnderLock(
     operations,
     declined: context.declined,
   };
-  await store.writeText(MANIFEST_PATH, serialiseManifest(pending));
+  await store.writeText(record, serialiseManifest(pending));
 
   // Each phase takes the previous one's witness. See `PhaseComplete`.
   const created = await createPhase(plan, store, context.runDir);
@@ -271,8 +278,7 @@ async function commitUnderLock(
   await removePhase(plan, store, edited);
 
   const committed: Manifest = { ...pending, state: 'committed', completedAt: context.now() };
-  await store.writeText(MANIFEST_PATH, serialiseManifest(committed));
-  await pruneEarlierRuns(store, context.runDir);
+  await store.writeText(record, serialiseManifest(committed));
   return committed;
 }
 
@@ -300,28 +306,47 @@ async function pruneEarlierRuns(store: FileStore, runDir: string): Promise<void>
 }
 
 /**
- * Refuse to start while the last run's manifest is still `pending`.
+ * Refuse to start while the last run's manifest, or the record of a run made without undo, is
+ * still `pending`.
  *
- * Under the lock no other run is writing, so a pending manifest from another run is one
- * that stopped part way. Its manifest is the only record of what it wrote and where its
- * backups are, and writing this run's manifest would replace it. A manifest that cannot
- * be parsed records nothing recoverable, so it does not block.
+ * Under the lock no other run is writing, so a pending record of another run is one that
+ * stopped part way. It is the only record of what that run wrote and where its backups are:
+ * this run's would replace the last run's, and either run's changes could make the other's
+ * files ones it can no longer put back. A record that cannot be parsed records nothing
+ * recoverable, so it does not block.
  *
- * @throws {UpflyError} `TRANSACTION_INTERRUPTED` naming the run to revert first
+ * @throws {UpflyError} `TRANSACTION_INTERRUPTED` naming the run to put back first
  */
 async function refuseOverInterruptedRun(store: FileStore, runId: string): Promise<void> {
-  if ((await store.hash(MANIFEST_PATH)) === null) return;
-  let previous: Manifest;
-  try {
-    previous = parseManifest(await store.readText(MANIFEST_PATH));
-  } catch {
-    return;
+  const last = await pendingRecord(store, MANIFEST_PATH, runId);
+  if (last !== null) {
+    throw new UpflyError(
+      'TRANSACTION_INTERRUPTED',
+      `The last run (${last.runId}, started ${last.startedAt}) stopped before it finished. Starting another would replace the only record of what it wrote, so nothing was changed. Undo that run first; that puts back every file it had written.`,
+    );
   }
-  if (previous.state !== 'pending' || previous.runId === runId) return;
-  throw new UpflyError(
-    'TRANSACTION_INTERRUPTED',
-    `The last run (${previous.runId}, started ${previous.startedAt}) stopped before it finished. Starting another would replace the only record of what it wrote, so nothing was changed. Undo that run first; that puts back every file it had written.`,
-  );
+  const noUndo = await pendingRecord(store, NO_UNDO_MANIFEST_PATH, runId);
+  if (noUndo !== null) {
+    throw new UpflyError(
+      'TRANSACTION_INTERRUPTED',
+      `A run made without undo (${noUndo.runId}, started ${noUndo.startedAt}) stopped before it finished, and its record is the only one of what it wrote, so nothing was changed. Every Upfly command that writes puts such a run back before anything else: run this again.`,
+    );
+  }
+}
+
+/** The record at `path` when it is another run's and that run stopped part way, else null. */
+async function pendingRecord(
+  store: FileStore,
+  path: string,
+  runId: string,
+): Promise<Manifest | null> {
+  if ((await store.hash(path)) === null) return null;
+  try {
+    const record = parseManifest(await store.readText(path));
+    return record.state === 'pending' && record.runId !== runId ? record : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -401,11 +426,12 @@ export async function revert(
   }
 }
 
-/** The body of `revert`, once the lock is held. */
-async function revertUnderLock(
+/** The body of `revert`, once the lock is held, writing the record at `record`. */
+export async function revertUnderLock(
   manifest: Manifest,
   store: FileStore,
   now: () => string,
+  record: string = MANIFEST_PATH,
 ): Promise<Manifest> {
   const states = await inspect(manifest, store);
   const foreign = states.filter((state) => state.status === 'foreign');
@@ -427,7 +453,7 @@ async function revertUnderLock(
     // manifest does nothing, and stamping a fresh time would claim otherwise.
     revertedAt: manifest.revertedAt ?? now(),
   };
-  await store.writeText(MANIFEST_PATH, serialiseManifest(reverted));
+  await store.writeText(record, serialiseManifest(reverted));
   return reverted;
 }
 

@@ -43,6 +43,8 @@ export interface OptimizeProjectInput {
   readonly publicPolicy: PublicPolicy;
   /** Nothing is written unless this is true. */
   readonly apply: boolean;
+  /** See `OptimizeInput.undoable`: false for a run `undo` never puts back. */
+  readonly undoable?: boolean;
   /** More paths to leave out, in `.gitignore` syntax, on top of `.upflyignore`. */
   readonly extraIgnores?: readonly string[];
   /** Called as each stage finishes: the pipeline's stages, then the plan's and the write's. */
@@ -168,6 +170,7 @@ export async function optimizeFromPipeline(
     format: input.format,
     publicPolicy: input.publicPolicy,
     apply: input.apply,
+    ...(input.undoable === undefined ? {} : { undoable: input.undoable }),
     runId: input.runId ?? newRunId(new Date()),
     now: input.now ?? (() => new Date().toISOString()),
     ...(input.lock === undefined ? {} : { lock: input.lock }),

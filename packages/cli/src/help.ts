@@ -114,6 +114,10 @@ Options:
   --exclude <pattern>    Leave matching paths out, in .gitignore syntax; repeatable
   --allow-dirty          With --apply: write even with uncommitted changes, or outside a
                          git repository. upfly undo still puts the files back
+  --no-undo              With --apply: keep no record for upfly undo, as an editor that
+                         converts new images as they arrive does. The run writes as any
+                         run does, and removes its record and backups once it finishes;
+                         upfly undo still puts back the last run made without it
   --include-declined     In the JSON, also list each image left unconverted, with the
                          reason; the full plan always does
   --include-discarded    Also list the path-like strings that linked nothing
@@ -134,7 +138,7 @@ const UNDO = `Usage: upfly undo [dir] [options]
 Puts back every file the last optimize, dedupe or move --apply changed: removed originals
 come back, updated references point at them again, converted files are removed, and
 moved images go back where they were. It checks each file first and changes nothing if any of them was edited since
-that run.
+that run. A run made with optimize --no-undo keeps no record, so undo leaves it as it is.
 
 With --file it puts back only what the run did to one file, and with --line as well only
 one line of it, leaving the rest of the run in place. An image that a line put back names

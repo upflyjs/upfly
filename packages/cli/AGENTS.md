@@ -74,7 +74,9 @@ reads the folder given after it, or the current folder, and prints plain text; a
    whether it is `back`. It changes nothing.
 
 Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
-`--keep-originals` (keeping each original beside its converted file), and `--format avif`.
+`--keep-originals` (keeping each original beside its converted file), `--format avif`, and
+`--no-undo` (a run `upfly undo` cannot put back, for an editor that converts new images as
+they arrive).
 Never edit `.upfly/`: it is the record `upfly undo` follows.
 
 ## Moving or renaming an image

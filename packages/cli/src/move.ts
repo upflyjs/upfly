@@ -18,18 +18,17 @@ import {
 import type { MoveOptions } from './args.js';
 import { isDirectory, scopeWords } from './audit.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
-import { type GitState, RUN_TRAILER, commitPaths, gitState } from './git.js';
+import { type GitState, RUN_TRAILER, commitPaths } from './git.js';
 import { type UpflyCommand, upflyCommand } from './invocation.js';
 import { renderFile } from './layout.js';
 import {
   type Refusal,
   engineRefusal,
-  gitRefusal,
   notes,
   openProject,
   some,
+  startRun,
   uncommittable,
-  unfinishedRun,
 } from './optimize.js';
 import { type Io, emit, progressReporter, stopWith } from './output.js';
 import { count } from './plan-text.js';
@@ -79,12 +78,9 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
   const paths = pathsOf(options, root, upfly);
   if ('code' in paths) return stop(paths);
 
-  const git = gitState(root);
-  const unfinished = await unfinishedRun(root, upfly);
-  if (options.apply) {
-    const refusal = unfinished ?? gitRefusal(git, options, root, upfly);
-    if (refusal !== null) return stop(refusal);
-  }
+  const start = await startRun(root, options, upfly);
+  if ('code' in start) return stop(start);
+  const { git, unfinished } = start;
 
   const publicDirs = options.publicDirs ?? settings.publicDirs ?? null;
   const progress = progressReporter(io, 'move', options.json, options.apply);
@@ -137,7 +133,7 @@ export async function runMove(options: MoveOptions, io: Io): Promise<ExitCode> {
     git,
     commit,
     unfinished: unfinished !== null,
-    notes: notes(options, git, unfinished, upfly),
+    notes: [...start.notes, ...notes(options, git, unfinished, upfly)],
     started,
     upfly,
   });

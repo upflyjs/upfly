@@ -57,6 +57,7 @@ import { TEXT_HASH_ALGORITHM, hashText } from '../scan/text-hash.js';
 import { applyEdits } from './edits.js';
 import { acquireLock } from './lock.js';
 import { type Declined, type Manifest, UPFLY_DIRECTORY, pathsTouched } from './manifest.js';
+import { commitWithoutUndo, noUndoRunDir } from './no-undo.js';
 import {
   type FileStore,
   type LockPorts,
@@ -128,6 +129,12 @@ export interface OptimizeInput {
   readonly rootLinkPolicy?: RootLinkPolicy;
   /** False for a dry run, which plans and writes nothing. */
   readonly apply: boolean;
+  /**
+   * False for a run `undo` never puts back, such as an editor converting a new image as it
+   * arrives: its record and backups are kept apart, in `.upfly/no-undo/`, only while it writes,
+   * and the last run's record and folder stay as they are. True unless given.
+   */
+  readonly undoable?: boolean;
   readonly runId: string;
   readonly now: () => string;
   /**
@@ -440,7 +447,8 @@ export function newRunId(now: Date, random: () => number = Math.random): string 
 }
 
 export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
-  const runDir = `.upfly/runs/${input.runId}`;
+  const runDir =
+    input.undoable === false ? noUndoRunDir(input.runId) : `.upfly/runs/${input.runId}`;
   const hedged = await hedgedMentions(input);
 
   const planWith = (blocked?: Blocked) =>
@@ -530,6 +538,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
       // Refused before any file in the project was written, so nothing will ever read what
       // was staged for it: each encode is a full-size image.
       await removeEach(input.store, staging);
+      if (input.undoable === false) await input.store.removeDirectory(runDir).catch(() => {});
       throw error;
     }
     written = {
@@ -667,7 +676,9 @@ async function commitUnderLock(
     ],
   };
 
-  return commit(operations, input.store, context, input.lock ?? {});
+  return input.undoable === false
+    ? commitWithoutUndo(operations, input.store, context, input.lock ?? {})
+    : commit(operations, input.store, context, input.lock ?? {});
 }
 
 /**

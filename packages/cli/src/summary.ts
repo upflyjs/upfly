@@ -1272,13 +1272,20 @@ export function nextAfterPlan(
  *
  * @param commit the run's commit, or null
  * @param upfly how the commands printed are typed
+ * @param undoable false for a run made with --no-undo, which undo does not put back
  */
-export function nextAfterRun(commit: string | null, upfly: UpflyCommand): NextStep {
+export function nextAfterRun(
+  commit: string | null,
+  upfly: UpflyCommand,
+  undoable = true,
+): NextStep {
   return {
     words: null,
     text: `run the project's build, if it has one, then ${upfly} check`,
     details: [
-      `${upfly} undo puts every file back`,
+      undoable
+        ? `${upfly} undo puts every file back`
+        : `made with --no-undo, so ${upfly} undo leaves this run as it is`,
       ...(commit === null ? [] : [`git revert ${commit.slice(0, 12)} undoes the commit`]),
     ],
   };

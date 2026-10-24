@@ -78,6 +78,12 @@ export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOpti
   readonly format: 'webp' | 'avif' | null;
   /** `--allow-dirty`: apply over uncommitted changes, or where git cannot help. */
   readonly allowDirty: boolean;
+  /**
+   * `--no-undo`: write without a record `undo` follows, as an editor converting new images as
+   * they arrive does: the last run's record stays as it is, and this run keeps its own only
+   * while it writes.
+   */
+  readonly noUndo: boolean;
   /** `--include-declined`: list each image the plan examined and did not convert. */
   readonly includeDeclined: boolean;
   /** Patterns from `--only`, in `.gitignore` syntax, or `null` when every image may convert. */
@@ -244,6 +250,7 @@ const OPTIMIZE = {
   'keep-originals': { type: 'boolean' },
   format: { type: 'string' },
   'allow-dirty': { type: 'boolean' },
+  'no-undo': { type: 'boolean' },
   'include-declined': { type: 'boolean' },
   only: { type: 'string', multiple: true },
 } as const;
@@ -615,6 +622,9 @@ function parseOptimize(args: readonly string[]): Parsed {
     policyConflict(values.replace, values['keep-originals']) ??
     dryRunConflict(values['dry-run'], apply) ??
     writeFlagConflict(apply, commit, allowDirty) ??
+    (values['no-undo'] === true && !apply
+      ? '--no-undo only changes what --apply does; add --apply'
+      : null) ??
     fullConflict(values.full, values.json) ??
     showConflict(command, values.show, values.full, values.json);
   if (conflict !== null) return { kind: 'usage-error', command, message: conflict };
@@ -630,6 +640,7 @@ function parseOptimize(args: readonly string[]): Parsed {
       show: values.show ?? null,
       apply,
       commit,
+      noUndo: values['no-undo'] === true,
       policy:
         values['keep-originals'] === true
           ? 'keep-original'

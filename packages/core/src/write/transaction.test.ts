@@ -5,12 +5,16 @@ import { dirname, join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { UpflyError } from '../errors.js';
 import { createNodeFileStore } from './file-store-node.js';
+import { LOCK_PATH } from './lock.js';
 import {
   MANIFEST_PATH,
   MANIFEST_VOLATILE_FIELDS,
+  NO_UNDO_DIRECTORY,
+  NO_UNDO_MANIFEST_PATH,
   pathsTouched,
   withoutVolatileFields,
 } from './manifest.js';
+import { commitWithoutUndo, settleNoUndoRun } from './no-undo.js';
 import {
   type FileStore,
   type PlannedOperation,
@@ -549,13 +553,13 @@ interface MatrixHarness {
 
 interface MatrixStore {
   readonly name: string;
-  open(): Promise<MatrixHarness>;
+  open(initial?: Record<string, string>): Promise<MatrixHarness>;
 }
 
 const inMemory: MatrixStore = {
   name: 'in memory',
-  async open() {
-    const files = new Map(Object.entries(tree()));
+  async open(initial = tree()) {
+    const files = new Map(Object.entries(initial));
     const interrupted = interruptible(memoryFiles(files));
 
     return {
@@ -569,13 +573,13 @@ const inMemory: MatrixStore = {
 
 const onDisk: MatrixStore = {
   name: 'on a real filesystem',
-  async open() {
+  async open(initial = tree()) {
     // The OS temp directory rather than anywhere in the workspace: this tree has a
     // `public/` in it, and the v2 editor extension converts images inside a workspace's
     // `public/` folders in place.
     const root = await mkdtemp(join(tmpdir(), 'upfly-matrix-'));
 
-    for (const [path, text] of Object.entries(tree())) {
+    for (const [path, text] of Object.entries(initial)) {
       const absolute = join(root, ...path.split('/'));
       await mkdir(dirname(absolute), { recursive: true });
       await writeFile(absolute, text, 'utf8');
@@ -931,3 +935,333 @@ describe('the manifest schema is public API', () => {
     expect(withoutVolatileFields(manifest)).toMatchSnapshot();
   });
 });
+
+/** The folder of the run made without undo in these tests. */
+const NO_UNDO_RUN_DIR = `${NO_UNDO_DIRECTORY}/n1`;
+
+/** A page naming a new image, beside `tree()`, with what a run made without undo staged for it. */
+function noUndoTree(): Record<string, string> {
+  return {
+    ...tree(),
+    'src/page.html': '<img src="new.png">\n',
+    'src/new.png': 'NEW-BYTES',
+    [`${NO_UNDO_RUN_DIR}/staged/new.webp`]: 'NEW-WEBP',
+    [`${NO_UNDO_RUN_DIR}/backup/new.png`]: 'NEW-BYTES',
+  };
+}
+
+/** The new image converted, its page rewritten and its original removed: none of `plan()`'s files. */
+function noUndoPlan(): PlannedOperation[] {
+  const text = '<img src="new.png">\n';
+  const start = text.indexOf('new.png');
+  return [
+    { kind: 'create', path: 'src/new.webp', staged: 'staged/new.webp', afterHash: sha('NEW-WEBP') },
+    {
+      kind: 'edit',
+      path: 'src/page.html',
+      beforeHash: sha(text),
+      afterHash: sha(text.replace('new.png', 'new.webp')),
+      edits: [{ start, end: start + 'new.png'.length, replacement: 'new.webp' }],
+    },
+    {
+      kind: 'delete',
+      path: 'src/new.png',
+      beforeHash: sha('NEW-BYTES'),
+      backup: 'backup/new.png',
+    },
+  ];
+}
+
+function noUndoContext(): RunContext {
+  return { ...context(), runId: 'n1', runDir: NO_UNDO_RUN_DIR };
+}
+
+/** The project as a finished run made without undo leaves it, from its tree before. */
+function afterNoUndo(before: Record<string, string>): Record<string, string> {
+  const after: Record<string, string> = { ...before, 'src/new.webp': 'NEW-WEBP' };
+  after['src/page.html'] = '<img src="new.webp">\n';
+  return Object.fromEntries(
+    Object.entries(after)
+      .filter(([path]) => path !== 'src/new.png')
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+}
+
+/** Every path under the folder runs made without undo keep. */
+function noUndoLeft(files: ReadonlyMap<string, string>): string[] {
+  return [...files.keys()].filter((path) => path.startsWith(`${NO_UNDO_DIRECTORY}/`));
+}
+
+/** The lock and the record as a run left them, as another process would find them. */
+const anotherProcess = { pid: 424242, isAlive: () => false };
+
+describe('a run made without undo', () => {
+  it("leaves the last run's record and folder as they were, and nothing of its own once it finishes", async () => {
+    const harness = memoryStore(noUndoTree());
+    const original = projectFiles(harness.files);
+    const last = await commit(plan(), harness.store, context());
+    const record = harness.files.get(MANIFEST_PATH);
+    const folder = [...harness.files].filter(([path]) => path.startsWith(`${RUN_DIR}/`));
+    const afterLast = projectFiles(harness.files);
+
+    await commitWithoutUndo(noUndoPlan(), harness.store, noUndoContext());
+
+    expect(harness.files.get(MANIFEST_PATH)).toBe(record);
+    expect([...harness.files].filter(([path]) => path.startsWith(`${RUN_DIR}/`))).toEqual(folder);
+    expect(noUndoLeft(harness.files)).toEqual([]);
+    expect(projectFiles(harness.files)).toEqual(afterNoUndo(afterLast));
+
+    await revert(last, harness.store);
+    expect(projectFiles(harness.files)).toEqual(afterNoUndo(original));
+  });
+
+  it('refuses while another run holds the lock, which every run shares', async () => {
+    const harness = memoryStore(noUndoTree());
+    const holder = { pid: 31337, startedAt: '2026-01-01T00:00:00.000Z', runId: 'r9' };
+    harness.files.set(LOCK_PATH, `${JSON.stringify(holder)}\n`);
+    const before = projectFiles(harness.files);
+
+    await expect(
+      commitWithoutUndo(noUndoPlan(), harness.store, noUndoContext(), { isAlive: () => true }),
+    ).rejects.toMatchObject({ code: 'TRANSACTION_LOCKED' });
+    expect(projectFiles(harness.files)).toEqual(before);
+    expect(noUndoLeft(harness.files).every((path) => path.startsWith(NO_UNDO_RUN_DIR))).toBe(true);
+    expect(harness.files.has(NO_UNDO_MANIFEST_PATH)).toBe(false);
+  });
+
+  it('refuses to start over one that stopped part way, as a run that keeps its record does', async () => {
+    const harness = memoryStore(noUndoTree(), 1);
+    await expect(commitWithoutUndo(noUndoPlan(), harness.store, noUndoContext())).rejects.toThrow(
+      /injected failure/,
+    );
+    harness.stopFailing();
+    const before = projectFiles(harness.files);
+    const next: RunContext = { ...context(), runId: 'r2', runDir: '.upfly/runs/r2' };
+
+    await expect(commit(plan(), harness.store, next, anotherProcess)).rejects.toMatchObject({
+      code: 'TRANSACTION_INTERRUPTED',
+      message: expect.stringContaining('n1'),
+    });
+    expect(projectFiles(harness.files)).toEqual(before);
+    expect(harness.files.has(MANIFEST_PATH)).toBe(false);
+  });
+
+  it('stopped part way while its process lives, puts back what it wrote before it throws', async () => {
+    const reference = memoryStore(noUndoTree());
+    await commitWithoutUndo(noUndoPlan(), reference.store, noUndoContext());
+    const steps = reference.mutations();
+    let putBack = 0;
+
+    for (let failing = 1; failing <= steps; failing++) {
+      const files = new Map(Object.entries(noUndoTree()));
+      const original = projectFiles(files);
+      const store = failingOnce(memoryFiles(files), failing);
+      await commitWithoutUndo(noUndoPlan(), store, noUndoContext()).catch((cause: Error) => {
+        expect(cause.message).toMatch(/injected failure/);
+      });
+
+      // A failure once it has finished, while it clears what it left or releases the lock,
+      // cannot undo it: the run stands, and the next run clears the rest.
+      const now = projectFiles(files);
+      expect([original, afterNoUndo(original)], `failure at mutation ${failing}`).toContainEqual(
+        now,
+      );
+      expect(await recordState(store), `failure at mutation ${failing}`).not.toBe('pending');
+      if (JSON.stringify(now) === JSON.stringify(original)) putBack += 1;
+    }
+    expect(putBack).toBeGreaterThan(3);
+  });
+
+  it('is put back when its record was cut off mid-write, which leaves the project whole', async () => {
+    const harness = memoryStore({ ...noUndoTree(), [NO_UNDO_MANIFEST_PATH]: '{ "state": "pend' });
+    const before = projectFiles(harness.files);
+
+    await expect(settleNoUndoRun(harness.store)).resolves.toBeNull();
+    expect(noUndoLeft(harness.files)).toEqual([]);
+    expect(projectFiles(harness.files)).toEqual(before);
+  });
+
+  it('is not put back over a file changed since, which is named, and nothing is written', async () => {
+    // Cut off for good after its record and the new file: what a crash leaves.
+    const harness = memoryStore(noUndoTree(), 2);
+    await expect(commitWithoutUndo(noUndoPlan(), harness.store, noUndoContext())).rejects.toThrow(
+      /injected failure/,
+    );
+    harness.stopFailing();
+    expect(await recordState(harness.store)).toBe('pending');
+    expect(harness.files.get('src/new.webp')).toBe('NEW-WEBP');
+    harness.files.set('src/new.webp', 'EDITED-SINCE');
+    // The lock the cut-off run left is cleared as stale, which is no part of what is compared.
+    const unlocked = (files: Map<string, string>) =>
+      [...files].filter(([path]) => path !== LOCK_PATH).sort(([a], [b]) => a.localeCompare(b));
+    const before = unlocked(harness.files);
+
+    await expect(settleNoUndoRun(harness.store, { lock: anotherProcess })).rejects.toMatchObject({
+      code: 'TRANSACTION_FOREIGN_CHANGE',
+      message: expect.stringContaining('src/new.webp'),
+    });
+    expect(unlocked(harness.files)).toEqual(before);
+  });
+
+  it('settling finds nothing to do in a project where none has run', async () => {
+    const harness = memoryStore(tree());
+
+    await expect(settleNoUndoRun(harness.store)).resolves.toBeNull();
+    expect(harness.mutations()).toBe(0);
+  });
+});
+
+describe.each([inMemory, onDisk])(
+  'the crash matrix of a run made without undo, $name',
+  (matrix) => {
+    it(
+      'leaves a project the next run puts back before anything else, cut off at every write',
+      async () => {
+        const reference = await matrix.open(noUndoTree());
+        const original = await reference.projectFiles();
+        await commitWithoutUndo(noUndoPlan(), reference.store, noUndoContext());
+        const steps = reference.mutations();
+        await reference.dispose();
+        let changed = 0;
+
+        for (let failAfter = 0; failAfter < steps; failAfter++) {
+          const harness = await matrix.open(noUndoTree());
+          harness.failAfter(failAfter);
+          const finished = await commitWithoutUndo(
+            noUndoPlan(),
+            harness.store,
+            noUndoContext(),
+          ).then(
+            () => true,
+            () => false,
+          );
+          harness.stopFailing();
+          const left = await harness.projectFiles();
+          if (JSON.stringify(left) !== JSON.stringify(original)) changed += 1;
+
+          const putBack = await settleNoUndoRun(harness.store, { lock: anotherProcess });
+          const expected = finished || putBack === null ? left : original;
+          expect(await harness.projectFiles(), `cut after ${failAfter}`).toEqual(expected);
+          // Whatever it was cut at, the tree is one the run's record names as whole: before it,
+          // or after it.
+          expect([original, afterNoUndo(original)], `cut after ${failAfter}`).toContainEqual(
+            await harness.projectFiles(),
+          );
+          expect(await harness.store.listDirectory(NO_UNDO_DIRECTORY)).toEqual([]);
+
+          // The next run that keeps its record starts, as it would not over the interrupted one.
+          await expect(
+            commit(
+              [],
+              harness.store,
+              { ...context(), runId: 'r2', runDir: '.upfly/runs/r2' },
+              anotherProcess,
+            ),
+          ).resolves.toMatchObject({ state: 'committed' });
+          await harness.dispose();
+        }
+        expect(changed).toBeGreaterThan(0);
+      },
+      MATRIX_TIMEOUT_MS,
+    );
+
+    it(
+      'is put back when putting it back is cut off too, from every state the run can leave',
+      async () => {
+        const reference = await matrix.open(noUndoTree());
+        const original = await reference.projectFiles();
+        await commitWithoutUndo(noUndoPlan(), reference.store, noUndoContext());
+        const steps = reference.mutations();
+        await reference.dispose();
+        let settlesCut = 0;
+
+        for (let runCut = 0; runCut < steps; runCut++) {
+          for (let settleCut = 0; ; settleCut++) {
+            const cut = await cutTwice(matrix, original, runCut, settleCut);
+            if (!cut) break;
+            settlesCut += 1;
+          }
+        }
+        expect(settlesCut).toBeGreaterThan(0);
+      },
+      MATRIX_TIMEOUT_MS,
+    );
+  },
+);
+
+/** A store whose `failing`-th change fails, and every other works: a failure the process outlives. */
+function failingOnce(store: FileStore, failing: number): FileStore {
+  let mutations = 0;
+  const mutate = () => {
+    mutations += 1;
+    if (mutations === failing) throw new Error(`injected failure at mutation ${mutations}`);
+  };
+  return {
+    ...store,
+    async writeText(path, text) {
+      mutate();
+      await store.writeText(path, text);
+    },
+    async copy(from, to) {
+      mutate();
+      await store.copy(from, to);
+    },
+    async remove(path) {
+      mutate();
+      await store.remove(path);
+    },
+    async removeDirectory(path) {
+      mutate();
+      await store.removeDirectory(path);
+    },
+  };
+}
+
+/**
+ * A run made without undo cut off after `runCut` writes, then putting it back cut off after
+ * `settleCut`, then put back again: the project must be whole, and put back when the run had
+ * stopped part way.
+ *
+ * @returns whether putting it back was cut off, so a larger `settleCut` is worth trying
+ */
+async function cutTwice(
+  matrix: MatrixStore,
+  original: Record<string, string>,
+  runCut: number,
+  settleCut: number,
+): Promise<boolean> {
+  const where = `run cut ${runCut}, settle cut ${settleCut}`;
+  const harness = await matrix.open(noUndoTree());
+  harness.failAfter(runCut);
+  await commitWithoutUndo(noUndoPlan(), harness.store, noUndoContext()).catch(() => {});
+  harness.stopFailing();
+  const pending = (await recordState(harness.store)) === 'pending';
+
+  harness.failAfter(settleCut);
+  let cut = false;
+  try {
+    await settleNoUndoRun(harness.store, { lock: anotherProcess });
+  } catch (cause) {
+    if (!/injected failure/.test((cause as Error).message)) throw cause;
+    cut = true;
+  }
+  harness.stopFailing();
+  await settleNoUndoRun(harness.store, { lock: anotherProcess });
+
+  const now = await harness.projectFiles();
+  expect([original, afterNoUndo(original)], where).toContainEqual(now);
+  if (pending) expect(now, where).toEqual(original);
+  expect(await harness.store.listDirectory(NO_UNDO_DIRECTORY), where).toEqual([]);
+  await harness.dispose();
+  return cut;
+}
+
+/** The state the record of a run made without undo names, or null when there is none. */
+async function recordState(store: FileStore): Promise<string | null> {
+  if ((await store.hash(NO_UNDO_MANIFEST_PATH)) === null) return null;
+  try {
+    return (JSON.parse(await store.readText(NO_UNDO_MANIFEST_PATH)) as { state: string }).state;
+  } catch {
+    return 'unreadable';
+  }
+}
