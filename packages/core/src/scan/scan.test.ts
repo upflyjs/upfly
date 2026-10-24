@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MEGABYTE, heapHeldBy } from '../../test/heap-held.js';
+import { defaultAdapters } from '../adapters/default-adapters.js';
 import { UpflyError } from '../errors.js';
 import type { Adapter, RawReference, SourceFile } from '../types.js';
 import { type ReadFilePort, scanSources } from './scan.js';
@@ -591,5 +593,83 @@ describe('scanSources', () => {
     const result = await scanSources({ sourceFiles: [], adapters, readFile: filesystem({}) });
 
     expect(result).toEqual({ references: [], unscanned: [], mentions: [], texts: [] });
+  });
+});
+
+describe('what the scan keeps of the texts it reads', () => {
+  // Files of about a megabyte, each decoded from bytes as a file's text is, so a result that
+  // keeps a slice of a text keeps that whole megabyte. Scans of five and of ten files are
+  // compared: a result that keeps its texts grows by a megabyte a file, while what a parser
+  // sets up once, and the one text V8 keeps as its last match's subject, do not grow.
+  const padding = 'x'.repeat(MEGABYTE);
+  const scanOf = (
+    count: number,
+    adapterId: string,
+    name: string,
+    text: (index: number) => string,
+    assetBasenames?: ReadonlySet<string>,
+  ) =>
+    heapHeldBy(() =>
+      scanSources({
+        sourceFiles: Array.from({ length: count }, (_, index) =>
+          sourceFile(`${index}/${name}`, adapterId),
+        ),
+        adapters: defaultAdapters,
+        readFile: async (path) => Buffer.from(text(Number(path.split('/')[2]))).toString(),
+        ...(assetBasenames === undefined ? {} : { assetBasenames }),
+      }),
+    );
+
+  const HERO = '/img/hero-image.png';
+  it.each([
+    ['an astro page', 'astro', 'page.astro', `<!-- ${padding} -->\n<img src="${HERO}">\n`, HERO],
+    [
+      'a stylesheet',
+      'css',
+      'site.css',
+      `/* ${padding} */\n.a { background: url("${HERO}"); }\n`,
+      HERO,
+    ],
+    ['an html page', 'html', 'page.html', `<!-- ${padding} -->\n<img src="${HERO}">\n`, HERO],
+    ['an import', 'javascript', 'app.js', `// ${padding}\nimport hero from '${HERO}';\n`, HERO],
+    [
+      "a glob's excluded pattern",
+      'javascript',
+      'icons.js',
+      `// ${padding}\nimport.meta.glob(['/img/icons/*.png', '!/img/icons/not-this-one.png']);\n`,
+      '/img/icons/*.png',
+    ],
+    [
+      "a context's filter",
+      'javascript',
+      'pictures.js',
+      `// ${padding}\nrequire.context('./pictures', true, /^\\.\\/hero-[a-z]+\\.png$/);\n`,
+      './pictures',
+    ],
+    ['a json file', 'json', 'data.json', `{ "pad": "${padding}", "image": "${HERO}" }\n`, HERO],
+    ['a markdown page', 'markdown', 'post.md', `${padding}\n\n![hero](${HERO})\n`, HERO],
+  ])('keeps no text in the reference it finds in %s', async (_, adapterId, name, text, rawPath) => {
+    const five = await scanOf(5, adapterId, name, () => text);
+    const ten = await scanOf(10, adapterId, name, () => text);
+
+    expect(ten.result.references.map((reference) => reference.rawPath)).toEqual(
+      Array.from({ length: 10 }, () => rawPath),
+    );
+    expect(ten.bytes - five.bytes).toBeLessThan(MEGABYTE);
+  });
+
+  it('keeps no text in the mentions it collects, in either letter case', async () => {
+    // A name already in lower case is its own basename, so the quote and the basename are
+    // then one string.
+    const spelled = (index: number) => (index % 2 === 0 ? 'hero-image.png' : 'Hero-Image.png');
+    const text = (index: number) => `${padding}\n\nThe banner is ${spelled(index)}.\n`;
+    const names = new Set(['hero-image.png']);
+    const five = await scanOf(5, 'markdown', 'notes.md', text, names);
+    const ten = await scanOf(10, 'markdown', 'notes.md', text, names);
+
+    expect(ten.result.mentions.map((mention) => [mention.basename, mention.quote])).toEqual(
+      Array.from({ length: 10 }, (_, index) => ['hero-image.png', spelled(index)]),
+    );
+    expect(ten.bytes - five.bytes).toBeLessThan(MEGABYTE);
   });
 });

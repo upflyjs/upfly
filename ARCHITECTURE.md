@@ -1534,7 +1534,12 @@ still being visible in the report rather than merely survived.
 `readFile` is injected, so the module that owns error handling for every adapter is exercised
 against an in-memory file map instead of a directory full of deliberately broken files. It
 deliberately does not return the file texts: holding a whole repository's source in memory to save
-a later re-read trades a bounded cost for an unbounded one.
+a later re-read trades a bounded cost for an unbounded one. Nor does what it returns keep them. A
+path an adapter reads is a slice of the text, which V8 keeps as a view into the whole text, so each
+path and pattern a reference holds, and each mention's quote, is copied into a string of its own
+(`ownCopy`). Notes are not copied: nearly every reference has one, nearly always one of a few fixed
+texts, so a copy for each would cost more memory than it frees, and a note that quotes 13 or more
+characters of its text, such as a long attribute name, still keeps that text.
 
 ### Skipping files that cannot hold a reference
 

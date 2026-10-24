@@ -1,7 +1,7 @@
 /**
  * A file as a search that reads every file of a project reads it: the text of a text file, and
- * the bytes of any other a chunk at a time; and the copies that let a search's results outlive
- * the text they came from.
+ * the bytes of any other a chunk at a time; and the copies that let a search's results, and the
+ * scan's, outlive the text they came from.
  */
 
 import { open } from 'node:fs/promises';
@@ -104,7 +104,7 @@ export function textOfBytes(held: string): string {
  * V8 keeps a slice of 13 or more characters, and a regular expression's match, as a view into
  * the string it came from, so a path or a line that a result keeps from a file's text would keep
  * the whole text in memory for as long as the result. Every string a search keeps from a text
- * goes through this.
+ * goes through this, and so does each path and quote the scan keeps.
  *
  * @param text a string, usually a slice of a file's text
  * @returns an equal string that holds no other

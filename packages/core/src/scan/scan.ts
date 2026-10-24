@@ -11,6 +11,7 @@
 import { UpflyError } from '../errors.js';
 import { mapInOrder } from '../map-in-order.js';
 import { imageFilenameCandidates } from '../paths.js';
+import { ownCopy } from '../read-text.js';
 import type { Adapter, RawReference, SourceFile, UnscannedFile } from '../types.js';
 import { lineOf } from './citation.js';
 import { couldHoldReference } from './could-hold-reference.js';
@@ -251,7 +252,8 @@ async function scanOne(
     };
   }
 
-  const scanned = refuseUnreadableNames(parseOne(file, adapter, text, assetBasenames), text);
+  const parsed = refuseUnreadableNames(parseOne(file, adapter, text, assetBasenames), text);
+  const scanned = { ...parsed, references: parsed.references.map(ownStrings) };
   if (scanned.references.length === 0) return { ...scanned, text: null };
   return {
     ...scanned,
@@ -260,6 +262,32 @@ async function scanOne(
       hash: hashText(text),
       holdsReplacementCharacter: text.includes(REPLACEMENT_CHARACTER),
     },
+  };
+}
+
+/**
+ * The reference with each path and pattern it holds in a string of its own. An adapter takes
+ * them from the text, and V8 keeps such a slice as a view into the whole text (see `ownCopy`),
+ * so the scan's results, kept for the whole run, would keep the text of every file that yielded
+ * a reference. A note is left as it is: nearly every reference has one, nearly always one of a
+ * few fixed texts, so a copy for each would cost more memory than it frees, though a note that
+ * quotes 13 or more characters of the text, such as a long attribute name, still keeps it.
+ */
+function ownStrings(reference: RawReference): RawReference {
+  const { assembledPath, glob, bundlerContext } = reference;
+  return {
+    ...reference,
+    rawPath: ownCopy(reference.rawPath),
+    ...(assembledPath === undefined ? {} : { assembledPath: ownCopy(assembledPath) }),
+    ...(glob === undefined ? {} : { glob: { ...glob, exclude: glob.exclude.map(ownCopy) } }),
+    ...(bundlerContext?.filter === undefined
+      ? {}
+      : {
+          bundlerContext: {
+            ...bundlerContext,
+            filter: { ...bundlerContext.filter, source: ownCopy(bundlerContext.filter.source) },
+          },
+        }),
   };
 }
 
@@ -329,11 +357,13 @@ function collectMentions(
     // piece of evidence, and the report cites a place rather than a count.
     if (assetBasenames.has(basename) && !seen.has(basename)) {
       seen.add(basename);
+      // The token is a slice of the text, and so is its lower case when that changes nothing.
+      const quote = ownCopy(token);
       found.push({
-        basename,
+        basename: quote.toLowerCase(),
         relative: file.relative,
         line: lineOf(text, offset),
-        quote: token,
+        quote,
       });
     }
   }
