@@ -205,6 +205,9 @@ it would not run:
 - `CODE_CONFIG_NOT_RUN`: the command was given `--no-code-config` and the project holds a
   config written as code, such as `upfly.config.ts`, which it would have to run. Nothing
   was read. Ask the user whether the project's code may run.
+- `PLAN_CHANGED`: `optimize --apply --expect-plan` found that the plan it would write is
+  not the one the hash names, as when a file changed since the dry run, so nothing was
+  written. Run the dry run again and show the user the new plan.
 - `NOT_IN_RUN`: `undo --file` named a file, or `--line` a line, that the last run did not
   change, or a file it created, which only undoing the whole run removes. Nothing was
   changed; `npx upfly undo --list` shows what the run changed.

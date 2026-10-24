@@ -6,6 +6,7 @@
  * folder is looked at, and committed, even when the repository around it is larger.
  */
 
+import { createHash } from 'node:crypto';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import {
   type Manifest,
@@ -284,10 +285,13 @@ async function carryOut(
       onProgress: (event) => progress.update(event),
       // Decided on the finished plan, so that a commit that could not hold every file the
       // run writes stops the run before it writes any.
-      ...(options.commit
+      ...(options.commit || options.expectPlan !== null
         ? {
             beforeWrite: (plan: OptimizationPlan) => {
-              uncommitted = uncommittable(root, plannedPaths(plan));
+              uncommitted = otherPlan(plan, options.expectPlan);
+              if (uncommitted === null && options.commit) {
+                uncommitted = uncommittable(root, plannedPaths(plan));
+              }
               return uncommitted === null;
             },
           }
@@ -315,7 +319,33 @@ async function carryOut(
           : `${refusal.reason} \`${upfly} check\` lists the ${count(refusal.checkable - refusal.linked, 'reference')} with the file and line of each.`,
     };
   }
-  return uncommitted ?? result;
+  // A plan with nothing to write never reaches the check before writing, and its caller read
+  // another plan all the same.
+  const written = result.optimize.manifest !== null;
+  return (
+    uncommitted ?? (written ? null : otherPlan(result.optimize.plan, options.expectPlan)) ?? result
+  );
+}
+
+/**
+ * The hash of a plan's decisions: what it converts and what it rewrites, as the JSON gives them.
+ * `--expect-plan` takes it back, so an apply writes only the plan its caller read.
+ *
+ * @param plan the plan of a dry run or of an applied run, before its first write
+ */
+export function planHash(plan: OptimizationPlan): string {
+  const decisions = JSON.stringify({ conversions: plan.conversions, rewrites: plan.rewrites });
+  return createHash('sha256').update(decisions, 'utf8').digest('hex');
+}
+
+/** Why this run must not write, when `--expect-plan` named another plan; null when it did not. */
+function otherPlan(plan: OptimizationPlan, expected: string | null): Refusal | null {
+  if (expected === null || planHash(plan) === expected) return null;
+  return {
+    code: EXIT_CODES.ABORTED,
+    reason: 'PLAN_CHANGED',
+    message: `This plan is not the one --expect-plan names, so nothing was written: it now converts ${count(plan.conversions.length, 'image')} and rewrites references in ${count(plan.rewrites.length, 'file')}. A file changed since that plan was made, or it was made with other options. Run optimize without --apply to read the plan as it is now.`,
+  };
 }
 
 /**
@@ -759,6 +789,7 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       command: 'optimize',
       exitCode: EXIT_CODES.OK,
       apply: options.apply,
+      planHash: planHash(run.plan),
       plan: {
         ...run.plan,
         conversions: withPublicDir(run.plan.conversions, pipeline.servingRoots),

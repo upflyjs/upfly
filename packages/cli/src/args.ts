@@ -84,6 +84,11 @@ export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOpti
    * while it writes.
    */
   readonly noUndo: boolean;
+  /**
+   * `--expect-plan <hash>`: write only when this run's plan has the hash a dry run gave, so an
+   * apply writes the plan its caller read. `null` without the flag.
+   */
+  readonly expectPlan: string | null;
   /** `--include-declined`: list each image the plan examined and did not convert. */
   readonly includeDeclined: boolean;
   /** Patterns from `--only`, in `.gitignore` syntax, or `null` when every image may convert. */
@@ -256,6 +261,7 @@ const OPTIMIZE = {
   format: { type: 'string' },
   'allow-dirty': { type: 'boolean' },
   'no-undo': { type: 'boolean' },
+  'expect-plan': { type: 'string' },
   'include-declined': { type: 'boolean' },
   only: { type: 'string', multiple: true },
   image: { type: 'string', multiple: true },
@@ -631,6 +637,9 @@ function parseOptimize(args: readonly string[]): Parsed {
     (values['no-undo'] === true && !apply
       ? '--no-undo only changes what --apply does; add --apply'
       : null) ??
+    (values['expect-plan'] !== undefined && !apply
+      ? '--expect-plan only changes what --apply does; add --apply'
+      : null) ??
     fullConflict(values.full, values.json) ??
     showConflict(command, values.show, values.full, values.json);
   if (conflict !== null) return { kind: 'usage-error', command, message: conflict };
@@ -647,6 +656,7 @@ function parseOptimize(args: readonly string[]): Parsed {
       apply,
       commit,
       noUndo: values['no-undo'] === true,
+      expectPlan: values['expect-plan'] ?? null,
       policy:
         values['keep-originals'] === true
           ? 'keep-original'

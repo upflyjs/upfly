@@ -8,6 +8,7 @@
     "command",
     "exitCode",
     "apply",
+    "planHash",
     "plan",
     "run",
     "commit",
@@ -24,6 +25,11 @@
     "apply": {
       "description": "Whether --apply was given, so the plan was written.",
       "type": "boolean"
+    },
+    "planHash": {
+      "description": "SHA-256 of the plan's conversions and rewrites, as plan gives them: a dry run's, which optimize --apply --expect-plan takes back to write only that plan, or an applied run's before its first write.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "plan": { "$ref": "#/definitions/plan" },
     "run": { "$ref": "#/definitions/run" },

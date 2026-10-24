@@ -40,6 +40,7 @@ export const REFUSAL_REASONS = [
   'MANIFEST_UNREADABLE',
   'NOT_IN_RUN',
   'CODE_CONFIG_NOT_RUN',
+  'PLAN_CHANGED',
 ] as const;
 
 /** One of `REFUSAL_REASONS`. */

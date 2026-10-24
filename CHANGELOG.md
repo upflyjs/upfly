@@ -1,5 +1,39 @@
 # Changelog
 
+## 3.3.0
+
+What the Upfly VS Code extension needs from the CLI to convert new images as they arrive, a way to name an image by
+its exact path, and fields for what a program reading the JSON had to take from sentences. No command, option or JSON
+field of 3.2.0 was removed or renamed.
+
+### What is new
+
+- `optimize --apply --no-undo` writes without a record for `upfly undo`. I made it for the extension, which converts an
+  image as it arrives: such a conversion must never replace the last run you started, so `upfly undo`, `--list`,
+  `--file` and `--line` still act on that run. While it writes, a run with `--no-undo` takes the same steps as any run
+  (its own record, the staged files and backups, then the changes) under the same lock, and once it finishes it
+  removes all of them. Cut off part way, by a crash or a closed editor, it is put back by the next command that
+  writes, before anything else; a dry run says so. With `--json`, its `run` says `undoable: false`. When such a run
+  rewrites a file your last run also changed, `upfly undo` refuses that file as changed since, as after any edit.
+- `optimize --image <path>` converts only that image, named by its exact path, whatever characters it holds, such as
+  `app/blog/[slug]/og.png` or a folder with a space in its name. `--only` still takes a `.gitignore` pattern, so
+  `--only logo.png` names every `logo.png` in the project. The MCP server's `optimize` tool takes `images` too.
+- An error line about one file names it in `file`: the config written as code with `CODE_CONFIG_NOT_RUN`, the config
+  found with `CONFIG_EXISTS` or `V2_EXTENSION_CONFIG`, the instruction file with `UPFLY_BLOCK_UNCLOSED`.
+- A dry run of `optimize`, `dedupe` or `move` lists in `applyRefusals` each of its notes that says what `--apply`
+  would refuse, with the reason it would stop with, such as `UNCOMMITTED_CHANGES`.
+- `undo --list --json` gives each changed line's whole `text`, before the run and as the run left it.
+- `optimize --json` gives `planHash`, a hash of the plan's conversions and rewrites, and `optimize --apply
+  --expect-plan <hash>` writes only that plan: when a file changed after the dry run and the plan differs, it
+  refuses (`PLAN_CHANGED`) and writes nothing.
+
+### Fixed
+
+- `undo` said "1 file(s) changed since this run" and "The backup of 1 removed original(s) is gone"; it counts in
+  words now.
+- The audit report's own text, in `.upfly/audit.txt` and in `--include-text`, said ".upfly/audit.txt lists them" of
+  the unused images, though `--include-text` writes no file; it says "this report lists them".
+
 ## 3.2.0
 
 Undoing part of a run, and what the Upfly VS Code extension, which I am rebuilding on Upfly 3, needs from the CLI;

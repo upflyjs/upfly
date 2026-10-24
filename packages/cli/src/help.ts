@@ -117,6 +117,8 @@ Options:
   --exclude <pattern>    Leave matching paths out, in .gitignore syntax; repeatable
   --allow-dirty          With --apply: write even with uncommitted changes, or outside a
                          git repository. upfly undo still puts the files back
+  --expect-plan <hash>   With --apply: write only the plan a dry run gave with this hash, its
+                         planHash in the JSON; refused, writing nothing, when the plan differs
   --no-undo              With --apply: keep no record for upfly undo, as an editor that
                          converts new images as they arrive does. The run writes as any
                          run does, and removes its record and backups once it finishes;
