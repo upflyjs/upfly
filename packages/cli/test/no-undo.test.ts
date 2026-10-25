@@ -273,6 +273,24 @@ describe.each(NEXT)('a run made with --no-undo and cut off part way, then %s', (
   }, 120_000);
 });
 
+describe('a run made with --no-undo and cut off part way, a file of which changed since', () => {
+  it('stops the next command that writes, saying how to keep every file as it is', () => {
+    const root = standalone();
+    cutOff(root);
+    write(root, 'index.html', `${readFileSync(join(root, 'index.html'), 'utf8')}<!-- edited -->\n`);
+    const before = snapshot(root, NOT_THE_PROJECT);
+
+    const next = upfly(['optimize', root, '--apply', '--allow-dirty', '--public', '.', '--json']);
+
+    expect(next.status).toBe(3);
+    expect(result(next.stdout)).toMatchObject({
+      reason: 'TRANSACTION_FOREIGN_CHANGE',
+      message: expect.stringContaining('To keep every file as it is now, delete .upfly/no-undo'),
+    });
+    expect(snapshot(root, NOT_THE_PROJECT)).toEqual(before);
+  }, 120_000);
+});
+
 describe('a dry run over a run made with --no-undo and cut off part way', () => {
   it('says the next run that writes puts it back first, and changes nothing', () => {
     const root = standalone();
