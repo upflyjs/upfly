@@ -1965,6 +1965,11 @@ ends one of three ways:
 | some move, and one the plan cannot move still needs the old file (a pattern, a refused literal, a path with no extension to change, a link preview or a link to the image, or a path that reaches it only in another letter case, which Windows and macOS follow) | converted, original kept, and `keptOriginals` says which reference needs it |
 | no reference would move: nothing links to it, or only references the plan cannot move | not converted, and `declined` names what holds it |
 
+One exception, made for an editor: an asset named by its exact path (`--image`) that nothing links to
+converts, and under `replace` its original is deleted, since a new image named the moment it arrives is
+one nothing loads yet. The search before the delete still keeps an original a file names, and an asset
+something names in a way Upfly cannot rewrite (a `possibly-dead` finding) is still not converted.
+
 What `replace` never produces is a converted copy nothing asks for beside an original that has to
 stay, which is the pair of files the policy exists to avoid. The conversion half holds under
 `keep-original` too: a converted copy no reference moves to is loaded by no visitor, so its size is

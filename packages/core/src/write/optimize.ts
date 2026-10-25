@@ -135,6 +135,8 @@ export interface OptimizeInput {
    * and the last run's record and folder stay as they are. True unless given.
    */
   readonly undoable?: boolean;
+  /** Images named by their exact paths, which convert though nothing links to them (`PlanInput`). */
+  readonly named?: ReadonlySet<string>;
   readonly runId: string;
   readonly now: () => string;
   /**
@@ -458,6 +460,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
       format: input.format,
       publicPolicy: input.publicPolicy,
       hedged,
+      ...(input.named === undefined ? {} : { named: input.named }),
       servingRoots: input.servingRoots,
       builds: input.builds,
       ...(input.aliases === undefined ? {} : { aliases: input.aliases }),

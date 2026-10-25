@@ -234,7 +234,7 @@ function serverFor(folder: string): McpServer {
           .array(z.string())
           .optional()
           .describe(
-            'Convert only these images, each named by its path exactly as it is, whatever characters it holds, read from the project folder (--image).',
+            'Convert only these images, each named by its path exactly as it is, whatever characters it holds, read from the project folder, even one no line names yet (--image).',
           ),
         includeDeclined: z
           .boolean()

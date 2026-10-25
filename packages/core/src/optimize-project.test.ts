@@ -374,6 +374,56 @@ describe('only some images', () => {
       true,
     );
   });
+
+  /** A copy with an image no file names yet, as a person pastes one or an agent writes one. */
+  const withNewImage = async (): Promise<string> => {
+    const root = await copy();
+    await cp(join(root, 'images/logo.png'), join(root, 'images/fresh.png'));
+    return root;
+  };
+
+  const plannedFor = (root: string, only: { paths?: string[]; patterns?: string[] }) =>
+    optimizeProject({
+      root,
+      declared: { dirs: [''], declared: true },
+      format: 'webp',
+      publicPolicy: 'replace',
+      apply: false,
+      only,
+    });
+
+  it('converts an image named by its path though nothing names it yet, as an editor converts a new one', async () => {
+    const root = await withNewImage();
+
+    const { optimize } = await plannedFor(root, { paths: ['images/fresh.png'] });
+
+    const conversions = optimize.plan.conversions.map((c) => [c.asset, c.replacesOriginal]);
+    expect(conversions).toEqual([['images/fresh.png', true]]);
+  });
+
+  it('leaves that image as it is when a pattern names it, as a run over the whole project does', async () => {
+    const root = await withNewImage();
+
+    const { optimize } = await plannedFor(root, { patterns: ['images/fresh.png'] });
+
+    expect(optimize.plan.conversions).toEqual([]);
+    expect(optimize.plan.declined.find((entry) => entry.path === 'images/fresh.png')?.reason).toBe(
+      'nothing links to it, so converting it would rewrite no reference and gain only bytes',
+    );
+  });
+
+  it('leaves it as it is when a file names it in a way Upfly cannot rewrite, path or no path', async () => {
+    const root = await withNewImage();
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src/legacy.js'), 'const a = 1;\n// images/fresh.png\n');
+
+    const { optimize } = await plannedFor(root, { paths: ['images/fresh.png'] });
+
+    expect(optimize.plan.conversions).toEqual([]);
+    expect(
+      optimize.plan.declined.find((entry) => entry.path === 'images/fresh.png')?.reason,
+    ).toMatch(/^nothing links to it, and src\/legacy\.js:2 names it/);
+  });
 });
 
 describe('a path that ends in a slash', () => {

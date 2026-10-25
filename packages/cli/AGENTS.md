@@ -49,7 +49,8 @@ reads the folder given after it, or the current folder, and prints plain text; a
    `.upfly/optimize.txt`: the same rows,
    each with its complete list, such as each image and reference left alone and the
    reason for each (`npx upfly optimize --show leave` prints that row alone); `--json` holds the whole plan.
-   To convert only some images, name each with `--image <path>`, its path exactly as it is;
+   To convert only some images, name each with `--image <path>`, its path exactly as it is
+   (an image named so converts even when no line names it yet, as a newly added one);
    `--only` takes a pattern in .gitignore syntax instead, so `--only logo.png` names every
    logo.png in the project. The
    plan leaves alone an image that a browser, a phone or another site reads outside the

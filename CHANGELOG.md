@@ -18,6 +18,10 @@ field of 3.2.0 was removed or renamed.
 - `optimize --image <path>` converts only that image, named by its exact path, whatever characters it holds, such as
   `app/blog/[slug]/og.png` or a folder with a space in its name. `--only` still takes a `.gitignore` pattern, so
   `--only logo.png` names every `logo.png` in the project. The MCP server's `optimize` tool takes `images` too.
+- An image named with `--image` converts even when no line names it yet, as a new image the extension converts
+  the moment it arrives: its original goes once no file names it, as any other's, and stays with `--keep-originals`.
+  One that a file names in a way Upfly cannot rewrite is still left as it is. A run over the whole project, or one
+  `--only` names, still converts only images whose references move.
 - An error line about one file names it in `file`: the config written as code with `CODE_CONFIG_NOT_RUN`, the config
   found with `CONFIG_EXISTS` or `V2_EXTENSION_CONFIG`, the instruction file with `UPFLY_BLOCK_UNCLOSED`.
 - A dry run of `optimize`, `dedupe` or `move` lists in `applyRefusals` each of its notes that says what `--apply`

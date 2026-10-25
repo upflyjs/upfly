@@ -81,3 +81,40 @@ describe('upfly optimize --image', () => {
     expect(run.stderr).toContain('../elsewhere.png');
   });
 });
+
+/** The site with one more image, which no file names yet, as a person pastes one. */
+function withNewImage(): string {
+  const root = site();
+  copyFileSync(join(FIXTURES, 'plain-html/images/logo.png'), join(root, 'fresh.png'));
+  commitAll(root);
+  return root;
+}
+
+describe('upfly optimize --image, an image no file names yet', () => {
+  it('converts it, and removes the original, as a paste in the editor wants', () => {
+    const root = withNewImage();
+
+    const run = only(root, '--image', 'fresh.png', '--apply');
+
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(join(root, 'fresh.webp'))).toBe(true);
+    expect(existsSync(join(root, 'fresh.png'))).toBe(false);
+  });
+
+  it('keeps the original with --keep-originals, as an image arriving from outside wants', () => {
+    const root = withNewImage();
+
+    const run = only(root, '--image', 'fresh.png', '--apply', '--keep-originals');
+
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(join(root, 'fresh.webp'))).toBe(true);
+    expect(existsSync(join(root, 'fresh.png'))).toBe(true);
+  });
+
+  it('leaves it as it is under --only, whose pattern a run over the project reads as before', () => {
+    const run = only(withNewImage(), '--only', 'fresh.png');
+
+    expect(run.status, run.stderr).toBe(0);
+    expect((run.result.plan as { conversions: unknown[] }).conversions).toEqual([]);
+  });
+});

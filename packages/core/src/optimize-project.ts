@@ -99,17 +99,26 @@ export interface OptimizeProjectResult {
  */
 export async function optimizeProject(input: OptimizeProjectInput): Promise<OptimizeProjectResult> {
   const only = input.only === undefined ? undefined : namedBy(input.only);
+  const named = input.only?.paths === undefined ? undefined : new Set(input.only.paths);
   const pipeline = await runPipeline({
     root: input.root,
     servingRoots: servingRootsFor(input.declared),
     publicDirs: (servingRoots) => servingRoots.dirs,
     probeOptions: { formats: [input.format] },
-    encodeOnly: (built) => convertibleImages({ ...built, format: input.format }),
+    encodeOnly: (built) =>
+      convertibleImages({
+        ...built,
+        format: input.format,
+        ...(named === undefined ? {} : { named }),
+      }),
     ...(only === undefined ? {} : { measureOnly: only }),
     ...(input.extraIgnores === undefined ? {} : { extraIgnores: input.extraIgnores }),
     ...(input.onProgress === undefined ? {} : { onProgress: input.onProgress }),
   });
-  const result = await optimizeFromPipeline(pipeline, input);
+  const result = await optimizeFromPipeline(pipeline, {
+    ...input,
+    ...(named === undefined ? {} : { named }),
+  });
   if (input.only === undefined || only === undefined) return { pipeline, optimize: result };
   const images = pipeline.graph.assets.map((node) => node.asset.relative);
   return {
@@ -141,6 +150,8 @@ export async function optimizeFromPipeline(
   pipeline: PipelineOutput,
   input: Omit<OptimizeProjectInput, 'root' | 'declared' | 'only' | 'onProgress'> & {
     readonly onProgress?: (event: OptimizeProgress) => void;
+    /** The images `only` names by their exact paths, which convert though nothing links to them. */
+    readonly named?: ReadonlySet<string>;
   },
 ): Promise<OptimizeResult> {
   const { discovery } = pipeline;
@@ -171,6 +182,7 @@ export async function optimizeFromPipeline(
     publicPolicy: input.publicPolicy,
     apply: input.apply,
     ...(input.undoable === undefined ? {} : { undoable: input.undoable }),
+    ...(input.named === undefined ? {} : { named: input.named }),
     runId: input.runId ?? newRunId(new Date()),
     now: input.now ?? (() => new Date().toISOString()),
     ...(input.lock === undefined ? {} : { lock: input.lock }),

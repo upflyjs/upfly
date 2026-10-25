@@ -75,6 +75,12 @@ export interface PlanInput {
    */
   readonly hedged: ReadonlyMap<string, HedgedMention>;
   /**
+   * Assets named by their exact paths, POSIX-relative: one of these converts though nothing
+   * links to it, as a new image an editor names on arrival, unless something names it in a way
+   * Upfly cannot rewrite (`hedged`).
+   */
+  readonly named?: ReadonlySet<string>;
+  /**
    * Assets not to convert because a literal mention of their path would survive the
    * rewrite, each mapped to where the mention is (`file:line`, and a count of any others).
    *
@@ -876,13 +882,14 @@ function measuring(relative: string, input: PlanInput): Measuring {
 /** What `convertibleImages` reads: the plan's input, less the measurements. */
 export type ConvertibleInput = Pick<
   PlanInput,
-  'graph' | 'servingRoots' | 'rootLinkPolicy' | 'format' | 'builds' | 'aliases'
+  'graph' | 'servingRoots' | 'rootLinkPolicy' | 'format' | 'builds' | 'aliases' | 'named'
 >;
 
 /**
  * The images a plan with this input could convert, whatever they measure: those with a
- * reference that would move to the new file. Every other image is declined for a reason no
- * measurement changes, so measuring only these gives the plan every saving it can use.
+ * reference that would move to the new file, and those `named` that nothing links to. Every
+ * other image is declined for a reason no measurement changes, so measuring only these gives
+ * the plan every saving it can use.
  *
  * These are the checks `convertDecision` makes that need no measurement and no other
  * conversion; the plan still declines some of these images, on their measurement, a
@@ -902,7 +909,13 @@ export function convertibleImages(input: ConvertibleInput): ReadonlySet<string> 
   for (const node of input.graph.assets) {
     const relative = node.asset.relative;
     if (withExtension(relative, input.format) === relative) continue;
-    if (node.references.length === 0 || usedByNoMove(node, rules) !== null) continue;
+    if (
+      node.references.length === 0
+        ? !input.named?.has(relative)
+        : usedByNoMove(node, rules) !== null
+    ) {
+      continue;
+    }
     convertible.add(relative);
   }
   return convertible;
@@ -997,21 +1010,25 @@ function whyNothingWouldUseIt(
 
   // A new file has to be one some reference moves to, under either policy: otherwise no
   // visitor downloads fewer bytes, and a saving counted for it would be a saving nobody gets.
-  // An asset nothing links to is the plainest case, with its own sentences.
+  // An asset nothing links to is the plainest case, with its own sentences. One `named` by its
+  // path is the exception: an editor names a new image the moment it arrives, before any line
+  // names it, and the lines written later name the new file.
   if (node.references.length === 0) {
     const hedge = input.hedged.get(relative);
     if (hedge !== undefined) return { reason: namedButUnlinked(hedge) };
-    return {
-      reason: noServingRootFound(input.servingRoots)
-        ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}.`
-        : 'nothing links to it, so converting it would rewrite no reference and gain only bytes',
-    };
+    if (!input.named?.has(relative)) {
+      return {
+        reason: noServingRootFound(input.servingRoots)
+          ? `nothing links to it, and ${NO_WEBSITE_FOLDER}; converting it would gain only bytes. ${NAME_THE_WEBSITE_FOLDER}.`
+          : 'nothing links to it, so converting it would rewrite no reference and gain only bytes',
+      };
+    }
+  } else {
+    // Decided here, before collisions and before any reference is repointed. See "The
+    // transaction" in ARCHITECTURE.md.
+    const unused = usedByNoMove(node, input);
+    if (unused !== null) return { reason: unused };
   }
-
-  // Decided here, before collisions and before any reference is repointed. See "The
-  // transaction" in ARCHITECTURE.md.
-  const unused = usedByNoMove(node, input);
-  if (unused !== null) return { reason: unused };
 
   // A literal mention of the path would outlive the rewrite. `optimize` fills this set only
   // with assets its first plan converted, so none of the checks above declines them here.
@@ -1494,9 +1511,8 @@ export function rewriteRefusal(
  * a property rather than as cases, it covers a pattern (a template or a `+` chain), a
  * literal whose rewrite is refused (the old-path search misses one with an encoded
  * spelling), a path with no extension to change, a path Windows and macOS follow to it
- * whatever its letter case, and an asset nothing links to. The conversion rule declines
- * that last case before it gets here, and it is kept so this rule never depends on that one.
- * See "The transaction" in ARCHITECTURE.md.
+ * whatever its letter case, and an asset nothing links to, unless it is `named`. See "The
+ * transaction" in ARCHITECTURE.md.
  */
 function originalsStillNeeded(
   input: PlanInput,
@@ -1506,14 +1522,16 @@ function originalsStillNeeded(
 ): ReadonlyMap<string, string> {
   const needed = new Map<string, string>();
   for (const node of input.graph.assets) {
-    if (converting.get(node.asset.relative)?.replacesOriginal !== true) continue;
+    const relative = node.asset.relative;
+    if (converting.get(relative)?.replacesOriginal !== true) continue;
     const reason = whyStillNeeded(
       node.references,
       rewritten,
       input.graph.root,
-      inAnotherCase.get(node.asset.relative) ?? [],
+      inAnotherCase.get(relative) ?? [],
+      input.named?.has(relative) === true,
     );
-    if (reason !== null) needed.set(node.asset.relative, reason);
+    if (reason !== null) needed.set(relative, reason);
   }
   return needed;
 }
@@ -1524,10 +1542,11 @@ function whyStillNeeded(
   rewritten: ReadonlyMap<Reference, Repointing>,
   root: string,
   inAnotherCase: readonly Reference[],
+  named: boolean,
 ): string | null {
-  // Unreachable while the conversion rule declines every unlinked asset first. Kept so
-  // this rule never depends on that one: see `originalsStillNeeded`.
-  if (references.length === 0) {
+  // Reached only by an asset named by its path: the conversion rule declines every other
+  // unlinked asset first. Kept all the same, so this rule never depends on that one.
+  if (references.length === 0 && !named) {
     return (
       'converted, but the original was kept: nothing Upfly can see links to it, so no ' +
       'reference moved to the replacement. Upfly removes an original only once every ' +
