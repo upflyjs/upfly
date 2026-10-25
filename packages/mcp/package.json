@@ -1,6 +1,6 @@
 {
   "name": "upfly-mcp",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Upfly's commands as an MCP server, for apps that reach tools only through MCP.",
   "license": "MIT",
   "author": "Rinkal Kumar (https://github.com/ramin-010)",

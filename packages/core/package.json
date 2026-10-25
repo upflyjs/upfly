@@ -1,6 +1,6 @@
 {
   "name": "upfly-core",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Codebase-aware image engine: asset graph, reference detection, and transactional rewriting.",
   "license": "MIT",
   "author": "Rinkal Kumar (https://github.com/ramin-010)",
