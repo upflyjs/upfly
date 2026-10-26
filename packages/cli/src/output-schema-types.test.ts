@@ -55,7 +55,7 @@ import type { TooLargeFinding } from './check.js';
 import type { CheckKind } from './config.js';
 import type { Reason } from './init.js';
 import type { MoveRun, UnfollowedOldPath } from './move.js';
-import type { ConversionAnswer } from './optimize.js';
+import type { ConversionAnswer, RemovalAnswer } from './optimize.js';
 import type { ReferenceAnswer, UnfollowedAnswer, Verdict } from './refs.js';
 import type { Undone } from './undo.js';
 
@@ -582,8 +582,13 @@ describe('the command schemas and the types each command prints agree', () => {
         rewrites: 'required',
         declined: 'required',
         keptOriginals: 'required',
+        removals: 'required',
         refusal: 'required',
       }),
+    );
+    expectFields(
+      at(o, '/definitions/removal'),
+      fields<RemovalAnswer>({ asset: 'required', converted: 'required', inPublicDir: 'required' }),
     );
     expectFields(
       at(o, '/definitions/conversion'),

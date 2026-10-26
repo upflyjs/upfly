@@ -593,6 +593,104 @@ export function optimizeSummary(facts: OptimizeFacts): Summary {
   };
 }
 
+/**
+ * The summary of an `optimize --remove-originals` run, dry or applied: the originals kept
+ * beside their converted files that go, and each named one that stays, with why.
+ */
+export function removeSummary(facts: OptimizeFacts): Summary {
+  const { plan, apply } = facts;
+  const sizes = new Map(facts.graph.assets.map((node) => [node.asset.relative, node.asset.bytes]));
+  const bytes = plan.removals.reduce((sum, removal) => sum + (sizes.get(removal.asset) ?? 0), 0);
+  const served = plan.removals.filter(
+    (removal) => servingRootOf(removal.asset, facts.servingRoots) !== null,
+  ).length;
+  const named = new Set(facts.only ?? []);
+  const stays = plan.declined.filter((entry) => named.has(entry.path));
+
+  const remove: Row = {
+    label: apply ? 'Removed' : 'Remove',
+    value:
+      plan.removals.length === 0
+        ? ['no original']
+        : [count(plan.removals.length, 'original'), `, ${formatBytes(bytes)}`],
+    details:
+      plan.removals.length === 0
+        ? []
+        : [
+            apply
+              ? 'each beside its converted file, which no line in the project named'
+              : 'each beside its converted file, and no line in the project names it',
+            ...(served === 0 || apply
+              ? []
+              : [
+                  `${served} of them ${served === 1 ? 'is' : 'are'} in a folder the site is served from, where a link from outside the project (an email, another site, a CMS) then stops working`,
+                ]),
+          ],
+    key: 'remove',
+    ...(plan.removals.length === 0
+      ? {}
+      : {
+          list: {
+            intro:
+              'Each of these originals stands beside its converted file, which takes its place, and no line in the project names it.',
+            items: plan.removals.map(
+              (removal) =>
+                `${removal.asset}  ${formatBytes(sizes.get(removal.asset) ?? 0)}  replaced by ${removal.converted}`,
+            ),
+          },
+        }),
+  };
+  const keep: Row = {
+    label: apply ? 'Kept' : 'Keep',
+    value:
+      stays.length === 0
+        ? ['no original']
+        : [
+            count(stays.length, 'original'),
+            stays.length === 1 ? ', for the reason below' : ', each for a reason in the full plan',
+          ],
+    details: stays.length === 1 ? stays.map((entry) => `${entry.path}: ${entry.reason}`) : [],
+    key: 'keep',
+    ...(stays.length === 0
+      ? {}
+      : {
+          list: {
+            intro: 'Each of these stays as it is, for the reason given.',
+            items: stays.map((entry) => `${entry.path}  stays: ${entry.reason}`),
+          },
+        }),
+  };
+
+  return {
+    command: 'optimize',
+    mode: apply ? 'applied' : 'dry run',
+    sections: [
+      [remove, keep],
+      noteRows(facts.notes, facts.git),
+      [
+        ...runRows(facts),
+        ...repositoryRows(facts),
+        reportRow('Full plan', facts.file),
+        ...nextRows(facts.next),
+      ],
+    ],
+    closing: removeClosing(facts, bytes),
+    caveats: engineCaveats(facts.report),
+  };
+}
+
+/** The sentence that ends an `optimize --remove-originals` run. */
+function removeClosing(facts: OptimizeFacts, bytes: number): string {
+  const originals = count(facts.plan.removals.length, 'original');
+  if (!facts.apply) {
+    return facts.plan.removals.length === 0
+      ? 'Dry run: no project file was changed, and there is no original to remove.'
+      : `Dry run: no project file was changed. With --apply, ${facts.upfly} optimize would remove ${originals}, ${formatBytes(bytes)}.`;
+  }
+  if (facts.manifest === null) return 'Nothing was written: the plan has nothing to do.';
+  return `Upfly removed ${originals}, ${formatBytes(bytes)}.`;
+}
+
 /** The sentence that ends an `optimize` run: what it would do, or did, with the saving. */
 function optimizeClosing(facts: OptimizeFacts, saved: number): string {
   const converts = count(facts.plan.conversions.length, 'image');

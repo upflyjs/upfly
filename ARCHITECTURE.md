@@ -2186,6 +2186,39 @@ deleting `.upfly/no-undo/` keeps every file as it is. An Upfly older than this n
 that run left them; the files of a run cut off part way are, to it, uncommitted changes like any
 other.
 
+### Removing an original kept beside its converted file
+
+An image that arrives in an editor from outside it, written by an agent in a terminal or a
+download, is converted with its original kept, since a line the agent writes next may name the
+original. That original can go once nothing needs it, and a conversion cannot remove it later: by
+then nothing links to it, and the converted file already stands at the name a conversion would
+write. So `optimize --remove-originals` takes originals named exactly with `--image` and plans
+only their removal (`plan/removals.ts`, pure like the conversion's planner): nothing converts and
+no line is rewritten, not even a path in a comment, which a conversion moves along with the
+references. An editor runs it on its own each time a page is saved, and a line rewritten then,
+under nobody's eyes, is one a person never asked for.
+
+An original goes only when all of these hold, and otherwise stays with the reason:
+
+- **Its converted file is there and is the same picture.** The same path in the run's format, in
+  the graph, whose header reads as that format at the original's size as a viewer shows it and
+  with as many frames. A conversion writes exactly that, so a file that differs is another picture
+  a person made under the same name. A vector is never an original: Upfly converts none.
+- **Nothing names it.** No reference, no framework that reads it by its file name, and an audit
+  that found it `dead`: its name appears in no file Upfly looked through. Any `possibly-dead`
+  evidence keeps it, with where the name is.
+- **The search before a delete finds no line naming it**, the search every run makes before
+  removing an original, over every file, past the run's exclusions; a file it could not read keeps
+  it. The search runs again under the lock just before the write, so a page saved since the read
+  that names it keeps it too; when that leaves nothing to remove, no record is written, since an
+  empty run would take the last run's place.
+
+The write is any run's: the original backed up into the run's folder, then deleted under the lock,
+its record pending before and committed after, so `upfly undo` brings it back and a crash at any
+point is undone from the record. With `--no-undo` it is a run made without undo, as above. The
+converted file is checked at the write as the original is: gone or changed while the original is
+backed up, the run is refused and nothing is removed.
+
 ### Images a build loads
 
 A rewritten reference has to load in whatever resolves it. A browser resolves a path to a file the

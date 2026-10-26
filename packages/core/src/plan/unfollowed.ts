@@ -144,7 +144,8 @@ const BUILT_AT_RUNTIME =
 const DATA_GUESS =
   'a path in data that names no file from where it is written, so the code that reads it decides which file it is';
 const IN_FRONTMATTER = "in a Markdown file's frontmatter, which Upfly does not read";
-const IN_A_COMMENT = 'in a comment, which no page loads';
+/** Where a path written in a comment sits, which no page loads, for a line nothing rewrites. */
+export const IN_A_COMMENT = 'in a comment, which no page loads';
 const IN_COMMENT = `${IN_A_COMMENT}: the path in it is rewritten with the references, and never decides on its own whether the image converts or moves`;
 const IN_CODE_EXAMPLE = 'in a code example, which a page shows rather than loads';
 const EXCLUDED_FILE =

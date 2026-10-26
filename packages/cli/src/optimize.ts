@@ -14,6 +14,7 @@ import {
   type OptimizationPlan,
   type OptimizeProjectResult,
   type PlannedConversion,
+  type PlannedRemoval,
   type PublicPolicy,
   type ServingRoots,
   UpflyError,
@@ -62,7 +63,13 @@ import {
   typedOptions,
   writeReport,
 } from './report-file.js';
-import { type NextStep, nextAfterPlan, nextAfterRun, optimizeSummary } from './summary.js';
+import {
+  type NextStep,
+  nextAfterPlan,
+  nextAfterRun,
+  optimizeSummary,
+  removeSummary,
+} from './summary.js';
 
 /** A reason to stop, with the exit code and, for a refusal, the name `--json` gives it. */
 export interface Refusal {
@@ -117,7 +124,7 @@ export async function runOptimize(options: OptimizeOptions, io: Io): Promise<Exi
     notes: [
       ...start.notes,
       ...notes(options, git, unfinished, upfly),
-      ...onlyNotes(result, only.only),
+      ...onlyNotes(result, only.only, options.removeOriginals),
     ],
     applyRefusals: applyRefusals(options, git, unfinished, upfly),
     started,
@@ -150,6 +157,15 @@ export interface ConversionAnswer extends PlannedConversion {
   readonly inPublicDir: boolean;
 }
 
+/** A removal as `--json` lists it: the plan's, and where its original sits. */
+export interface RemovalAnswer extends PlannedRemoval {
+  /**
+   * The original sits in a folder the site is served from, where a link from outside the
+   * project can name it, and stops working once it goes.
+   */
+  readonly inPublicDir: boolean;
+}
+
 /**
  * Each conversion with whether its original is in a folder the site is served from, by the
  * same test the dry run's count of such originals uses.
@@ -171,11 +187,24 @@ export function withPublicDir(
  * How many images `--only` and `--image` left out, and each pattern or path that named none, on
  * every run.
  */
-function onlyNotes(result: OptimizeProjectResult, only: OnlyImages | null): string[] {
+function onlyNotes(
+  result: OptimizeProjectResult,
+  only: OnlyImages | null,
+  removing: boolean,
+): string[] {
   if (result.only === undefined || only === null) return [];
   const total = result.pipeline.graph.assets.length;
   const named = result.only.images.length;
   const left = total - named;
+  if (removing) {
+    return [
+      `--image named ${named} of ${count(total, 'image')}, each an original to remove, and nothing converts.`,
+      ...result.only.unmatched.map(
+        (unmatched) =>
+          `--image ${unmatched} is not an image in the project, so nothing was removed for it.`,
+      ),
+    ];
+  }
   const flags = [
     ...(only.patterns === undefined ? [] : ['--only']),
     ...(only.paths === undefined ? [] : ['--image']),
@@ -281,7 +310,11 @@ async function carryOut(
       apply: options.apply,
       ...(options.noUndo ? { undoable: false } : {}),
       extraIgnores: [...(settings.exclude ?? []), ...options.exclude],
-      ...(only === null ? {} : { only }),
+      ...(only === null
+        ? {}
+        : options.removeOriginals
+          ? { removeOriginals: only.paths ?? [] }
+          : { only }),
       onProgress: (event) => progress.update(event),
       // Decided on the finished plan, so that a commit that could not hold every file the
       // run writes stops the run before it writes any.
@@ -334,7 +367,13 @@ async function carryOut(
  * @param plan the plan of a dry run or of an applied run, before its first write
  */
 export function planHash(plan: OptimizationPlan): string {
-  const decisions = JSON.stringify({ conversions: plan.conversions, rewrites: plan.rewrites });
+  // Removals only where there are any, so the hash of a plan that converts is the one a
+  // build before them gave.
+  const decisions = JSON.stringify({
+    conversions: plan.conversions,
+    rewrites: plan.rewrites,
+    ...(plan.removals.length === 0 ? {} : { removals: plan.removals }),
+  });
   return createHash('sha256').update(decisions, 'utf8').digest('hex');
 }
 
@@ -659,6 +698,7 @@ function plannedPaths(plan: OptimizationPlan): string[] {
     paths.add(conversion.target);
     if (conversion.replacesOriginal) paths.add(conversion.asset);
   }
+  for (const removal of plan.removals) paths.add(removal.asset);
   for (const rewrite of plan.rewrites) paths.add(rewrite.file);
   return [...paths].sort();
 }
@@ -670,6 +710,16 @@ function ownPath(path: string): boolean {
 
 function commitMessage(manifest: Manifest, plan: OptimizationPlan): string {
   const { created, changed, removed } = writtenByKind(manifest);
+  if (plan.removals.length > 0) {
+    return [
+      'Remove originals kept beside their converted images, with Upfly',
+      '',
+      `Removed ${count(removed.length, 'original')}, each beside its converted file, which no line in the project named.`,
+      '',
+      `${RUN_TRAILER}: ${manifest.runId}`,
+      '',
+    ].join('\n');
+  }
   const references = plan.rewrites.reduce((sum, rewrite) => sum + rewrite.edits.length, 0);
   const saved = plan.conversions.reduce((sum, conversion) => sum + conversion.savedBytes, 0);
   const lines = [
@@ -793,6 +843,12 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
       plan: {
         ...run.plan,
         conversions: withPublicDir(run.plan.conversions, pipeline.servingRoots),
+        removals: run.plan.removals.map(
+          (removal): RemovalAnswer => ({
+            ...removal,
+            inPublicDir: servingRootOf(removal.asset, pipeline.servingRoots) !== null,
+          }),
+        ),
       },
       run:
         run.manifest === null
@@ -812,7 +868,8 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
     return;
   }
 
-  const nothingToDo = run.plan.conversions.length === 0 && run.plan.rewrites.length === 0;
+  const nothingToDo =
+    run.plan.conversions.length + run.plan.rewrites.length + run.plan.removals.length === 0;
   const upfly = upflyCommand(io.env, io.script);
   let next: NextStep | null = null;
   if (options.apply) {
@@ -828,7 +885,7 @@ function write(options: OptimizeOptions, io: Io, result: OptimizeProjectResult, 
     );
   }
   const summary = (file: ReportFile) =>
-    optimizeSummary({
+    (options.removeOriginals ? removeSummary : optimizeSummary)({
       plan: run.plan,
       graph: pipeline.graph,
       probes: pipeline.probes,
@@ -864,6 +921,7 @@ function planFlags(options: OptimizeOptions): string[] {
     ...(options.policy === 'replace' ? ['--replace'] : []),
     ...(options.format === null ? [] : ['--format', options.format]),
     ...scopeWords({ ...options, dir: '.' }),
+    ...(options.removeOriginals ? ['--remove-originals'] : []),
     ...(options.only ?? []).flatMap((pattern) => ['--only', pattern]),
     ...(options.images ?? []).flatMap((path) => ['--image', path]),
   ];

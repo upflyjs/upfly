@@ -52,6 +52,7 @@ export type {
   PlannedRewrite,
   PublicPolicy,
 } from './plan/plan.js';
+export type { PlannedRemoval } from './plan/removals.js';
 export type { Declined, Manifest } from './write/manifest.js';
 
 // Pointing the references to identical copies at one copy.

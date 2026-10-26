@@ -98,6 +98,11 @@ export interface OptimizeOptions extends CommonOptions, ScopeOptions, ReportOpti
    * one image exactly, whatever characters it holds. `null` without the flag.
    */
   readonly images: readonly string[] | null;
+  /**
+   * `--remove-originals`: convert nothing, and remove each image `--image` names that is an
+   * original kept beside its converted file, once no line names it.
+   */
+  readonly removeOriginals: boolean;
 }
 
 export interface UndoOptions extends CommonOptions {
@@ -200,10 +205,11 @@ export const DEFAULT_MAX_ENCODES = 100;
 
 /** The rows `--show` prints, for each command that has a summary, as its rows are named. */
 export const SHOWN_ROWS: Readonly<
-  Record<'audit' | 'optimize' | 'dedupe' | 'move', readonly string[]>
+  Record<'audit' | 'optimize' | 'remove-originals' | 'dedupe' | 'move', readonly string[]>
 > = {
   audit: ['references', 'savings', 'broken', 'unused', 'oversized', 'copies', 'skipped'],
   optimize: ['convert', 'update', 'leave'],
+  'remove-originals': ['remove', 'keep'],
   dedupe: ['sets', 'update', 'leave', 'unused'],
   move: ['move', 'update', 'leave', 'unfollowed', 'refused'],
 };
@@ -265,6 +271,7 @@ const OPTIMIZE = {
   'include-declined': { type: 'boolean' },
   only: { type: 'string', multiple: true },
   image: { type: 'string', multiple: true },
+  'remove-originals': { type: 'boolean' },
 } as const;
 
 const CHECK = {
@@ -630,18 +637,7 @@ function parseOptimize(args: readonly string[]): Parsed {
   const apply = values.apply === true;
   const commit = values.commit === true;
   const allowDirty = values['allow-dirty'] === true;
-  const conflict =
-    policyConflict(values.replace, values['keep-originals']) ??
-    dryRunConflict(values['dry-run'], apply) ??
-    writeFlagConflict(apply, commit, allowDirty) ??
-    (values['no-undo'] === true && !apply
-      ? '--no-undo only changes what --apply does; add --apply'
-      : null) ??
-    (values['expect-plan'] !== undefined && !apply
-      ? '--expect-plan only changes what --apply does; add --apply'
-      : null) ??
-    fullConflict(values.full, values.json) ??
-    showConflict(command, values.show, values.full, values.json);
+  const conflict = optimizeConflict(values, apply, commit, allowDirty);
   if (conflict !== null) return { kind: 'usage-error', command, message: conflict };
 
   return {
@@ -671,13 +667,69 @@ function parseOptimize(args: readonly string[]): Parsed {
       includeUnusedSvg: values['include-unused-svg'] === true,
       only: values.only === undefined ? null : [...values.only],
       images: values.image === undefined ? null : [...values.image],
+      removeOriginals: values['remove-originals'] === true,
       ...scope,
     },
   };
 }
 
+/**
+ * `--remove-originals` converts nothing, so the flags that shape a conversion mean nothing
+ * beside it, and it acts only on the originals `--image` names. Read alone, its name could
+ * pass for the opposite of `--keep-originals`, which is the default: the message says so.
+ */
+function removalConflict(values: {
+  readonly 'remove-originals'?: boolean | undefined;
+  readonly image?: readonly string[] | undefined;
+  readonly only?: readonly string[] | undefined;
+  readonly replace?: boolean | undefined;
+  readonly 'keep-originals'?: boolean | undefined;
+}): string | null {
+  if (values['remove-originals'] !== true) return null;
+  const beside = [
+    ...(values.only === undefined ? [] : ['--only']),
+    ...(values.replace === true ? ['--replace'] : []),
+    ...(values['keep-originals'] === true ? ['--keep-originals'] : []),
+  ];
+  if (beside.length > 0) {
+    return `--remove-originals converts nothing, so it cannot be used with ${beside.join(' or ')}: it removes originals kept beside their converted files, each named with --image <path>`;
+  }
+  if (values.image === undefined) {
+    return '--remove-originals removes originals kept beside their converted files, each named with --image <path>. To convert images and remove each original once its references move, run optimize without --keep-originals';
+  }
+  return null;
+}
+
 function parseOptimizeArgs(args: readonly string[]) {
   return parseArgs({ args: [...args], options: OPTIMIZE, allowPositionals: true, strict: true });
+}
+
+/** The first of `optimize`'s flags that another contradicts or that means nothing alone, or null. */
+function optimizeConflict(
+  values: ReturnType<typeof parseOptimizeArgs>['values'],
+  apply: boolean,
+  commit: boolean,
+  allowDirty: boolean,
+): string | null {
+  return (
+    policyConflict(values.replace, values['keep-originals']) ??
+    dryRunConflict(values['dry-run'], apply) ??
+    writeFlagConflict(apply, commit, allowDirty) ??
+    (values['no-undo'] === true && !apply
+      ? '--no-undo only changes what --apply does; add --apply'
+      : null) ??
+    (values['expect-plan'] !== undefined && !apply
+      ? '--expect-plan only changes what --apply does; add --apply'
+      : null) ??
+    removalConflict(values) ??
+    fullConflict(values.full, values.json) ??
+    showConflict(
+      values['remove-originals'] === true ? 'remove-originals' : 'optimize',
+      values.show,
+      values.full,
+      values.json,
+    )
+  );
 }
 
 /**

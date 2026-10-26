@@ -8,6 +8,7 @@ import { readdirSync } from 'node:fs';
 import ignore from 'ignore';
 import { defaultAdapters } from './adapters/default-adapters.js';
 import { discover } from './discover/discover.js';
+import { compareStrings } from './paths.js';
 import {
   type PipelineOutput,
   type PipelineProgress,
@@ -16,6 +17,7 @@ import {
 } from './pipeline.js';
 import { convertibleImages } from './plan/plan.js';
 import type { PublicPolicy } from './plan/plan.js';
+import { convertedPath } from './plan/removals.js';
 import { createSharpProbe } from './probe/probe-sharp.js';
 import type { EncodeFormat } from './probe/probe.js';
 import { searchScope } from './project-search.js';
@@ -62,6 +64,13 @@ export interface OptimizeProjectInput {
    * an image that is not measured never converts.
    */
   readonly only?: OnlyImages;
+  /**
+   * Originals kept beside their converted files, by exact POSIX path relative to the project,
+   * for a run that removes them and converts nothing. Each goes only when its converted file,
+   * its path in `format`, stands beside it as the same picture and no line in the project
+   * names it; the plan's `declined` says why each other one stays. Not with `only`.
+   */
+  readonly removeOriginals?: readonly string[];
 }
 
 /** Images named by exact path, by pattern, or both. */
@@ -97,7 +106,9 @@ export interface OptimizeProjectResult {
  * @throws {UpflyError} `TRANSACTION_LOCKED` when another run holds the project, and the
  * transaction's other codes when the tree changed under the run
  */
-export async function optimizeProject(input: OptimizeProjectInput): Promise<OptimizeProjectResult> {
+export async function optimizeProject(given: OptimizeProjectInput): Promise<OptimizeProjectResult> {
+  const { removeOriginals, ...input } = given;
+  if (removeOriginals !== undefined) return removeKeptOriginals(input, removeOriginals);
   const only = input.only === undefined ? undefined : namedBy(input.only);
   const named = input.only?.paths === undefined ? undefined : new Set(input.only.paths);
   const pipeline = await runPipeline({
@@ -137,6 +148,47 @@ export async function optimizeProject(input: OptimizeProjectInput): Promise<Opti
 }
 
 /**
+ * `optimizeProject` for a run that removes originals kept beside their converted files. Only
+ * the headers of those originals and of the files beside them are read, since nothing is
+ * encoded; the rest of the project is read as on any run, for every line that names one.
+ */
+async function removeKeptOriginals(
+  input: Omit<OptimizeProjectInput, 'removeOriginals'>,
+  originals: readonly string[],
+): Promise<OptimizeProjectResult> {
+  if (input.only !== undefined) {
+    throw new Error('a run that removes kept originals converts nothing, so it takes no `only`');
+  }
+  const named = new Set(originals);
+  const beside = new Set(originals.map((original) => convertedPath(original, input.format)));
+  const pipeline = await runPipeline({
+    root: input.root,
+    servingRoots: servingRootsFor(input.declared),
+    publicDirs: (servingRoots) => servingRoots.dirs,
+    probeOptions: { formats: [input.format] },
+    encodeOnly: () => new Set(),
+    measureOnly: (relative) => named.has(relative) || beside.has(relative),
+    ...(input.extraIgnores === undefined ? {} : { extraIgnores: input.extraIgnores }),
+    ...(input.onProgress === undefined ? {} : { onProgress: input.onProgress }),
+  });
+  // Whatever the policy, a removal reads every file for a line naming the original.
+  const result = await optimizeFromPipeline(pipeline, {
+    ...input,
+    publicPolicy: 'replace',
+    removeOriginals: named,
+  });
+  const images = new Set(pipeline.graph.assets.map((node) => node.asset.relative));
+  return {
+    pipeline,
+    optimize: result,
+    only: {
+      images: [...named].filter((path) => images.has(path)).sort(compareStrings),
+      unmatched: originals.filter((path) => !images.has(path)),
+    },
+  };
+}
+
+/**
  * The plan, and when asked the write, from a pipeline run that already measured the images:
  * what `optimizeProject` does after its own pipeline. `upfly audit` plans with it on its own
  * measurements, so the savings it states are the ones a dry run of `optimize` would plan.
@@ -148,10 +200,15 @@ export async function optimizeProject(input: OptimizeProjectInput): Promise<Opti
  */
 export async function optimizeFromPipeline(
   pipeline: PipelineOutput,
-  input: Omit<OptimizeProjectInput, 'root' | 'declared' | 'only' | 'onProgress'> & {
+  input: Omit<
+    OptimizeProjectInput,
+    'root' | 'declared' | 'only' | 'onProgress' | 'removeOriginals'
+  > & {
     readonly onProgress?: (event: OptimizeProgress) => void;
     /** The images `only` names by their exact paths, which convert though nothing links to them. */
     readonly named?: ReadonlySet<string>;
+    /** See `OptimizeInput.removeOriginals`. */
+    readonly removeOriginals?: ReadonlySet<string>;
   },
 ): Promise<OptimizeResult> {
   const { discovery } = pipeline;
@@ -183,6 +240,7 @@ export async function optimizeFromPipeline(
     apply: input.apply,
     ...(input.undoable === undefined ? {} : { undoable: input.undoable }),
     ...(input.named === undefined ? {} : { named: input.named }),
+    ...(input.removeOriginals === undefined ? {} : { removeOriginals: input.removeOriginals }),
     runId: input.runId ?? newRunId(new Date()),
     now: input.now ?? (() => new Date().toISOString()),
     ...(input.lock === undefined ? {} : { lock: input.lock }),

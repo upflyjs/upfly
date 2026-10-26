@@ -97,6 +97,7 @@ describe('parseCommandLine', () => {
         includeUnusedSvg: false,
         only: null,
         images: null,
+        removeOriginals: false,
         publicDirs: null,
         exclude: [],
       },
@@ -150,6 +151,7 @@ describe('parseCommandLine', () => {
         includeUnusedSvg: true,
         only: ['images/logo.png', '*.jpg'],
         images: null,
+        removeOriginals: false,
         publicDirs: ['public'],
         exclude: ['drafts/'],
       },
@@ -160,6 +162,56 @@ describe('parseCommandLine', () => {
     expect(parseCommandLine(['optimize', '--apply', '--no-undo'])).toMatchObject({
       options: { apply: true, noUndo: true },
     });
+  });
+
+  it('reads --remove-originals with the images --image names, and the flags beside it', () => {
+    expect(
+      parseCommandLine([
+        'optimize',
+        '--remove-originals',
+        '--image',
+        'images/a.png',
+        '--image',
+        'b.png',
+        '--apply',
+        '--no-undo',
+        '--allow-dirty',
+        '--format',
+        'avif',
+      ]),
+    ).toMatchObject({
+      kind: 'run',
+      options: {
+        removeOriginals: true,
+        images: ['images/a.png', 'b.png'],
+        apply: true,
+        noUndo: true,
+        allowDirty: true,
+        format: 'avif',
+        policy: null,
+        only: null,
+      },
+    });
+    expect(
+      parseCommandLine(['optimize', '--remove-originals', '--image', 'a.png', '--show', 'keep']),
+    ).toMatchObject({ kind: 'run', options: { show: 'keep' } });
+  });
+
+  it.each([
+    [['--remove-originals'], 'each named with --image <path>'],
+    [['--remove-originals', '--apply'], 'run optimize without --keep-originals'],
+    [['--remove-originals', '--image', 'a.png', '--only', 'b.png'], 'cannot be used with --only'],
+    [['--remove-originals', '--image', 'a.png', '--replace'], 'cannot be used with --replace'],
+    [
+      ['--remove-originals', '--image', 'a.png', '--keep-originals'],
+      'cannot be used with --keep-originals',
+    ],
+    [['--remove-originals', '--image', 'a.png', '--show', 'convert'], 'remove or keep'],
+    [['--image', 'a.png', '--show', 'keep'], 'convert, update or leave'],
+  ])('refuses %j as a usage error, saying why', (flags, why) => {
+    const parsed = parseCommandLine(['optimize', ...flags]);
+    expect(parsed).toMatchObject({ kind: 'usage-error', command: 'optimize' });
+    expect((parsed as { message: string }).message).toContain(why);
   });
 
   it('keeps originals with --keep-originals, and reads --dry-run as the preview it already is', () => {

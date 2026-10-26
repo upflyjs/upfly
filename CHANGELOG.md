@@ -1,6 +1,23 @@
 # Changelog
 
-## 3.3.0
+## 3.4.0
+
+A way to remove an original kept beside its converted file once nothing needs it, which the Upfly VS Code extension
+uses for an image that arrives from outside the editor. No command, option or JSON field of 3.3.0 was removed or
+renamed.
+
+### What is new
+
+- `optimize --remove-originals --image <path>` removes an original that an earlier run kept beside its converted
+  file, with `--keep-originals` or as the extension does. I made it for the extension: an image an agent writes from
+  a terminal is converted with its original kept, since the agent may name the original next, and the original can
+  go once nothing needs it. It converts nothing and rewrites no line. An original goes only when its converted file
+  stands beside it as the same picture (the same size and frames), no line in the project names it, a comment
+  included, and the search Upfly makes before every delete finds nothing; otherwise it stays, and the plan says why,
+  such as the page that still names it. The removal is backed up like any run's, so `upfly undo` brings it back, and
+  it takes `--no-undo`, `--commit` and `--expect-plan` as a conversion does. With `--json`, the plan lists what goes
+  in `removals`, each with `inPublicDir`, and what stays in `declined`; every plan now carries `removals`, empty when
+  it converts, and a plan that converts keeps the `planHash` it had.
 
 What the Upfly VS Code extension needs from the CLI to convert new images as they arrive, a way to name an image by
 its exact path, and fields for what a program reading the JSON had to take from sentences. No command, option or JSON

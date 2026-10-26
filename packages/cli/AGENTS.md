@@ -86,6 +86,17 @@ Leave these to the user: `--allow-dirty` (writing over uncommitted changes),
 they arrive).
 Never edit `.upfly/`: it is the record `upfly undo` follows.
 
+## Removing originals kept earlier
+
+An original kept beside its converted file, by `--keep-originals` or by an editor that converts
+new images as they arrive, can go once nothing needs it:
+`npx upfly optimize --remove-originals --image <path>` names each one exactly and converts
+nothing. Its plan, in `--json`, lists in `plan.removals` each original whose converted file
+stands beside it as the same picture and that no line in the project names, and in
+`plan.declined` each other one with the reason, such as a page that still names it. It rewrites
+no line: point such a line at the converted file first. Apply it as any run, with the user's
+yes; `npx upfly undo` brings back what it removed.
+
 ## Moving or renaming an image
 
 Use `npx upfly move <from> <to>` rather than moving the file yourself: it moves an image,

@@ -97,6 +97,11 @@ const RESULT_BRANCHES: readonly (readonly [string, (line: Line) => boolean])[] =
   ['init kept a config', (line) => line.command === 'init' && line.file === null],
   ['optimize --only', (line) => line.command === 'optimize' && line.only !== null],
   ['optimize applied', (line) => line.command === 'optimize' && line.run !== null],
+  [
+    'optimize removing originals',
+    (line) =>
+      line.command === 'optimize' && (line.plan as { removals: unknown[] }).removals.length > 0,
+  ],
   ['dedupe applied', (line) => line.command === 'dedupe' && line.run !== null],
   ['move applied', (line) => line.command === 'move' && line.run !== null],
   [
@@ -303,8 +308,21 @@ describe('every --json line validates against the published schemas', () => {
     );
     expect((applied.run as { created: string[] }).created).toContain('img/banner.webp');
     // An original kept beside its converted file, as --keep-originals asks, shows in the next
-    // audit.
+    // audit, and a later run can remove it.
     result(upfly(['audit', site, '--json', '--public', '.', '--no-probe']));
+    const removal = result(
+      upfly([
+        'optimize',
+        site,
+        '--json',
+        '--public',
+        '.',
+        '--remove-originals',
+        '--image',
+        join(site, 'img/banner.png'),
+      ]),
+    );
+    expect((removal.plan as { removals: unknown[] }).removals).toHaveLength(1);
     result(upfly(['undo', site, '--json']));
   }, 180_000);
 
@@ -516,6 +534,7 @@ describe('every --json line validates against the published schemas', () => {
       'init kept a config',
       'optimize --only',
       'optimize applied',
+      'optimize removing originals',
       'dedupe applied',
       'move applied',
       'refs unfollowed',

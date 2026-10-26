@@ -27,7 +27,7 @@
       "type": "boolean"
     },
     "planHash": {
-      "description": "SHA-256 of the plan's conversions and rewrites, as plan gives them: a dry run's, which optimize --apply --expect-plan takes back to write only that plan, or an applied run's before its first write.",
+      "description": "SHA-256 of the plan's conversions and rewrites, and its removals when it has any, as plan gives them: a dry run's, which optimize --apply --expect-plan takes back to write only that plan, or an applied run's before its first write.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
@@ -69,9 +69,9 @@
       }
     },
     "plan": {
-      "description": "What the run converts and rewrites, and what it decided against. The same with and without --apply.",
+      "description": "What the run converts and rewrites, or with --remove-originals what it removes, and what it decided against. The same with and without --apply.",
       "type": "object",
-      "required": ["conversions", "rewrites", "declined", "keptOriginals", "refusal"],
+      "required": ["conversions", "rewrites", "declined", "keptOriginals", "removals", "refusal"],
       "additionalProperties": false,
       "properties": {
         "conversions": {
@@ -83,8 +83,13 @@
           "type": "array",
           "items": { "$ref": "#/definitions/rewrite" }
         },
+        "removals": {
+          "description": "With --remove-originals: each original named with --image that the run removes, its converted file standing beside it. Empty on a run that converts.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/removal" }
+        },
         "declined": {
-          "description": "Everything the plan decided against, each with its reason.",
+          "description": "Everything the plan decided against, each with its reason: with --remove-originals, each original named with --image that stays.",
           "type": "array",
           "items": {
             "type": "object",
@@ -161,6 +166,23 @@
         },
         "inPublicDir": {
           "description": "true when the original sits in a folder the site is served from, such as public, where a link from outside the project (an email, another site) can name it. With replacesOriginal, such a link stops working once the run applies; the dry run counts these originals. One a build loads is published under a new name with every build, so nothing outside links to it.",
+          "type": "boolean"
+        }
+      }
+    },
+    "removal": {
+      "description": "One original kept beside its converted file, which the run removes: the converted file is the same picture under the same path in the run's format, and no line in the project names the original.",
+      "type": "object",
+      "required": ["asset", "converted", "inPublicDir"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": { "description": "The original.", "type": "string" },
+        "converted": {
+          "description": "The converted file beside it, which takes its place.",
+          "type": "string"
+        },
+        "inPublicDir": {
+          "description": "true when the original sits in a folder the site is served from, such as public, where a link from outside the project (an email, another site) can name it and stops working once it goes.",
           "type": "boolean"
         }
       }

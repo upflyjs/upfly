@@ -79,6 +79,9 @@ pass it with `--public <dir>`.
   it only with the user's yes, which a go-ahead in the task gives, as
   `npx upfly dedupe --apply`, adding `--commit` only when the user asks for a commit; it
   deletes nothing.
+- `npx upfly optimize --remove-originals --image <path>`: plans removing an original an
+  earlier run kept beside its converted file, once no line names it, and converts nothing.
+  Apply it as any run, only with the user's yes; `npx upfly undo` brings it back.
 - `npx upfly init`: writes `upfly.config.json` with the folders the site is served from.
   Show the user the file. `npx upfly init --agents` also points the project's agents at
   Upfly; it keeps a config that exists.

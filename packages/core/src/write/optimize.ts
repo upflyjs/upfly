@@ -38,8 +38,10 @@ import {
   planOptimization,
   withExtraEdits,
 } from '../plan/plan.js';
+import { type PlannedRemoval, planRemovals } from '../plan/removals.js';
 import {
   type CommentMention,
+  IN_A_COMMENT,
   type MentionPlace,
   findUnfollowedLines,
   mentionReader,
@@ -137,6 +139,12 @@ export interface OptimizeInput {
   readonly undoable?: boolean;
   /** Images named by their exact paths, which convert though nothing links to them (`PlanInput`). */
   readonly named?: ReadonlySet<string>;
+  /**
+   * Originals kept beside their converted files, by exact POSIX path, for a run that removes
+   * them rather than converting anything: each one that `planRemovals` lets go and the search
+   * before a delete finds no line naming. A run given this converts nothing.
+   */
+  readonly removeOriginals?: ReadonlySet<string>;
   readonly runId: string;
   readonly now: () => string;
   /**
@@ -227,7 +235,11 @@ async function mentionsThatWouldSurvive(
   /** Filled with the hash of each file's text as the search read it. */
   read?: Map<string, string>,
 ): Promise<Blocked> {
-  const deleting = plan.conversions.filter((conversion) => conversion.replacesOriginal);
+  const replacing = plan.conversions.filter((conversion) => conversion.replacesOriginal);
+  const deleting = [
+    ...replacing,
+    ...plan.removals.map((removal) => ({ asset: removal.asset, target: removal.converted })),
+  ];
   if (deleting.length === 0) {
     return {
       assets: new Map(),
@@ -275,13 +287,15 @@ async function mentionsThatWouldSurvive(
 
   // What kind of place each of these is, read by the parser of the adapter that reads the
   // file, over the few files that hold one. A path inside a comment is rewritten and stops
-  // blocking; every other kind is named in the reason, so a reader knows what to look at.
+  // blocking; every other kind is named in the reason, so a reader knows what to look at. A
+  // run that removes kept originals rewrites no line, so a comment naming one blocks it too.
   const places = await placesOf(occurrences, deleting, input, scope);
   const commentEdits = commentEditsFor({
     comments: places.comments,
-    destinations: new Map(deleting.map((conversion) => [conversion.asset, conversion.target])),
+    destinations: new Map(replacing.map((conversion) => [conversion.asset, conversion.target])),
     servingDirs: input.servingRoots.dirs,
   });
+  const removing = new Set(plan.removals.map((removal) => removal.asset));
   const rewriting = new Set(commentEdits.map((entry) => `${entry.file}\n${entry.edit.start}`));
   const standing = occurrences.filter(
     (survivor) =>
@@ -316,9 +330,7 @@ ${survivor.offset}`),
     if (into === assets) {
       assets.set(conversion.asset, {
         where,
-        kind:
-          places.kinds.get(`${first.file}
-${first.line}`) ?? CANNOT_RULE_OUT,
+        kind: placeKind(places, `${first.file}\n${first.line}`, removing.has(conversion.asset)),
       });
     } else excluded.set(conversion.asset, where);
     namedIn.set(conversion.asset, first.file);
@@ -337,6 +349,22 @@ ${first.line}`) ?? CANNOT_RULE_OUT,
   }
 
   return { assets, excluded, unread, occurrences: standing, namedIn, commentEdits };
+}
+
+/**
+ * What kind of place a line naming an original is, as a reason says it. A comment is said
+ * plainly for an original a run removes, since that run rewrites no comment.
+ *
+ * @param line the file and the line, joined by a newline as `placesOf` keys them
+ * @param removing whether the original is one the run removes rather than converts
+ */
+function placeKind(
+  places: { readonly kinds: ReadonlyMap<string, string>; readonly inComments: ReadonlySet<string> },
+  line: string,
+  removing: boolean,
+): string {
+  if (removing && places.inComments.has(line)) return IN_A_COMMENT;
+  return places.kinds.get(line) ?? CANNOT_RULE_OUT;
 }
 
 /**
@@ -396,10 +424,12 @@ async function placesOf(
   scope: Pick<OptimizeInput, 'files' | 'unread' | 'excludedFiles'>,
 ): Promise<{
   readonly kinds: ReadonlyMap<string, string>;
+  /** The lines among those whose place is a comment, keyed as `kinds` is. */
+  readonly inComments: ReadonlySet<string>;
   readonly comments: readonly CommentMention[];
 }> {
   const files = [...new Set(occurrences.map((survivor) => survivor.file))];
-  if (files.length === 0) return { kinds: new Map(), comments: [] };
+  if (files.length === 0) return { kinds: new Map(), inComments: new Set(), comments: [] };
   const spellings = new Map(
     deleting.map((conversion) => [
       conversion.asset,
@@ -423,13 +453,13 @@ async function placesOf(
     aliases: input.aliases ?? { rules: [], skipped: [] },
   });
   const kinds = new Map<string, string>();
-  for (const line of read.lines)
-    kinds.set(
-      `${line.file}
-${line.line}`,
-      line.why,
-    );
-  return { kinds, comments: read.comments };
+  const inComments = new Set<string>();
+  for (const line of read.lines) {
+    const key = `${line.file}\n${line.line}`;
+    kinds.set(key, line.why);
+    if (line.reason === 'comment') inComments.add(key);
+  }
+  return { kinds, inComments, comments: read.comments };
 }
 
 /**
@@ -452,28 +482,41 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
   const runDir =
     input.undoable === false ? noUndoRunDir(input.runId) : `.upfly/runs/${input.runId}`;
   const hedged = await hedgedMentions(input);
+  const blockedBy = (blocked?: Blocked) =>
+    blocked === undefined
+      ? {}
+      : {
+          blockedByMention: blocked.assets,
+          blockedByExclusion: blocked.excluded,
+          blockedByUnread: blocked.unread,
+        };
 
+  const removing = input.removeOriginals;
   const planWith = (blocked?: Blocked) =>
-    planOptimization({
-      graph: input.graph,
-      probes: input.probes,
-      format: input.format,
-      publicPolicy: input.publicPolicy,
-      hedged,
-      ...(input.named === undefined ? {} : { named: input.named }),
-      servingRoots: input.servingRoots,
-      builds: input.builds,
-      ...(input.aliases === undefined ? {} : { aliases: input.aliases }),
-      ...(input.listDirectory === undefined ? {} : { listDirectory: input.listDirectory }),
-      ...(blocked === undefined
-        ? {}
-        : {
-            blockedByMention: blocked.assets,
-            blockedByExclusion: blocked.excluded,
-            blockedByUnread: blocked.unread,
-          }),
-      ...(input.rootLinkPolicy === undefined ? {} : { rootLinkPolicy: input.rootLinkPolicy }),
-    });
+    removing === undefined
+      ? planOptimization({
+          graph: input.graph,
+          probes: input.probes,
+          format: input.format,
+          publicPolicy: input.publicPolicy,
+          hedged,
+          ...(input.named === undefined ? {} : { named: input.named }),
+          servingRoots: input.servingRoots,
+          builds: input.builds,
+          ...(input.aliases === undefined ? {} : { aliases: input.aliases }),
+          ...(input.listDirectory === undefined ? {} : { listDirectory: input.listDirectory }),
+          ...blockedBy(blocked),
+          ...(input.rootLinkPolicy === undefined ? {} : { rootLinkPolicy: input.rootLinkPolicy }),
+        })
+      : planRemovals({
+          graph: input.graph,
+          audit: input.audit,
+          probes: input.probes,
+          format: input.format,
+          originals: removing,
+          hedged,
+          ...blockedBy(blocked),
+        });
 
   const first = planWith();
 
@@ -512,7 +555,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
     refusal: null,
   };
   if (!input.apply) return unwritten;
-  if (plan.conversions.length === 0 && plan.rewrites.length === 0) return unwritten;
+  if (plan.conversions.length + plan.rewrites.length + plan.removals.length === 0) return unwritten;
   if (input.beforeWrite !== undefined && !(await input.beforeWrite(plan))) return unwritten;
 
   await input.store.createExclusive(FOLDER_GITIGNORE, '*\n');
@@ -536,6 +579,13 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
     try {
       const staged = await stage(plan, runDir, input, staging);
       final = await keepOriginalsNamedSince(plan, staged, runDir, input, readBefore);
+      if (final.operations.length === 0) {
+        // Every original the run was to remove is named by a line written since: nothing is
+        // left to write, and the record of an empty run would take the last run's place.
+        await removeEach(input.store, staging);
+        await input.store.removeDirectory(runDir).catch(() => {});
+        return { ...unwritten, plan: final.plan };
+      }
       await prepare(final.operations, input.store, runDir);
     } catch (error) {
       // Refused before any file in the project was written, so nothing will ever read what
@@ -576,23 +626,34 @@ async function keepOriginalsNamedSince(
   input: OptimizeInput,
   readBefore: ReadonlyMap<string, string>,
 ): Promise<{ readonly plan: OptimizationPlan; readonly operations: readonly PlannedOperation[] }> {
-  if (!plan.conversions.some((conversion) => conversion.replacesOriginal)) {
+  if (
+    !plan.conversions.some((conversion) => conversion.replacesOriginal) &&
+    plan.removals.length === 0
+  ) {
     return { plan, operations };
   }
   const scope = input.listFiles === undefined ? input : await input.listFiles();
   const readNow = new Map<string, string>();
   const blocked = await mentionsThatWouldSurvive(plan, input, scope, readNow);
+  const changed = (file: string) => readBefore.get(file) !== readNow.get(file);
 
   const kept = new Map<string, string>();
   for (const { asset } of plan.conversions) {
-    const why = whyKeptSince(asset, blocked, (file) => readBefore.get(file) !== readNow.get(file));
+    const why = whyKeptSince(asset, blocked, changed, 'while Upfly was converting');
     if (why !== null) kept.set(asset, `converted, but the original was kept: ${why}`);
   }
-  if (kept.size === 0) return { plan, operations };
+  // A removal that no longer happens is a decision against it, with nothing converted.
+  const stays = new Map<string, string>();
+  for (const { asset } of plan.removals) {
+    const why = whyKeptSince(asset, blocked, changed, 'since Upfly read the project');
+    if (why !== null) stays.set(asset, why);
+  }
+  if (kept.size === 0 && stays.size === 0) return { plan, operations };
 
   // Each backup was taken for a delete that no longer happens.
+  const undeleted = (path: string) => kept.has(path) || stays.has(path);
   for (const operation of operations) {
-    if (operation.kind === 'delete' && kept.has(operation.path)) {
+    if (operation.kind === 'delete' && undeleted(operation.path)) {
       await input.store.remove(`${runDir}/${operation.backup}`);
     }
   }
@@ -606,9 +667,14 @@ async function keepOriginalsNamedSince(
         ...plan.keptOriginals,
         ...[...kept].map(([asset, reason]) => ({ asset, reason })),
       ].sort((a, b) => compareStrings(a.asset, b.asset)),
+      removals: plan.removals.filter((removal) => !stays.has(removal.asset)),
+      declined: [
+        ...plan.declined,
+        ...[...stays].map(([path, reason]) => ({ path, line: null, reason })),
+      ].sort((a, b) => compareStrings(a.path, b.path) || compareStrings(a.reason, b.reason)),
     },
     operations: operations.filter(
-      (operation) => !(operation.kind === 'delete' && kept.has(operation.path)),
+      (operation) => !(operation.kind === 'delete' && undeleted(operation.path)),
     ),
   };
 }
@@ -618,22 +684,26 @@ async function keepOriginalsNamedSince(
  *
  * @param changed whether a file's text differs from what the search before the encodes read,
  *   which is true of a file created since, since that search never read it
+ * @param during when such a file was written, as the reason says it
  */
 function whyKeptSince(
   asset: string,
   blocked: Blocked,
   changed: (file: string) => boolean,
+  during: 'while Upfly was converting' | 'since Upfly read the project',
 ): string | null {
   const file = blocked.namedIn.get(asset);
   const written = file !== undefined && changed(file);
-  const since = written ? ', written while Upfly was converting,' : null;
+  const since = written ? `, written ${during},` : null;
   const named = blocked.assets.get(asset);
   if (named !== undefined) {
     // What kind of place it is comes from the graph, which read the project before the
-    // encodes, so it is not claimed for a file written since.
-    return written
-      ? `${named.where} ${MENTION_SURVIVES}${since ?? ''} in a form Upfly cannot rewrite`
-      : `${named.where} ${MENTION_SURVIVES}: ${named.kind}`;
+    // encodes, so it is not claimed for a file written since. A run that removes originals
+    // rewrites nothing, so what it cannot rewrite is not worth saying.
+    if (!written) return `${named.where} ${MENTION_SURVIVES}: ${named.kind}`;
+    return during === 'while Upfly was converting'
+      ? `${named.where} ${MENTION_SURVIVES}${since} in a form Upfly cannot rewrite`
+      : `${named.where} ${MENTION_SURVIVES}, written ${during}`;
   }
   const excluded = blocked.excluded.get(asset);
   if (excluded !== undefined) {
@@ -809,7 +879,45 @@ async function stage(
   const staged = await mapInOrder(plan.conversions, ENCODES_AT_ONCE, (conversion) =>
     stageConversion(conversion, runDir, input, staging, animated),
   );
-  return [...staged.flat(), ...(await editOperations(plan.rewrites, input.store))];
+  const removed: PlannedOperation[] = [];
+  for (const removal of plan.removals) {
+    removed.push(await stageRemoval(removal, runDir, input, staging));
+  }
+  return [...staged.flat(), ...removed, ...(await editOperations(plan.rewrites, input.store))];
+}
+
+/**
+ * The backup and the delete of an original kept beside its converted file. The converted file
+ * has to be there, unchanged while the original is backed up, or the run is refused: it is
+ * what the original is removed for.
+ */
+async function stageRemoval(
+  removal: PlannedRemoval,
+  runDir: string,
+  input: OptimizeInput,
+  staging: string[],
+): Promise<PlannedOperation> {
+  const original = await input.store.hash(removal.asset);
+  if (original === null) {
+    throw originalMoved(removal.asset, 'was removed after Upfly read the project');
+  }
+  const converted = await input.store.hash(removal.converted);
+  if (converted === null) {
+    throw originalMoved(removal.converted, 'was removed after Upfly read the project');
+  }
+  const backup = `backup/${removal.asset}`;
+  staging.push(`${runDir}/${backup}`);
+  await unlessOriginalMoved(
+    input.store,
+    removal.asset,
+    original,
+    () => input.store.copy(removal.asset, `${runDir}/${backup}`),
+    'while Upfly was removing it',
+  );
+  if ((await input.store.hash(removal.converted)) !== converted) {
+    throw originalMoved(removal.converted, 'changed while Upfly was removing its original');
+  }
+  return { kind: 'delete', path: removal.asset, beforeHash: original, backup };
 }
 
 /** One conversion's encode, and its original's backup when the original is removed. */
@@ -877,6 +985,7 @@ async function unlessOriginalMoved(
   path: string,
   expected: string,
   step: () => Promise<unknown>,
+  during = 'while Upfly was converting it',
 ): Promise<void> {
   let failure: { error: unknown } | null = null;
   try {
@@ -886,10 +995,7 @@ async function unlessOriginalMoved(
   }
   const now = await store.hash(path);
   if (now !== expected) {
-    throw originalMoved(
-      path,
-      `${now === null ? 'was removed' : 'changed'} while Upfly was converting it`,
-    );
+    throw originalMoved(path, `${now === null ? 'was removed' : 'changed'} ${during}`);
   }
   if (failure !== null) throw failure.error;
 }

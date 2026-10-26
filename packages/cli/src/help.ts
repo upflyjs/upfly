@@ -105,7 +105,7 @@ Options:
   --format <webp|avif>   The format to convert to (default webp)
   --full                 Print the full plan instead of the summary
   --show <row>           Print one row of the summary with its complete list: convert,
-                         update or leave
+                         update or leave, or with --remove-originals remove or keep
   --only <pattern>       Convert only the matching images, in .gitignore syntax relative to
                          the project, such as images/logo.png or *.jpg; repeatable. The
                          whole project is still read, as on any run
@@ -113,6 +113,11 @@ Options:
                          characters it holds (brackets, spaces), even one no line names
                          yet; read from the current folder, and repeatable. Beside
                          --only, either may name an image
+  --remove-originals     Convert nothing: remove each original named with --image that an
+                         earlier run kept beside its converted file, as --keep-originals
+                         does, once no line in the project names it. Each one that stays
+                         is listed with the reason; upfly undo brings back what goes,
+                         unless the run is made with --no-undo
   --public <dir>         A folder the site is served from, such as public; repeat it for
                          several, and use . for the project root itself
   --exclude <pattern>    Leave matching paths out, in .gitignore syntax; repeatable

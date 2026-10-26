@@ -25,6 +25,7 @@ import type { ScannedText } from '../scan/scan.js';
 import type { Asset, Edit, RawReference, Reference } from '../types.js';
 import type { Declined } from '../write/manifest.js';
 import { type Build, type ProjectBuilds, buildOf } from './builds.js';
+import type { PlannedRemoval } from './removals.js';
 
 /** What happens to the original when a public asset is converted. */
 export type PublicPolicy =
@@ -330,6 +331,11 @@ export interface OptimizationPlan {
    */
   readonly keptOriginals: readonly KeptOriginal[];
   /**
+   * The originals kept beside their converted files that a run removes, as `planRemovals`
+   * plans them. Empty on a run that converts.
+   */
+  readonly removals: readonly PlannedRemoval[];
+  /**
    * Set when the planner refused to plan anything, and null on an ordinary run.
    *
    * A caller that writes must check this. When it is set, every list in the plan is empty,
@@ -384,6 +390,7 @@ export function planOptimization(input: PlanInput): OptimizationPlan {
       rewrites: [],
       declined: [],
       keptOriginals: [],
+      removals: [],
       refusal: {
         code: 'serving-root-unknown',
         reason,
@@ -450,6 +457,7 @@ export function planOptimization(input: PlanInput): OptimizationPlan {
     // made, so an asset `vetoCollisions` withdrew cannot claim a kept original for a file
     // that never converted.
     keptOriginals: keptOriginals(repointed.conversions, repointed.stillNeeded, input),
+    removals: [],
     refusal: null,
   };
 }
