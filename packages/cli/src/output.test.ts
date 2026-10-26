@@ -239,6 +239,14 @@ describe('progressReporter', () => {
     for (const progress of [run, plan, lookup]) progress.clear();
   });
 
+  it('says what an applied removal of kept originals removes once it has planned', () => {
+    const { io, err } = capture(true);
+    const progress = progressReporter(io, 'optimize', false, true);
+    progress.update({ stage: 'planned', conversions: 0, rewrites: 0, removals: 2 });
+    expect(err).toEqual(['\r\u001b[2Kremoving 2 originals']);
+    progress.clear();
+  });
+
   it('describes a stage it does not know as the engine counts it', () => {
     const { io, err } = capture(true);
     const progress = progressReporter(io, 'audit', false);

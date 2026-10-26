@@ -1020,6 +1020,7 @@ describe('the command schemas and the types each command prints agree', () => {
         stage: 'required',
         conversions: 'required',
         rewrites: 'required',
+        removals: 'optional',
       }),
       written: fields<StageOf<'written'>>({ stage: 'required', files: 'required' }),
     };

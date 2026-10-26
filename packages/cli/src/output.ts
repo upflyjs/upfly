@@ -288,6 +288,7 @@ function describeProgress(event: ProgressEvent, command: CommandName, apply: boo
     case 'planned':
       if (command === 'refs') return 'searching every file';
       if (command !== 'optimize' || !apply) return 'writing the plan';
+      if (event.removals !== undefined) return `removing ${counted(event.removals, 'original')}`;
       return `converting ${counted(event.conversions, 'image')} and updating ${counted(event.rewrites, 'reference')}`;
     case 'written':
       return 'finishing';

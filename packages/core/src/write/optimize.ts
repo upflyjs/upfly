@@ -169,8 +169,16 @@ export interface OptimizeInput {
 
 /** One stage of an `optimize` run finished. The numbers say what that stage counted. */
 export type OptimizeProgress =
-  /** The decisions are made: images to convert, and files whose references move. */
-  | { readonly stage: 'planned'; readonly conversions: number; readonly rewrites: number }
+  /**
+   * The decisions are made: images to convert, and files whose references move; on a run that
+   * removes kept originals, how many it removes.
+   */
+  | {
+      readonly stage: 'planned';
+      readonly conversions: number;
+      readonly rewrites: number;
+      readonly removals?: number;
+    }
   /** An applied run finished writing: project files created, rewritten or removed. */
   | { readonly stage: 'written'; readonly files: number };
 
@@ -542,6 +550,7 @@ export async function optimize(input: OptimizeInput): Promise<OptimizeResult> {
     stage: 'planned',
     conversions: plan.conversions.length,
     rewrites: plan.rewrites.length,
+    ...(removing === undefined ? {} : { removals: plan.removals.length }),
   });
 
   // A dry run stops here, with every decision made and no byte written. It does not

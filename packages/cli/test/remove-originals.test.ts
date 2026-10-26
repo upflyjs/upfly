@@ -102,6 +102,14 @@ describe('upfly optimize --remove-originals', () => {
     });
     expect(answer.only).toEqual({ images: [PNG], unmatched: [] });
     expect(answer.run).toBeNull();
+    expect(jsonLines(plan.stdout)).toContainEqual({
+      type: 'progress',
+      command: 'optimize',
+      stage: 'planned',
+      conversions: 0,
+      rewrites: 0,
+      removals: 1,
+    });
     expect(snapshot(root, ['.git'])).toEqual(before);
   }, 120_000);
 
@@ -243,7 +251,9 @@ describe('upfly optimize --remove-originals', () => {
     );
 
     expect(refused.status).toBe(3);
-    expect(result(refused.stdout)).toMatchObject({ reason: 'PLAN_CHANGED' });
+    const answer = result(refused.stdout);
+    expect(answer).toMatchObject({ reason: 'PLAN_CHANGED' });
+    expect(String(answer.message)).toContain('nothing was written: it now removes 0 originals.');
     expect(existsSync(join(root, PNG))).toBe(true);
   }, 120_000);
 

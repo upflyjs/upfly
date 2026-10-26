@@ -321,7 +321,7 @@ async function carryOut(
       ...(options.commit || options.expectPlan !== null
         ? {
             beforeWrite: (plan: OptimizationPlan) => {
-              uncommitted = otherPlan(plan, options.expectPlan);
+              uncommitted = otherPlan(plan, options.expectPlan, options.removeOriginals);
               if (uncommitted === null && options.commit) {
                 uncommitted = uncommittable(root, plannedPaths(plan));
               }
@@ -356,12 +356,16 @@ async function carryOut(
   // another plan all the same.
   const written = result.optimize.manifest !== null;
   return (
-    uncommitted ?? (written ? null : otherPlan(result.optimize.plan, options.expectPlan)) ?? result
+    uncommitted ??
+    (written
+      ? null
+      : otherPlan(result.optimize.plan, options.expectPlan, options.removeOriginals)) ??
+    result
   );
 }
 
 /**
- * The hash of a plan's decisions: what it converts and what it rewrites, as the JSON gives them.
+ * The hash of a plan's decisions: what it converts, rewrites and removes, as the JSON gives them.
  * `--expect-plan` takes it back, so an apply writes only the plan its caller read.
  *
  * @param plan the plan of a dry run or of an applied run, before its first write
@@ -377,13 +381,24 @@ export function planHash(plan: OptimizationPlan): string {
   return createHash('sha256').update(decisions, 'utf8').digest('hex');
 }
 
-/** Why this run must not write, when `--expect-plan` named another plan; null when it did not. */
-function otherPlan(plan: OptimizationPlan, expected: string | null): Refusal | null {
+/**
+ * Why this run must not write, when `--expect-plan` named another plan; null when it did not.
+ *
+ * @param removing whether the run removes kept originals, which converts and rewrites nothing
+ */
+function otherPlan(
+  plan: OptimizationPlan,
+  expected: string | null,
+  removing: boolean,
+): Refusal | null {
   if (expected === null || planHash(plan) === expected) return null;
+  const now = removing
+    ? `removes ${count(plan.removals.length, 'original')}`
+    : `converts ${count(plan.conversions.length, 'image')} and rewrites references in ${count(plan.rewrites.length, 'file')}`;
   return {
     code: EXIT_CODES.ABORTED,
     reason: 'PLAN_CHANGED',
-    message: `This plan is not the one --expect-plan names, so nothing was written: it now converts ${count(plan.conversions.length, 'image')} and rewrites references in ${count(plan.rewrites.length, 'file')}. A file changed since that plan was made, or it was made with other options. Run optimize without --apply to read the plan as it is now.`,
+    message: `This plan is not the one --expect-plan names, so nothing was written: it now ${now}. A file changed since that plan was made, or it was made with other options. Run optimize without --apply to read the plan as it is now.`,
   };
 }
 

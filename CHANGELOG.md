@@ -16,8 +16,9 @@ renamed.
   included, and the search Upfly makes before every delete finds nothing; otherwise it stays, and the plan says why,
   such as the page that still names it. The removal is backed up like any run's, so `upfly undo` brings it back, and
   it takes `--no-undo`, `--commit` and `--expect-plan` as a conversion does. With `--json`, the plan lists what goes
-  in `removals`, each with `inPublicDir`, and what stays in `declined`; every plan now carries `removals`, empty when
-  it converts, and a plan that converts keeps the `planHash` it had.
+  in `removals`, each with `inPublicDir`, and what stays in `declined`, and the `planned` progress line counts what
+  goes in `removals` too; every plan now carries `removals`, empty when it converts, and a plan that converts keeps
+  the `planHash` it had.
 
 What the Upfly VS Code extension needs from the CLI to convert new images as they arrive, a way to name an image by
 its exact path, and fields for what a program reading the JSON had to take from sentences. No command, option or JSON

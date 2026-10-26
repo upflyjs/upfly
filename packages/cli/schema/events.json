@@ -93,7 +93,12 @@
             "command": { "$ref": "#/definitions/command" },
             "stage": { "const": "planned" },
             "conversions": { "$ref": "#/definitions/count" },
-            "rewrites": { "$ref": "#/definitions/count" }
+            "rewrites": { "$ref": "#/definitions/count" },
+            "removals": {
+              "description": "With optimize --remove-originals: how many originals kept beside their converted files the run removes. Absent on a run that converts.",
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         {
