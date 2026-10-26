@@ -20,6 +20,8 @@ renamed.
   goes in `removals` too; every plan now carries `removals`, empty when it converts, and a plan that converts keeps
   the `planHash` it had.
 
+## 3.3.0
+
 What the Upfly VS Code extension needs from the CLI to convert new images as they arrive, a way to name an image by
 its exact path, and fields for what a program reading the JSON had to take from sentences. No command, option or JSON
 field of 3.2.0 was removed or renamed.
